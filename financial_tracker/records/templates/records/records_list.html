@@ -1,0 +1,43 @@
+{% extends "records/base.html" %}
+
+{% block title %}Lista de Registros Financieros{% endblock %}
+
+{% block content %}
+    <h1>Registros Financieros</h1>
+    {% if records %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Hora</th>
+                    <th># Comprobante</th>
+                    <th>Banco Llegada</th>
+                    <th>Valor</th>
+                    <th>Cliente</th>
+                    <th>Vendedor</th>
+                    <th>Status</th>
+                    <th># Factura</th>
+                    <th>Facturador</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                    <tr>
+                        <td>{{ record.fecha|date:"d/m/Y" }}</td>
+                        <td>{{ record.hora|time:"H:i:s" }}</td>
+                        <td>{{ record.comprobante }}</td>
+                        <td>{{ record.banco_llegada }}</td>
+                        <td>{{ record.valor }}</td>
+                        <td>{{ record.cliente }}</td>
+                        <td>{{ record.vendedor }}</td>
+                        <td>{{ record.status }}</td>
+                        <td>{{ record.numero_factura }}</td>
+                        <td>{{ record.facturador }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No hay registros financieros para mostrar.</p>
+    {% endif %}
+{% endblock %}
