@@ -19,6 +19,7 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('social/', include('social_django.urls', namespace='social')),
     path('records/', include('records.urls')), # Incluye las URLs de nuestra app records
     path('', include('records.urls')), # Opcional: para que la raíz redirija a alguna de tus vistas
 ]

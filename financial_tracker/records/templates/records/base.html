@@ -23,9 +23,15 @@
 </head>
 <body>
     <div class="navbar">
-        <a href="{% url 'record_list' %}">Ver Registros</a>
-        <a href="{% url 'record_create' %}">Nuevo Registro</a>
-        {# <a href="{% url 'csv_upload' %}">Cargar CSV</a> #} {# Añadiremos esta URL más tarde #}
+        {% if user.is_authenticated %}
+            <span>Bienvenido, {{ user.email }}</span>
+            <a href="{% url 'record_list' %}">Ver Registros</a>
+            <a href="{% url 'record_create' %}">Nuevo Registro</a>
+            {% if user.is_superuser %}
+                <a href="{% url 'csv_upload' %}">Cargar CSV</a>
+            {% endif %}
+            <a href="{% url 'logout' %}">Cerrar Sesión</a>
+        {% endif %}
     </div>
 
     {% if messages %}

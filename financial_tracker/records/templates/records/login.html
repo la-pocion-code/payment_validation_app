@@ -1,0 +1,9 @@
+{% extends 'records/base.html' %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+    <h2>Iniciar Sesión</h2>
+    <p>Por favor, inicia sesión con tu cuenta de Google.</p>
+    <a href="{% url 'social:begin' 'google-oauth2' %}" class="submit-btn">Iniciar sesión con Google</a>
+{% endblock %}

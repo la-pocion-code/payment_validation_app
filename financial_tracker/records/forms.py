@@ -47,5 +47,5 @@ class FinancialRecordForm(forms.ModelForm):
                 )
         return cleaned_data
     
-# class CSVUploadForm(forms.Form):
-#     csv_file = forms.FileField(label="Seleccionar archivo CSV")
+class CSVUploadForm(forms.Form):
+    csv_file = forms.FileField(label="Seleccionar archivo CSV")
