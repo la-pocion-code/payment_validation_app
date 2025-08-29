@@ -1,44 +1,21 @@
 import csv
 from io import TextIOWrapper
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from django.db import IntegrityError, transaction # transaction para operaciones atómicas
-from django.urls import reverse
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.messages.views import SuccessMessageMixin
+from django.urls import reverse_lazy
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
+from django.db import IntegrityError, transaction
 from datetime import datetime
-from django.core.exceptions import ValidationError as DjangoValidationError # Renombra para evitar conflicto
-from django.shortcuts import render, redirect, get_object_or_404
+from .filters import FinancialRecordFilter
+from django_filters.views import FilterView
 from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm
 from .models import FinancialRecord
-
-@login_required
-def record_update_view(request, pk):
-    record = get_object_or_404(FinancialRecord, pk=pk)
-    
-    # Pre-calculate history changes in the view
-    history = record.history.all()
-    for h in history:
-        if h.prev_record:
-            h.delta = h.diff_against(h.prev_record)
-
-    if request.method == 'POST':
-        form = FinancialRecordUpdateForm(request.POST, instance=record, user=request.user)
-        if form.is_valid():
-            form.save()
-            messages.success(request, '¡Registro actualizado exitosamente!')
-            return redirect('record_list')
-    else:
-        form = FinancialRecordUpdateForm(instance=record, user=request.user)
-    
-    context = {
-        'form': form,
-        'title': 'Editar Registro',
-        'history': history
-    }
-    return render(request, 'records/records_form.html', context)
-
-
+from .filters import FinancialRecordFilter
+# --- Vistas de Autenticación y Páginas Estáticas (pueden permanecer como funciones) ---
 
 def login_view(request):
     return render(request, 'records/login.html')
@@ -47,58 +24,80 @@ def logout_view(request):
     logout(request)
     return redirect('login')
 
-@login_required
-def record_create_view(request):
-    form = FinancialRecordForm() # Inicializa el formulario fuera del POST para el GET request
+# --- Vistas Basadas en Clases para el CRUD de FinancialRecord ---
 
-    if request.method == 'POST':
-        form = FinancialRecordForm(request.POST) # Instancia el formulario con los datos POST
-        if form.is_valid():
-            try:
-                record = form.save(commit=False) # No guarda aún, permite validaciones extra si fuera necesario
-                record.save()
-                messages.success(request, '¡Registro financiero guardado exitosamente!')
-                return redirect('record_list') # Redirige a una lista de registros (la crearemos más tarde)
-            except IntegrityError:
-                # Este error se captura si la validación a nivel de formulario falló,
-                # o si la BD (por alguna razón) es la primera en detectar el duplicado.
-                messages.error(request, 'Error: Ya existe un registro con los mismos datos clave (Fecha, Hora, # Comprobante, Banco Llegada, Valor).')
-            except Exception as e:
-                messages.error(request, f'Ocurrió un error inesperado al guardar el registro: {e}')
-        else:
-            # Los errores de validación del formulario (incluyendo el de duplicidad custom)
-            # se añadirán automáticamente al formulario y se mostrarán en la plantilla.
-            messages.error(request, 'Por favor, corrige los errores en el formulario.')
+class RecordListView(LoginRequiredMixin, ListView):
+    model = FinancialRecord
+    template_name = 'records/records_list.html'
+    context_object_name = 'records'
+    ordering = ['-fecha', '-hora']
 
-    # Para requests GET o si el formulario no es válido en POST
-    context = {
-        'form': form,
-        'title': 'Crear Registro'
-    }
-    return render(request, 'records/records_form.html', context)
+class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = FinancialRecord
+    form_class = FinancialRecordForm
+    template_name = 'records/records_form.html'
+    success_url = reverse_lazy('record_list')
+    success_message = "¡Registro financiero guardado exitosamente!"
 
-@login_required
-def record_list_view(request):
-    records = FinancialRecord.objects.all().order_by('-fecha', '-hora')
-    context = {'records': records}
-    return render(request, 'records/records_list.html', context)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Registro'
+        return context
 
-@login_required
-def record_delete_view(request, pk):
-    record = get_object_or_404(FinancialRecord, pk=pk)
-    if not request.user.is_superuser:
-        messages.error(request, 'No tienes permisos para eliminar registros.')
-        return redirect('record_list')
-    
-    if request.method == 'POST':
-        record.delete()
-        messages.success(request, '¡Registro eliminado exitosamente!')
-        return redirect('record_list')
-    
-    context = {
-        'record': record
-    }
-    return render(request, 'records/record_confirm_delete.html', context)
+class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = FinancialRecord
+    form_class = FinancialRecordUpdateForm
+    template_name = 'records/records_form.html'
+    success_url = reverse_lazy('record_list')
+    success_message = "¡Registro actualizado exitosamente!"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Registro'
+        # Pre-calculate history changes in the view
+        history = self.object.history.all()
+        for h in history:
+            if h.prev_record:
+                h.delta = h.diff_against(h.prev_record)
+        context['history'] = history
+        return context
+
+class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = FinancialRecord
+    template_name = 'records/record_confirm_delete.html'
+    success_url = reverse_lazy('record_list')
+    success_message = "¡Registro eliminado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def form_valid(self, form):
+        messages.success(self.request, self.success_message)
+        return super().form_valid(form)
+
+class FinancialRecordListView(FilterView):
+    model = FinancialRecord
+    template_name = 'records/lista_registros.html'
+    filterset_class = FinancialRecordFilter
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return queryset.order_by('-creado')
+
+    def get_filterset_kwargs(self, filterset_class):
+        kwargs = super().get_filterset_kwargs(filterset_class)
+        if kwargs['data'] is None:
+            kwargs['data'] = {'status': 'Pendiente'}
+        return kwargs
+
+
+# --- Vistas para Historial y Restauración (pueden permanecer como funciones) ---
 
 @login_required
 def history_record_view(request, pk):
@@ -119,10 +118,8 @@ def restore_delete_record_view(request, history_id):
     history_record = get_object_or_404(FinancialRecord.history, history_id=history_id)
     if not request.user.is_superuser:
         messages.error(request, 'No tienes permisos para restaurar registros.')
-        # Redirige al historial del registro específico
         return redirect('historial_registro', pk=history_record.instance.pk)
 
-    # Restaura la instancia a este punto del historial
     history_record.instance.save()
     messages.success(request, f'Registro restaurado exitosamente a la versión del {history_record.history_date}.')
     return redirect('historial_registro', pk=history_record.instance.pk)
@@ -138,6 +135,8 @@ def deleted_records_view(request):
         'deleted_records': deleted_records
     }
     return render(request, 'records/deleted_records_list.html', context)
+
+# --- Vista de Carga CSV (se mantiene como función por su complejidad) ---
 
 @login_required
 def csv_upload_view(request):
@@ -271,7 +270,6 @@ def csv_upload_view(request):
             
             # Puedes redirigir a una página de resumen o a la lista de registros
             return redirect('record_list')
-
     else:
         form = CSVUploadForm()
 

@@ -1,0 +1,62 @@
+{% extends 'records/base.html' %}
+
+{% block title %}Registros Financieros{% endblock %}
+
+{% block content %}
+<h2>Registros Pendientes</h2>
+
+<form method="get">
+    {{ filter.form.as_p }}
+    <button type="submit">Filtrar</button>
+    <a href="{% url 'record_list' %}">Limpiar filtros</a>
+</form>
+
+<table border="1">
+    <thead>
+        <tr>
+            <th>Fecha</th>
+            <th>Comprobante</th>
+            <th>Banco</th>
+            <th>Valor</th>
+            <th>Cliente</th>
+            <th>Vendedor</th>
+            <th>Facturador</th>
+            <th>Status</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for registro in object_list %}
+        <tr>
+            <td>{{ registro.fecha }}</td>
+            <td>{{ registro.comprobante }}</td>
+            <td>{{ registro.banco_llegada }}</td>
+            <td>{{ registro.valor }}</td>
+            <td>{{ registro.cliente }}</td>
+            <td>{{ registro.vendedor }}</td>
+            <td>{{ registro.facturador }}</td>
+            <td>{{ registro.status }}</td>
+            <td>
+                <a href="{% url 'record_update' registro.pk %}">Editar</a>
+                <a href="{% url 'record_delete' registro.pk %}">Eliminar</a>
+                <a href="{% url 'historial_registro' registro.pk %}">Historial</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9">No hay registros pendientes.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if is_paginated %}
+  <div>
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&amp;{{ key }}={{ value }}{% endif %}{% endfor %}">Anterior</a>
+    {% endif %}
+    <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&amp;{{ key }}={{ value }}{% endif %}{% endfor %}">Siguiente</a>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -21,6 +21,8 @@ class FinancialRecord(models.Model):
     numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
     facturador = models.CharField(max_length=100, blank=True, null=True, default=None)
     history = HistoricalRecords()
+    creado = models.DateTimeField(auto_now_add=True)
+    modificado = models.DateTimeField(auto_now=True)
 
     class Meta:
         # Define la combinación única de campos

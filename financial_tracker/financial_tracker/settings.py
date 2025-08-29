@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'records',
     'social_django',
     'simple_history',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
