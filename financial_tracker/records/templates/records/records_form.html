@@ -1,9 +1,9 @@
 {% extends "records/base.html" %}
 
-{% block title %}Nuevo Registro Financiero{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-    <h1>Ingresar Nuevo Registro Financiero</h1>
+    <h1>{{ title }}</h1>
     <form method="post">
         {% csrf_token %}
         {{ form.non_field_errors }} {# Errores generales del formulario #}
@@ -25,4 +25,37 @@
         {% endfor %}
         <button type="submit" class="submit-btn">Guardar Registro</button>
     </form>
+
+    {% if history %}
+    <hr>
+    <h2>Historial de Cambios</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Usuario</th>
+                <th>Tipo</th>
+                <th>Cambios</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in history %}
+                <tr>
+                    <td>{{ record.history_date }}</td>
+                    <td>{{ record.history_user }}</td>
+                    <td>{{ record.get_history_type_display }}</td>
+                    <td>
+                        {% if record.history_type == '~' and record.delta %}
+                            <ul>
+                                {% for change in record.delta.changes %}
+                                    <li><strong>{{ change.field }}:</strong> de '{{ change.old }}' a '{{ change.new }}'</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
 {% endblock %}

@@ -18,6 +18,7 @@
                     <th>Status</th>
                     <th># Factura</th>
                     <th>Facturador</th>
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -33,6 +34,13 @@
                         <td>{{ record.status }}</td>
                         <td>{{ record.numero_factura }}</td>
                         <td>{{ record.facturador }}</td>
+                        <td>
+                            <a href="{% url 'record_update' record.pk %}">Editar</a> |
+                            <a href="{% url 'historial_registro' record.pk %}">Historial</a>
+                            {% if user.is_superuser %}
+                                | <a href="{% url 'record_delete' record.pk %}" style="color: red;">Eliminar</a>
+                            {% endif %}
+                        </td>
                     </tr>
                 {% endfor %}
             </tbody>

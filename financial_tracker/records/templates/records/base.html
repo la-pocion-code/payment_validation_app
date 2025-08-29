@@ -29,6 +29,7 @@
             <a href="{% url 'record_create' %}">Nuevo Registro</a>
             {% if user.is_superuser %}
                 <a href="{% url 'csv_upload' %}">Cargar CSV</a>
+                <a href="{% url 'deleted_records_list' %}">Ver Eliminados</a>
             {% endif %}
             <a href="{% url 'logout' %}">Cerrar Sesión</a>
         {% endif %}

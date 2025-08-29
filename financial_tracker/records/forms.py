@@ -6,23 +6,14 @@ from .models import FinancialRecord
 class FinancialRecordForm(forms.ModelForm):
     class Meta:
         model = FinancialRecord
-        fields = '__all__' # Incluye todos los campos del modelo
+        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'cliente']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time'}),
         }
 
     def clean(self):
-        # Llama a la validación base del formulario (incluyendo unique_together)
         cleaned_data = super().clean()
-
-        # Si ya existe un error de unique_together, no es necesario hacer la consulta.
-        # Django maneja esto automáticamente a nivel de base de datos cuando se guarda.
-        # Sin embargo, podemos agregar una verificación aquí para un mensaje más amigable
-        # antes de intentar guardar y que la DB lance la excepción.
-
-        # Esta es una validación adicional a nivel de formulario para un mensaje más directo.
-        # La validación a nivel de BD con unique_together es la que asegura la integridad.
         fecha = cleaned_data.get('fecha')
         hora = cleaned_data.get('hora')
         comprobante = cleaned_data.get('comprobante')
@@ -30,7 +21,6 @@ class FinancialRecordForm(forms.ModelForm):
         valor = cleaned_data.get('valor')
 
         if fecha and hora and comprobante and banco_llegada and valor:
-            # Excluye el propio objeto si estamos actualizando
             qs = FinancialRecord.objects.filter(
                 fecha=fecha,
                 hora=hora,
@@ -38,7 +28,7 @@ class FinancialRecordForm(forms.ModelForm):
                 banco_llegada=banco_llegada,
                 valor=valor
             )
-            if self.instance and self.instance.pk: # Si estamos actualizando un registro existente
+            if self.instance and self.instance.pk:
                 qs = qs.exclude(pk=self.instance.pk)
 
             if qs.exists():
@@ -46,6 +36,23 @@ class FinancialRecordForm(forms.ModelForm):
                     "¡Este registro financiero ya existe! Los campos Fecha, Hora, # Comprobante, Banco Llegada y Valor coinciden con un registro existente."
                 )
         return cleaned_data
+
+class FinancialRecordUpdateForm(FinancialRecordForm):
+    class Meta(FinancialRecordForm.Meta):
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if user and not user.is_superuser:
+            self.fields['fecha'].disabled = True
+            self.fields['hora'].disabled = True
+            self.fields['comprobante'].disabled = True
+            self.fields['banco_llegada'].disabled = True
+            self.fields['valor'].disabled = True
+            self.fields['cliente'].disabled = True
+            self.fields['vendedor'].disabled = True
+
     
 class CSVUploadForm(forms.Form):
     csv_file = forms.FileField(label="Seleccionar archivo CSV")

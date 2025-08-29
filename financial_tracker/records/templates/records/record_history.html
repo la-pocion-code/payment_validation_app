@@ -1,0 +1,46 @@
+{% extends 'records/base.html' %}
+
+{% block title %}Historial de Registro{% endblock %}
+
+{% block content %}
+    <h1>Historial del Registro: {{ record }}</h1>
+    <a href="{% url 'record_list' %}">&larr; Volver a la lista</a>
+    <hr>
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Usuario</th>
+                <th>Tipo</th>
+                <th>Cambios</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for h in history %}
+                <tr>
+                    <td>{{ h.history_date }}</td>
+                    <td>{{ h.history_user }}</td>
+                    <td>{{ h.get_history_type_display }}</td>
+                    <td>
+                        {% if h.history_type == '~' and h.delta %}
+                            <ul>
+                                {% for change in h.delta.changes %}
+                                    <li><strong>{{ change.field }}:</strong> de '{{ change.old }}' a '{{ change.new }}'</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_superuser %}
+                            <form action="{% url 'restaurar_registro' h.history_id %}" method="post" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="submit-btn" style="background-color: #ffc107; color: black;">Restaurar</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

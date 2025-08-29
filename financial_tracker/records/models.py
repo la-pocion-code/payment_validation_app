@@ -1,8 +1,14 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from simple_history.models import HistoricalRecords
 
 class FinancialRecord(models.Model):
+    STATUS_CHOICES = [
+        ('Pendiente', 'Pendiente'),
+        ('Facturado', 'Facturado'),
+        ('Anulado', 'Anulado'),
+    ]
     fecha = models.DateField()
     hora = models.TimeField()
     comprobante = models.CharField(max_length=200, verbose_name="# Comprobante")
@@ -10,9 +16,11 @@ class FinancialRecord(models.Model):
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     cliente = models.CharField(max_length=200, blank=True, null=True)
     vendedor = models.CharField(max_length=100, blank=True, null=True)
-    status = models.CharField(max_length=50, blank=True, null=True)
-    numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura")
-    facturador = models.CharField(max_length=100, blank=True, null=True)
+    # status = models.CharField(max_length=50, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pendiente')
+    numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
+    facturador = models.CharField(max_length=100, blank=True, null=True, default=None)
+    history = HistoricalRecords()
 
     class Meta:
         # Define la combinación única de campos

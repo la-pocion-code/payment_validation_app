@@ -9,7 +9,11 @@ def require_email_domain(backend, details, response, *args, **kwargs):
         return redirect('login')
 
 def set_superuser_flag(backend, user, response, details, *args, **kwargs):
-    if user and details.get('email') in settings.ADMIN_EMAILS:
-        user.is_staff = True
-        user.is_superuser = True
+    if user:
+        if details.get('email') in settings.ADMIN_EMAILS:
+            user.is_staff = True
+            user.is_superuser = True
+        else:
+            user.is_staff = False
+            user.is_superuser = False
         user.save()

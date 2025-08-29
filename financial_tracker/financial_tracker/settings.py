@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'records',
     'social_django',
+    'simple_history',
 ]
 
 MIDDLEWARE = [
@@ -49,6 +50,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'simple_history.middleware.HistoryRequestMiddleware',
 ]
 
 ROOT_URLCONF = 'financial_tracker.urls'
@@ -151,7 +153,7 @@ SOCIAL_AUTH_PIPELINE = (
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = '871743688782-vda9o8o76gqlq04snqfuru01v6rsj4u5.apps.googleusercontent.com' 
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = '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'
 
-ADMIN_EMAILS = ['wcastro@lapocion.com']
+ADMIN_EMAILS = ['jcorrea@lapocion.com','venriquez@lapocion.com', 'wcastro@lapocion.com']
 
 # Session timeout settings
 SESSION_COOKIE_AGE = 3600  # 1 hour in seconds

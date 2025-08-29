@@ -1,0 +1,40 @@
+{% extends 'records/base.html' %}
+
+{% block title %}Registros Eliminados{% endblock %}
+
+{% block content %}
+    <h1>Registros Eliminados</h1>
+    <a href="{% url 'record_list' %}">&larr; Volver a la lista</a>
+    <hr>
+    {% if deleted_records %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha de Eliminación</th>
+                    <th>Eliminado por</th>
+                    <th>Datos del Registro</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in deleted_records %}
+                    <tr>
+                        <td>{{ record.history_date }}</td>
+                        <td>{{ record.history_user }}</td>
+                        <td>{{ record.fecha|date:"d/m/Y" }} - {{ record.comprobante }} - {{ record.valor }}</td>
+                        <td>
+                            {% if user.is_superuser %}
+                                <form action="{% url 'restaurar_registro' record.history_id %}" method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="submit-btn">Restaurar</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No hay registros eliminados.</p>
+    {% endif %}
+{% endblock %}

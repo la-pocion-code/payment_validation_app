@@ -8,8 +8,37 @@ from django.db import IntegrityError, transaction # transaction para operaciones
 from django.urls import reverse
 from datetime import datetime
 from django.core.exceptions import ValidationError as DjangoValidationError # Renombra para evitar conflicto
-from .forms import FinancialRecordForm, CSVUploadForm
+from django.shortcuts import render, redirect, get_object_or_404
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm
 from .models import FinancialRecord
+
+@login_required
+def record_update_view(request, pk):
+    record = get_object_or_404(FinancialRecord, pk=pk)
+    
+    # Pre-calculate history changes in the view
+    history = record.history.all()
+    for h in history:
+        if h.prev_record:
+            h.delta = h.diff_against(h.prev_record)
+
+    if request.method == 'POST':
+        form = FinancialRecordUpdateForm(request.POST, instance=record, user=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, '¡Registro actualizado exitosamente!')
+            return redirect('record_list')
+    else:
+        form = FinancialRecordUpdateForm(instance=record, user=request.user)
+    
+    context = {
+        'form': form,
+        'title': 'Editar Registro',
+        'history': history
+    }
+    return render(request, 'records/records_form.html', context)
+
+
 
 def login_view(request):
     return render(request, 'records/login.html')
@@ -42,7 +71,10 @@ def record_create_view(request):
             messages.error(request, 'Por favor, corrige los errores en el formulario.')
 
     # Para requests GET o si el formulario no es válido en POST
-    context = {'form': form}
+    context = {
+        'form': form,
+        'title': 'Crear Registro'
+    }
     return render(request, 'records/records_form.html', context)
 
 @login_required
@@ -50,6 +82,62 @@ def record_list_view(request):
     records = FinancialRecord.objects.all().order_by('-fecha', '-hora')
     context = {'records': records}
     return render(request, 'records/records_list.html', context)
+
+@login_required
+def record_delete_view(request, pk):
+    record = get_object_or_404(FinancialRecord, pk=pk)
+    if not request.user.is_superuser:
+        messages.error(request, 'No tienes permisos para eliminar registros.')
+        return redirect('record_list')
+    
+    if request.method == 'POST':
+        record.delete()
+        messages.success(request, '¡Registro eliminado exitosamente!')
+        return redirect('record_list')
+    
+    context = {
+        'record': record
+    }
+    return render(request, 'records/record_confirm_delete.html', context)
+
+@login_required
+def history_record_view(request, pk):
+    record = get_object_or_404(FinancialRecord, pk=pk)
+    history = record.history.all()
+    for h in history:
+        if h.prev_record:
+            h.delta = h.diff_against(h.prev_record)
+    
+    context = {
+        'record': record,
+        'history': history
+    }
+    return render(request, 'records/record_history.html', context)
+
+@login_required
+def restore_delete_record_view(request, history_id):
+    history_record = get_object_or_404(FinancialRecord.history, history_id=history_id)
+    if not request.user.is_superuser:
+        messages.error(request, 'No tienes permisos para restaurar registros.')
+        # Redirige al historial del registro específico
+        return redirect('historial_registro', pk=history_record.instance.pk)
+
+    # Restaura la instancia a este punto del historial
+    history_record.instance.save()
+    messages.success(request, f'Registro restaurado exitosamente a la versión del {history_record.history_date}.')
+    return redirect('historial_registro', pk=history_record.instance.pk)
+
+@login_required
+def deleted_records_view(request):
+    if not request.user.is_superuser:
+        messages.error(request, 'No tienes permisos para ver esta página.')
+        return redirect('record_list')
+    
+    deleted_records = FinancialRecord.history.filter(history_type='-').order_by('-history_date')
+    context = {
+        'deleted_records': deleted_records
+    }
+    return render(request, 'records/deleted_records_list.html', context)
 
 @login_required
 def csv_upload_view(request):
