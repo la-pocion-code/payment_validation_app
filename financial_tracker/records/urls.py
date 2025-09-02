@@ -15,4 +15,8 @@ urlpatterns = [
     path('registro/<int:pk>/historial/', views.history_record_view, name='historial_registro'),
     path('registro/restaurar/<int:history_id>/', views.restore_delete_record_view, name='restaurar_registro'),
     path('eliminados/', views.deleted_records_view, name='deleted_records_list'),
+    path('bank/new/', views.BankCreateView.as_view(), name='bank_create'),
+    path('export_csv/', views.export_csv, name='export_csv'),
+    path('duplicates/', views.DuplicateAttemptsListView.as_view(), name='duplicate_attempts_list'),
+    path('duplicates/<int:pk>/resolve/', views.resolve_duplicate_attempt, name='resolve_duplicate_attempt'),
 ]

@@ -1,0 +1,12 @@
+{% extends 'records/base.html' %}
+
+{% block title %}Crear Banco{% endblock %}
+
+{% block content %}
+    <h2>Crear Nuevo Banco</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Guardar Banco</button>
+    </form>
+{% endblock %}

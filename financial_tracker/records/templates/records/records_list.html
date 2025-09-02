@@ -1,51 +1,84 @@
-{% extends "records/base.html" %}
+{% extends 'records/base.html' %}
+{% load static %}
 
-{% block title %}Lista de Registros Financieros{% endblock %}
+{% block title %}Registros Financieros{% endblock %}
 
 {% block content %}
-    <h1>Registros Financieros</h1>
-    {% if records %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Hora</th>
-                    <th># Comprobante</th>
-                    <th>Banco Llegada</th>
-                    <th>Valor</th>
-                    <th>Cliente</th>
-                    <th>Vendedor</th>
-                    <th>Status</th>
-                    <th># Factura</th>
-                    <th>Facturador</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in records %}
-                    <tr>
-                        <td>{{ record.fecha|date:"d/m/Y" }}</td>
-                        <td>{{ record.hora|time:"H:i:s" }}</td>
-                        <td>{{ record.comprobante }}</td>
-                        <td>{{ record.banco_llegada }}</td>
-                        <td>{{ record.valor }}</td>
-                        <td>{{ record.cliente }}</td>
-                        <td>{{ record.vendedor }}</td>
-                        <td>{{ record.status }}</td>
-                        <td>{{ record.numero_factura }}</td>
-                        <td>{{ record.facturador }}</td>
-                        <td>
-                            <a href="{% url 'record_update' record.pk %}">Editar</a> |
-                            <a href="{% url 'historial_registro' record.pk %}">Historial</a>
-                            {% if user.is_superuser %}
-                                | <a href="{% url 'record_delete' record.pk %}" style="color: red;">Eliminar</a>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p>No hay registros financieros para mostrar.</p>
+<h2>Registros Financieros</h2>
+
+<form method="get">
+    {{ filter.form.as_p }}
+    <button type="submit">Filtrar</button>
+
+    <a href="{% url 'record_list' %}" class="btn-limpiar">
+        <img src="{% static 'images/icon_clear_filters.svg' %}" alt="Limpiar Filtros" width="20" height="20"></a>
+    {% if user.is_superuser %}
+        <a href="{% url 'export_csv' %}?{{ request.GET.urlencode }}" class="btn-limpiar">
+            <img src="{% static 'images/icon_export_csv.svg' %}" alt="Exportar a CSV" width="20" height="20"></a>
     {% endif %}
+</form>
+
+<table border="1">
+    <thead>
+        <tr>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Comprobante</th>
+            <th>Banco</th>
+            <th>Valor</th>
+            <th>Cliente</th>
+            <th>Vendedor</th>
+            <th>Facturador</th>
+            <th>Status</th>
+            <th># Factura</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for registro in object_list %}
+        <tr>
+            <td>{{ registro.fecha|date:"d/m/Y" }}</td>
+            <td>{{ registro.hora|time:"H:i:s" }}</td>
+            <td>{{ registro.comprobante }}</td>
+            <td>{{ registro.banco_llegada }}</td>
+            <td>{{ registro.valor }}</td>
+            <td>{{ registro.cliente }}</td>
+            <td>{{ registro.vendedor }}</td>
+            <td>{{ registro.facturador }}</td>
+            <td>{{ registro.status }}</td>
+            <td>{{ registro.numero_factura }}</td>
+            <td>
+                {# EDITAR #}
+                <a href="{% url 'record_update' registro.pk %}" class="btn-accion-icono">
+                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+                </a> |
+                {# HISTORIAL #}
+                <a href="{% url 'historial_registro' registro.pk %}" class="btn-accion-icono">
+                    <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20">
+                </a>
+                {% if user.is_superuser %}
+                    | {# ELIMINAR #}
+                    <a href="{% url 'record_delete' registro.pk %}" class="btn-accion-icono">
+                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                    </a>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="11">No hay registros para mostrar.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if is_paginated %}
+  <div>
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&amp;{{ key }}={{ value }}{% endif %}{% endfor %}">Anterior</a>
+    {% endif %}
+    <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&amp;{{ key }}={{ value }}{% endif %}{% endfor %}">Siguiente</a>
+    {% endif %}
+  </div>
+{% endif %}
 {% endblock %}

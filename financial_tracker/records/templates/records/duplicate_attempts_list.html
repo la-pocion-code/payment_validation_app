@@ -1,0 +1,50 @@
+{% extends 'records/base.html' %}
+
+{% block title %}Intentos de Registros Duplicados{% endblock %}
+
+{% block content %}
+    <h2>Intentos de Registros Duplicados</h2>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Usuario</th>
+                <th>Fecha y Hora</th>
+                <th>Datos del Intento</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for attempt in attempts %}
+            <tr>
+                <td>{{ attempt.user.username }}</td>
+                <td>{{ attempt.timestamp|date:"d/m/Y H:i:s" }}</td>
+                <td>
+                    <ul>
+                        {% for key, value in attempt.data.items %}
+                            <li><strong>{{ key }}:</strong> {{ value }}</li>
+                        {% endfor %}
+                    </ul>
+                </td>
+                <td>
+                    <a href="{% url 'resolve_duplicate_attempt' attempt.pk %}">Marcar como Resuelto</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">No hay intentos de registros duplicados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if is_paginated %}
+      <div>
+        {% if page_obj.has_previous %}
+          <a href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+        {% endif %}
+        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+        {% endif %}
+      </div>
+    {% endif %}
+{% endblock %}

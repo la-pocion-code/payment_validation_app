@@ -1,5 +1,6 @@
 import csv
 from io import TextIOWrapper
+from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -12,8 +13,8 @@ from django.db import IntegrityError, transaction
 from datetime import datetime
 from .filters import FinancialRecordFilter
 from django_filters.views import FilterView
-from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm
-from .models import FinancialRecord
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt
 from .filters import FinancialRecordFilter
 # --- Vistas de Autenticación y Páginas Estáticas (pueden permanecer como funciones) ---
 
@@ -26,11 +27,7 @@ def logout_view(request):
 
 # --- Vistas Basadas en Clases para el CRUD de FinancialRecord ---
 
-class RecordListView(LoginRequiredMixin, ListView):
-    model = FinancialRecord
-    template_name = 'records/records_list.html'
-    context_object_name = 'records'
-    ordering = ['-fecha', '-hora']
+
 
 class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = FinancialRecord
@@ -39,9 +36,16 @@ class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     success_url = reverse_lazy('record_list')
     success_message = "¡Registro financiero guardado exitosamente!"
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Crear Registro'
+        context['vendedores'] = FinancialRecord.objects.values_list('vendedor', flat=True).distinct()
+        context['clientes'] = FinancialRecord.objects.values_list('cliente', flat=True).distinct()
         return context
 
 class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
@@ -59,6 +63,8 @@ class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Registro'
+        context['vendedores'] = FinancialRecord.objects.values_list('vendedor', flat=True).distinct()
+        context['clientes'] = FinancialRecord.objects.values_list('cliente', flat=True).distinct()
         # Pre-calculate history changes in the view
         history = self.object.history.all()
         for h in history:
@@ -80,9 +86,19 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         messages.success(self.request, self.success_message)
         return super().form_valid(form)
 
-class FinancialRecordListView(FilterView):
+
+class BankCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+    model = Bank
+    form_class = BankForm
+    template_name = 'records/bank_form.html'
+    success_url = reverse_lazy('record_create')  # Redirect back to the record creation form
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+class FinancialRecordListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
-    template_name = 'records/lista_registros.html'
+    template_name = 'records/records_list.html'
     filterset_class = FinancialRecordFilter
     paginate_by = 50
 
@@ -136,6 +152,43 @@ def deleted_records_view(request):
     }
     return render(request, 'records/deleted_records_list.html', context)
 
+@login_required
+def export_csv(request):
+    if not request.user.is_superuser:
+        messages.error(request, 'No tienes permisos para realizar esta acción.')
+        return redirect('record_list')
+
+    # Get the filterset with the query parameters
+    filterset = FinancialRecordFilter(request.GET, queryset=FinancialRecord.objects.all().order_by('-creado'))
+
+    # Create the HttpResponse object with the appropriate CSV header.
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="financial_records.csv"'
+
+    writer = csv.writer(response)
+    # Write the header row
+    writer.writerow([
+        'FECHA', 'HORA', '#COMPROBANTE', 'BANCO LLEGADA', 'VALOR', 'CLIENTE',
+        'VENDEDOR', 'STATUS', '# DE FACTURA', 'FACTURADOR'
+    ])
+
+    # Write data rows
+    for record in filterset.qs:
+        writer.writerow([
+            record.fecha.strftime('%d/%m/%Y'),
+            record.hora.strftime('%H:%M:%S'),
+            record.comprobante,
+            record.banco_llegada.name,
+            record.valor,
+            record.cliente,
+            record.vendedor,
+            record.status,
+            record.numero_factura,
+            record.facturador,
+        ])
+
+    return response
+
 # --- Vista de Carga CSV (se mantiene como función por su complejidad) ---
 
 @login_required
@@ -154,7 +207,17 @@ def csv_upload_view(request):
                 return redirect('csv_upload')
 
             decoded_file = TextIOWrapper(csv_file.file, encoding='utf-8-sig')
-            reader = csv.reader(decoded_file, delimiter=';') # Asegúrate del delimitador
+            
+            # Sniff the delimiter
+            try:
+                dialect = csv.Sniffer().sniff(decoded_file.read(1024))
+                decoded_file.seek(0)
+                reader = csv.reader(decoded_file, dialect)
+            except csv.Error:
+                # If sniffing fails, fallback to semicolon
+                decoded_file.seek(0)
+                reader = csv.reader(decoded_file, delimiter=';')
+
 
             header = next(reader, None) # Lee la primera fila como encabezado y lo salta
 
@@ -191,10 +254,6 @@ def csv_upload_view(request):
             line_errors = []
             processed_rows_count = 0
 
-            # Usamos una transacción atómica para asegurar que si algo falla, no se guarde nada
-            # o para guardar en bloques si preferimos no detener todo por un error.
-            # Aquí, vamos a procesar y reportar errores, e intentar guardar los válidos.
-            
             with transaction.atomic():
                 for i, row in enumerate(reader, start=2): # Empieza desde la línea 2 (después del encabezado)
                     processed_rows_count += 1
@@ -214,6 +273,9 @@ def csv_upload_view(request):
                                 row_data[field_name] = datetime.strptime(value, '%H:%M:%S').time()
                             elif field_name == 'valor':
                                 row_data[field_name] = float(value.replace(',', '.')) # Para manejar comas como separador decimal
+                            elif field_name == 'banco_llegada':
+                                bank, created = Bank.objects.get_or_create(name=value.upper())
+                                row_data[field_name] = bank
                             else:
                                 row_data[field_name] = value
                         except (ValueError, IndexError) as e:
@@ -229,16 +291,8 @@ def csv_upload_view(request):
                     records_to_create.append(record)
                     
 
-            # Ahora, intentar crear los registros que pasaron las validaciones iniciales
-            # con ignore_conflicts=True para saltar duplicados a nivel de BD.
-            # Esto es más eficiente que hacer un .save() por cada registro.
             if records_to_create:
                 try:
-                    # bulk_create no llama al método save() ni a save_m2m(),
-                    # pero sí dispara IntegrityError si hay duplicados con unique_together
-                    # a menos que usemos ignore_conflicts.
-                    # Sin ignore_conflicts, un solo duplicado detendrá todo el bulk_create.
-                    # Con ignore_conflicts, los duplicados simplemente no se insertan.
                     count_before = FinancialRecord.objects.count()
                     created_objects = FinancialRecord.objects.bulk_create(records_to_create, ignore_conflicts=True)
                     count_after = FinancialRecord.objects.count()
@@ -246,9 +300,6 @@ def csv_upload_view(request):
                     duplicates_count = len(records_to_create) - successfully_created
 
                 except IntegrityError as e:
-                    # Este bloque se alcanzaría si no usamos ignore_conflicts=True
-                    # y un duplicado detiene todo el bulk_create.
-                    # Con ignore_conflicts=True, este bloque no se ejecuta por duplicados.
                     messages.error(request, f'Error masivo: Ocurrió un error de integridad de la base de datos al intentar cargar los registros. Puede haber duplicados que no fueron detectados previamente. Detalles: {e}')
                     return redirect('csv_upload')
                 except Exception as e:
@@ -268,10 +319,33 @@ def csv_upload_view(request):
                 for err in line_errors:
                     messages.warning(request, err)
             
-            # Puedes redirigir a una página de resumen o a la lista de registros
             return redirect('record_list')
     else:
         form = CSVUploadForm()
 
     context = {'form': form}
     return render(request, 'records/csv_upload_form.html', context)
+
+class DuplicateAttemptsListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = DuplicateRecordAttempt
+    template_name = 'records/duplicate_attempts_list.html'
+    context_object_name = 'attempts'
+    paginate_by = 50
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get_queryset(self):
+        return DuplicateRecordAttempt.objects.filter(is_resolved=False).order_by('-timestamp')
+
+@login_required
+def resolve_duplicate_attempt(request, pk):
+    if not request.user.is_superuser:
+        messages.error(request, 'No tienes permisos para realizar esta acción.')
+        return redirect('record_list')
+    
+    attempt = get_object_or_404(DuplicateRecordAttempt, pk=pk)
+    attempt.is_resolved = True
+    attempt.save()
+    messages.success(request, 'El intento de registro duplicado ha sido marcado como resuelto.')
+    return redirect('duplicate_attempts_list')

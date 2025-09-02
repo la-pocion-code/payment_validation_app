@@ -4,13 +4,51 @@
 
 {% block content %}
     <h1>{{ title }}</h1>
+
+    {% if confirm_creation %}
+        <div class="confirmation-message" style="border: 1px solid #ffc107; padding: 10px; margin-bottom: 15px; background-color: #fff3cd;">
+            <h4>Se encontró un registro similar:</h4>
+            <p><strong>Fecha:</strong> {{ existing_record.fecha|date:"d/m/Y" }}</p>
+            <p><strong>Hora:</strong> {{ existing_record.hora|time:"H:i:s" }}</p>
+            <p><strong>Banco:</strong> {{ existing_record.banco_llegada }}</p>
+            <p><strong>Valor:</strong> {{ existing_record.valor }}</p>
+            <p><strong># Comprobante:</strong> {{ existing_record.comprobante }}</p>
+            <p><strong>Status:</strong> {{ existing_record.status }}</p>
+            <hr>
+            <p><strong>¿Estás seguro de que quieres crear un nuevo registro con los datos que acabas de introducir?</strong></p>
+        </div>
+    {% endif %}
+
     <form method="post">
         {% csrf_token %}
+        {% if confirm_creation %}
+            <input type="hidden" name="confirm" value="true">
+        {% endif %}
+
         {{ form.non_field_errors }} {# Errores generales del formulario #}
         {% for field in form %}
             <div class="form-group">
                 <label for="{{ field.id_for_label }}">{{ field.label_tag }}</label>
-                {{ field }}
+                {% if field.name == 'vendedor' %}
+                    <input type="text" name="{{ field.name }}" list="vendedores-list" value="{{ field.value|default:'' }}" class="form-control">
+                    <datalist id="vendedores-list">
+                        {% for vendedor in vendedores %}
+                            <option value="{{ vendedor }}">
+                        {% endfor %}
+                    </datalist>
+                {% elif field.name == 'cliente' %}
+                    <input type="text" name="{{ field.name }}" list="clientes-list" value="{{ field.value|default:'' }}" class="form-control">
+                    <datalist id="clientes-list">
+                        {% for cliente in clientes %}
+                            <option value="{{ cliente }}">
+                        {% endfor %}
+                    </datalist>
+                {% else %}
+                    {{ field }}
+                {% endif %}
+                {% if field.name == 'banco_llegada' %}
+                    <a href="{% url 'bank_create' %}" target="_blank" rel="noopener noreferrer">+</a>
+                {% endif %}
                 {% if field.help_text %}
                     <small class="form-text text-muted">{{ field.help_text }}</small>
                 {% endif %}
@@ -23,7 +61,14 @@
                 {% endif %}
             </div>
         {% endfor %}
-        <button type="submit" class="submit-btn">Guardar Registro</button>
+        <button type="submit" class="submit-btn">
+            {% if confirm_creation %}
+                Confirmar y Guardar
+            {% else %}
+                Guardar Registro
+            {% endif %}
+        </button>
+        <a href="{% url 'record_list' %}" style="display: inline-block; padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; margin-left: 10px;">Cancelar</a>
     </form>
 
     {% if history %}

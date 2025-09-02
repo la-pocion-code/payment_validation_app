@@ -1,0 +1,226 @@
+/* custom.css */
+
+body {
+    font-family: sans-serif;
+    background-color: #f8f9fa;
+    color: #343a40;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: #362573; /* Dark Purple */
+}
+
+a {
+    color: #FF0082; /* Bright Pink */
+}
+
+a:hover {
+    color: #EA5455; /* Reddish */
+}
+
+.btn-primary, .submit-btn {
+    background-color: #FF0082;
+    border-color: #FF0082;
+    color: #fff;
+}
+
+.btn-primary:hover, .submit-btn:hover {
+    background-color: #EA5455;
+    border-color: #EA5455;
+}
+
+.btn-secondary {
+    background-color: #362573;
+    border-color: #362573;
+    color: #fff;
+}
+
+.btn-secondary:hover {
+    background-color: #2a1c59;
+    border-color: #2a1c59;
+}
+
+.btn-cancel {
+    display: inline-block;
+    padding: 10px 15px;
+    background-color: #6c757d;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    margin-left: 10px;
+}
+
+.btn-cancel:hover {
+    background-color: #5a6268;
+}
+
+/* Estilos para los enlaces que contienen iconos */
+.btn-limpiar, /* Para los botones de "Limpiar filtros" y "Exportar a CSV" */
+.btn-accion-icono { /* Puedes usar una clase más genérica para los de la tabla */
+    display: inline-block; /* Para que el fondo abarque el área del enlace */
+    padding: 5px; /* Ajusta el relleno según necesites */
+    border-radius: 4px; /* Opcional: bordes ligeramente redondeados */
+    transition: background-color 0.3s ease; /* Transición suave para el cambio de color */
+    text-decoration: none; /* Elimina el subrayado por defecto de los enlaces */
+    color: inherit; /* Mantiene el color del texto si lo hubiera */
+}
+
+/* Estilo para cuando el cursor pasa por encima */
+.btn-limpiar:hover,
+.btn-accion-icono:hover {
+    background-color: #ffc0cb; /* Color rosa (#ffc0cb es un rosa claro) */
+    cursor: pointer; /* Cambia el cursor para indicar que es clickeable */
+}
+
+/* Estilos para las imágenes dentro de estos enlaces */
+.btn-limpiar img,
+.btn-accion-icono img {
+    vertical-align: middle; /* Alinea verticalmente el icono con cualquier texto adyacente */
+    /* Otros estilos si es necesario */
+}
+
+
+
+
+
+
+
+
+
+.bienvenida-superior {
+    display: flex;
+    justify-content: space-between; 
+    align-items: center;
+    padding: 4px 16px;
+    background-color: #f5f5f5;
+    font-size: 14px;
+    border-bottom: 1px solid #ccc;
+}
+
+.bienvenida-superior a.cerrar-sesion {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.bienvenida-superior a.cerrar-sesion:hover {
+    text-decoration: underline;
+}
+
+.texto-bienvenida {
+    font-weight: bold; /* ← Negrita */
+    color: #2c3e50;    /* ← Color gris oscuro, puedes cambiarlo */
+}
+
+/* Header */
+header {
+    background-color: #f8f9fa; /* White */
+    padding: 1rem;
+    color: #362573; /* Dark Purple */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #dee2e6;
+    height: 60px; /* altura fija para el header */
+    overflow: hidden;
+}
+
+header .nav-left, header .nav-right {
+    display: flex;
+    align-items: center;
+}
+
+header .nav-center {
+    flex-grow: 1;
+    text-align: center;
+}
+
+header .logo {
+    height: 100%;
+    padding-left: 16px;
+    display: flex;
+    align-items: center;
+    max-width: 200px; /* LIMITA el ancho del contenedor del logo */
+}
+
+header .logo img {
+    height: 100%;   /* ajusta al alto del header */
+    width: auto;    /* mantiene proporción */
+    max-width: 100%; /* asegura que no se pase de su contenedor */
+    object-fit: contain;
+    display: block;
+}
+
+header nav a {
+    color: #362573; /* Dark Purple */
+    text-decoration: none;
+    margin: 0 1rem;
+}
+
+header nav a:hover {
+    color: #FF0082; /* Bright Pink */
+}
+
+header .welcome-message {
+    margin-right: 1rem;
+}
+
+
+/* Table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+}
+
+thead th {
+    background-color: #f8f9fa;
+    border-bottom-width: 2px;
+    color: #362573;
+}
+
+/* Form */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+label {
+    font-weight: bold;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="time"],
+input[type="number"],
+select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+}
+
+.confirmation-message {
+    border: 1px solid #ffc107;
+    padding: 10px;
+    margin-bottom: 15px;
+    background-color: #fff3cd;
+}
+
+/* Error list */
+.errorlist {
+    list-style-type: none;
+    padding: 1rem;
+    margin: 0 0 1rem 0;
+    color: #721c24;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 0.25rem;
+}
+
+
+

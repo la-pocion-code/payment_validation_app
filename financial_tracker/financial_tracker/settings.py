@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -63,11 +64,13 @@ TEMPLATES = [
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'social_django.context_processors.backends',
                 'social_django.context_processors.login_redirect',
+                'records.context_processors.duplicate_attempts_count',
             ],
         },
     },
@@ -123,6 +126,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'records/static'),
+]
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -158,5 +165,7 @@ ADMIN_EMAILS = ['jcorrea@lapocion.com','venriquez@lapocion.com', 'wcastro@lapoci
 
 # Session timeout settings
 SESSION_COOKIE_AGE = 3600  # 1 hour in seconds
-SESSION_SAVE_EVERY_REQUEST = True  
+SESSION_SAVE_EVERY_REQUEST = True
+
+
 
