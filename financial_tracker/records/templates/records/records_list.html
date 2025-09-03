@@ -19,11 +19,11 @@
         
         <div class="filter-actions"> {# Contenedor para los botones de acción #}
             <button type="submit" class="btn-primary">Filtrar</button>
-            <a href="{% url 'record_list' %}" class="btn-limpiar">
+            <a href="{% url 'record_list' %}" class="btn-limpiar" title="Limpiar Filtros">
                 <img src="{% static 'images/icon_clear_filters.svg' %}" alt="Limpiar Filtros" width="20" height="20">
             </a>
             {% if user.is_superuser %}
-                <a href="{% url 'export_csv' %}?{{ request.GET.urlencode }}" class="btn-limpiar">
+                <a href="{% url 'export_csv' %}?{{ request.GET.urlencode }}" class="btn-limpiar" title="Exportar a CSV">
                     <img src="{% static 'images/icon_export_csv.svg' %}" alt="Exportar a CSV" width="20" height="20">
                 </a>
             {% endif %}
@@ -63,16 +63,16 @@
             <td>{{ registro.numero_factura }}</td>
             <td>
                 {# EDITAR #}
-                <a href="{% url 'record_update' registro.pk %}" class="btn-accion-icono">
+                <a href="{% url 'record_update' registro.pk %}" class="btn-accion-icono" title="Editar">
                     <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
                 </a> |
                 {# HISTORIAL #}
-                <a href="{% url 'historial_registro' registro.pk %}" class="btn-accion-icono">
+                <a href="{% url 'historial_registro' registro.pk %}" class="btn-accion-icono" title="Historial">
                     <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20">
                 </a>
                 {% if user.is_superuser %}
                     | {# ELIMINAR #}
-                    <a href="{% url 'record_delete' registro.pk %}" class="btn-accion-icono">
+                    <a href="{% url 'record_delete' registro.pk %}" class="btn-accion-icono" title="Eliminar">
                         <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
                     </a>
                 {% endif %}

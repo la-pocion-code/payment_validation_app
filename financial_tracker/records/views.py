@@ -1,9 +1,9 @@
 import csv
 from io import TextIOWrapper
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.messages.views import SuccessMessageMixin
@@ -14,19 +14,50 @@ from datetime import datetime
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter
 from django_filters.views import FilterView
 from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt
-# --- Vistas de Autenticación y Páginas Estáticas (pueden permanecer como funciones) ---
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest
+from django.contrib.auth.views import LoginView
+from django.contrib.auth.models import Group
+from .decorators import group_required
+from django.utils.decorators import method_decorator
 
-def login_view(request):
-    return render(request, 'records/login.html')
+
+class CustomLoginView(LoginView):
+    template_name = 'records/login.html'
+
+    def get_success_url(self):
+        if not self.request.user.groups.exists() and not self.request.user.is_superuser:
+            AccessRequest.objects.get_or_create(user=self.request.user)
+            return reverse_lazy('request_access')
+        return reverse_lazy('record_list')
 
 def logout_view(request):
     logout(request)
     return redirect('login')
 
-# --- Vistas Basadas en Clases para el CRUD de FinancialRecord ---
+@login_required
+def request_access(request):
+    return render(request, 'records/request_access.html')
+
+@user_passes_test(lambda u: u.is_superuser)
+def access_request_list(request):
+    requests = AccessRequest.objects.filter(approved=False)
+    return render(request, 'records/access_request_list.html', {'requests': requests})
+
+@user_passes_test(lambda u: u.is_superuser)
+def approve_access_request(request, request_id):
+    access_request = get_object_or_404(AccessRequest, id=request_id)
+    access_request.approved = True
+    access_request.save()
+    
+    # Assign user to a default group, e.g., 'Usuario'
+    group, created = Group.objects.get_or_create(name='Usuario')
+    access_request.user.groups.add(group)
+    
+    messages.success(request, f'Acceso aprobado para {access_request.user.username}.')
+    return redirect('access_request_list')
 
 
+@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
 class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = FinancialRecord
     form_class = FinancialRecordForm
@@ -41,11 +72,12 @@ class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Crear Registro'
+        context['title'] = 'Nuevo Registro'
         context['vendedores'] = FinancialRecord.objects.values_list('vendedor', flat=True).distinct()
         context['clientes'] = FinancialRecord.objects.values_list('cliente', flat=True).distinct()
         return context
 
+@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
 class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = FinancialRecord
     form_class = FinancialRecordUpdateForm
@@ -85,15 +117,23 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         return super().form_valid(form)
 
 
-class BankCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+class BankCreateView(LoginRequiredMixin, CreateView):
     model = Bank
     form_class = BankForm
     template_name = 'records/bank_form.html'
     success_url = reverse_lazy('record_create')  # Redirect back to the record creation form
 
-    def test_func(self):
-        return self.request.user.is_superuser
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            bank = form.save()
+            return JsonResponse({'success': True, 'id': bank.id, 'name': bank.name, 'message': 'Banco creado exitosamente!'})
+        return super().form_valid(form)
 
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/bank_form.html', {'form': form}, request=self.request)})
+
+@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
 class FinancialRecordListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
     template_name = 'records/records_list.html'
@@ -251,6 +291,10 @@ def csv_upload_view(request):
             successfully_created = 0
             line_errors = []
             processed_rows_count = 0
+            status_rejected_count = 0 # Contador para filas rechazadas por status
+
+            # Obtener las opciones válidas de STATUS del modelo FinancialRecord
+            valid_statuses = [choice[0] for choice in FinancialRecord.STATUS_CHOICES]
 
             with transaction.atomic():
                 for i, row in enumerate(reader, start=2): # Empieza desde la línea 2 (después del encabezado)
@@ -274,6 +318,17 @@ def csv_upload_view(request):
                             elif field_name == 'banco_llegada':
                                 bank, created = Bank.objects.get_or_create(name=value.upper())
                                 row_data[field_name] = bank
+                            elif field_name == 'status':
+                                # Limpiar y capitalizar el status
+                                cleaned_status = value.strip().capitalize()
+                                if cleaned_status not in valid_statuses:
+                                    line_errors.append(f"Línea {i}: Estado '{value}' no válido. Debe ser uno de {valid_statuses}.")
+                                    status_rejected_count += 1
+                                    has_error_in_row = True
+                                    break # No procesar más campos de esta fila si el status es inválido
+                                row_data[field_name] = cleaned_status
+                            elif field_name == 'cliente':
+                                row_data[field_name] = value.strip().title()
                             else:
                                 row_data[field_name] = value
                         except (ValueError, IndexError) as e:
@@ -312,6 +367,8 @@ def csv_upload_view(request):
             messages.info(request, f'Registros procesados: {processed_rows_count} (excluyendo encabezado).')
             messages.info(request, f'Registros creados exitosamente: {successfully_created}.')
             messages.info(request, f'Registros rechazados por duplicidad: {duplicates_count}.')
+            if status_rejected_count > 0:
+                messages.warning(request, f'Registros rechazados por formato de estado no válido: {status_rejected_count}.')
             if line_errors:
                 messages.warning(request, f'{len(line_errors)} registros tuvieron errores de formato o validación:')
                 for err in line_errors:
@@ -393,3 +450,25 @@ def export_duplicate_attempts_csv(request):
         ])
 
     return response
+
+class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = Bank
+    template_name = 'records/bank_confirm_delete.html'
+    success_url = reverse_lazy('record_create')
+    success_message = "¡Banco eliminado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def form_valid(self, form):
+        messages.success(self.request, self.success_message)
+        return super().form_valid(form)
+
+
+class BankListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Bank
+    template_name = 'records/bank_list.html'
+    context_object_name = 'banks'
+
+    def test_func(self):
+        return self.request.user.is_superuser

@@ -58,3 +58,11 @@ class DuplicateRecordAttempt(models.Model):
 
     def __str__(self):
         return f"Attempt by {self.user} at {self.timestamp}"
+
+class AccessRequest(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    approved = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Access request from {self.user.username}"

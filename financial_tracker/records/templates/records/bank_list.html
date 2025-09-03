@@ -1,0 +1,35 @@
+{% extends "records/base.html" %}
+{% load static %}
+
+{% block title %}Gestionar Bancos{% endblock %}
+
+{% block content %}
+    <h2>Gestionar Bancos</h2>
+
+    <a href="{% url 'bank_create' %}" class="btn-primary">Crear Nuevo Banco</a>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Nombre del Banco</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for bank in banks %}
+            <tr>
+                <td>{{ bank.name }}</td>
+                <td>
+                    {# Edit link (if BankUpdateView exists) #}
+                    {# <a href="{% url 'bank_update' bank.pk %}">Editar</a> #}
+                    <a href="{% url 'bank_delete' bank.pk %}" class="btn-accion-icono" title="Eliminar Banco">
+                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2">No hay bancos registrados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

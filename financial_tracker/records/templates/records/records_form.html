@@ -1,4 +1,5 @@
 {% extends "records/base.html" %}
+{% load static %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -30,7 +31,17 @@
             {% for field in form %}
                 <div class="filter-field"> {# Reusing filter-field class #}
                     <label for="{{ field.id_for_label }}">{{ field.label_tag }}</label>
-                    {% if field.name == 'vendedor' %}
+                    {% if field.name == 'banco_llegada' %}
+                        <div style="display: flex; align-items: center;">
+                            {{ field }}
+                            <a href="#" id="open-bank-modal" style="margin-left: 5px; text-decoration: none; font-size: 1.5em;">+</a>
+                            {% if user.is_superuser and field.value %}
+                                <a href="{% url 'bank_delete' field.value.pk %}" class="btn-accion-icono" title="Eliminar Banco" style="margin-left: 5px;">
+                                    <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% elif field.name == 'vendedor' %}
                         <input type="text" name="{{ field.name }}" list="vendedores-list" value="{{ field.value|default:'' }}" class="form-control">
                         <datalist id="vendedores-list">
                             {% for vendedor in vendedores %}
@@ -47,9 +58,6 @@
                     {% else %}
                         {{ field }}
                     {% endif %}
-                    {% if field.name == 'banco_llegada' %}
-                        <a href="{% url 'bank_create' %}" target="_blank" rel="noopener noreferrer">+</a>
-                    {% endif %}
                     {% if field.help_text %}
                         <small class="form-text text-muted">{{ field.help_text }}</small>
                     {% endif %}
@@ -64,14 +72,15 @@
             {% endfor %}
         </div>
         <div class="filter-actions"> {# Reusing filter-actions class for buttons #}
-            <button type="submit" class="submit-btn">
+            <button type="submit" class="submit-btn" title="Guardar">
                 {% if confirm_creation %}
                     Confirmar y Guardar
                 {% else %}
-                    Guardar
+                    Guardar Registro
                 {% endif %}
+                <img src="{% static 'images/floppy-disk-regular-full.svg' %}" alt="Guardar" width="20" height="20" style="margin-left: 5px; vertical-align: middle;">
             </button>
-            <a href="{% url 'record_list' %}" class="btn-cancel">Cancelar</a>
+            <a href="{% url 'record_list' %}" class="btn-cancel" >Cancelar</a>
         </div>
     </form>
 
@@ -107,4 +116,141 @@
         </tbody>
     </table>
     {% endif %}
+
+    {# Modal Structure #}
+    <div id="bank-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>     
+            <div id="bank-form-container">
+                {# Bank form will be loaded here via AJAX #}
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Basic Modal Styles */
+        .modal {
+            position: fixed;
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto; /* Center the modal */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more responsive */
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+            position: relative;
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            right: 15px;
+            top: 5px;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const openBankModalBtn = document.getElementById('open-bank-modal');
+            const bankModal = document.getElementById('bank-modal');
+            const closeButton = bankModal.querySelector('.close-button');
+            const bankFormContainer = document.getElementById('bank-form-container');
+            const bancoLlegadaSelect = document.querySelector('select[name="banco_llegada"]');
+
+            // Function to open the modal and load the form
+            openBankModalBtn.addEventListener('click', function(e) {
+                e.preventDefault(); // Prevent default link behavior
+                bankModal.style.display = 'flex'; // Show the modal
+                
+                // Load the bank creation form via AJAX
+                fetch('{% url "bank_create" %}', {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest' // Important for Django to detect AJAX
+                    }
+                })
+                .then(response => response.text())
+                .then(html => {
+                    bankFormContainer.innerHTML = html;
+                    attachBankFormSubmitHandler(); // Attach handler after form is loaded
+                })
+                .catch(error => console.error('Error loading bank form:', error));
+            });
+
+            // Function to close the modal
+            closeButton.addEventListener('click', function() {
+                bankModal.style.display = 'none';
+                bankFormContainer.innerHTML = ''; // Clear form content
+            });
+
+            // Close modal if clicked outside content
+            window.addEventListener('click', function(event) {
+                if (event.target == bankModal) {
+                    bankModal.style.display = 'none';
+                    bankFormContainer.innerHTML = '';
+                }
+            });
+
+            // Function to attach submit handler to the dynamically loaded form
+            function attachBankFormSubmitHandler() {
+                const bankForm = bankFormContainer.querySelector('form');
+                if (bankForm) {
+                    bankForm.addEventListener('submit', function(e) {
+                        e.preventDefault(); // Prevent default form submission
+
+                        const formData = new FormData(bankForm);
+                        
+                        fetch(bankForm.action, {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                            },
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Add new bank to the select field
+                                const newOption = new Option(data.name, data.id, true, true);
+                                bancoLlegadaSelect.add(newOption);
+                                // Display success message (using alert for simplicity)
+                                alert(data.message || 'Banco creado exitosamente!');
+                                bankModal.style.display = 'none'; // Close modal
+                                bankFormContainer.innerHTML = ''; // Clear form content
+                            } else {
+                                // Display errors by re-rendering the form HTML
+                                bankFormContainer.innerHTML = data.form_html;
+                                attachBankFormSubmitHandler(); // Re-attach handler for the new form
+                            }
+                        })
+                        .catch(error => console.error('Error submitting bank form:', error));
+                    });
+                }
+            }
+        });
+    </script>
 {% endblock %}

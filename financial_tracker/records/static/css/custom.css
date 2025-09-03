@@ -20,9 +20,10 @@ a:hover {
 
 .btn-primary, .submit-btn {
     background-color: #FF0082;
-    border-radius: 10pcx;
+    border-radius: 4px;
     border-color: #FF0082;
     color: #1b1a1a;
+    padding: 10px 15px;
 }
 
 .btn-primary:hover, .submit-btn:hover {
@@ -181,9 +182,9 @@ thead th {
 }
 
 /* Form */
-/* .form-group {
-    margin-bottom: 1rem;
-} */
+.form-group {
+    margin-bottom: 30px;
+}
 
 label {
     font-weight: bold;
@@ -351,7 +352,7 @@ select {
 /* Estilos para el contenedor de acciones (botones) */
 .filter-actions {
     display: flex;
-    gap: 10px; /* Espacio entre los botones */
+    gap: 20px; /* Espacio entre los botones */
     align-items: flex-end; /* Alinea los botones con la parte inferior de los campos si están en la misma línea */
     padding-top: 25px; /* Ajusta este padding si los campos tienen labels y los botones necesitan alinearse */
 }

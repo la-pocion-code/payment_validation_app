@@ -71,6 +71,7 @@ TEMPLATES = [
                 'social_django.context_processors.backends',
                 'social_django.context_processors.login_redirect',
                 'records.context_processors.duplicate_attempts_count',
+                'records.context_processors.pending_requests_count',
             ],
         },
     },

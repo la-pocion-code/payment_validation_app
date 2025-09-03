@@ -1,18 +1,26 @@
 {% extends 'records/base.html' %}
+{% load static %}
 
 {% block title %}Cargar CSV{% endblock %}
 
 {% block content %}
-    <h2>Cargar Archivo CSV</h2>
-    <p>Sube un archivo CSV con los registros financieros.</p>
-    
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        <div class="form-group">
-            {{ form.csv_file.label_tag }}
-            {{ form.csv_file }}
+    <div class="login-wrapper">
+        <div class="login-container">
+            <div class="login-logo">
+                <img src="{% static 'images/logo.png' %}" alt="Logo">
+            </div>
+            <h1 class="login-title">Cargar Archivo CSV</h1>
+            <p class="login-description">Sube un archivo CSV con los registros financieros.</p>
+            
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="form-group">
+                    {{ form.csv_file.label_tag }}
+                    {{ form.csv_file }}
+                </div>
+                
+                <button type="submit" class="google-login-btn">Cargar Archivo</button>
+            </form>
         </div>
-        
-        <button type="submit" class="submit-btn">Cargar Archivo</button>
-    </form>
+    </div>
 {% endblock %}
