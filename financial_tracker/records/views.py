@@ -11,11 +11,10 @@ from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.db import IntegrityError, transaction
 from datetime import datetime
-from .filters import FinancialRecordFilter
+from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter
 from django_filters.views import FilterView
 from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm
 from .models import FinancialRecord, Bank, DuplicateRecordAttempt
-from .filters import FinancialRecordFilter
 # --- Vistas de Autenticación y Páginas Estáticas (pueden permanecer como funciones) ---
 
 def login_view(request):
@@ -28,13 +27,12 @@ def logout_view(request):
 # --- Vistas Basadas en Clases para el CRUD de FinancialRecord ---
 
 
-
 class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = FinancialRecord
     form_class = FinancialRecordForm
     template_name = 'records/records_form.html'
     success_url = reverse_lazy('record_list')
-    success_message = "¡Registro financiero guardado exitosamente!"
+    success_message = "¡Registro guardado exitosamente!"
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -346,6 +344,52 @@ def resolve_duplicate_attempt(request, pk):
     
     attempt = get_object_or_404(DuplicateRecordAttempt, pk=pk)
     attempt.is_resolved = True
+    attempt.resolved_by = request.user
+    attempt.resolved_at = datetime.now()
     attempt.save()
     messages.success(request, 'El intento de registro duplicado ha sido marcado como resuelto.')
     return redirect('duplicate_attempts_list')
+
+
+class DuplicateAttemptsHistoryListView(LoginRequiredMixin, UserPassesTestMixin, FilterView):
+    model = DuplicateRecordAttempt
+    template_name = 'records/duplicate_attempts_history_list.html'
+    context_object_name = 'attempts'
+    filterset_class = DuplicateRecordAttemptFilter
+    paginate_by = 50
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get_queryset(self):
+        return DuplicateRecordAttempt.objects.all().order_by('-timestamp')
+
+
+@login_required
+def export_duplicate_attempts_csv(request):
+    if not request.user.is_superuser:
+        messages.error(request, 'No tienes permisos para realizar esta acción.')
+        return redirect('duplicate_attempts_history_list')
+
+    filterset = DuplicateRecordAttemptFilter(request.GET, queryset=DuplicateRecordAttempt.objects.all().order_by('-timestamp'))
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="duplicate_attempts.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Timestamp', 'User', 'Data', 'Resolved By', 'Resolved At'
+    ])
+
+    for attempt in filterset.qs:
+        resolved_by_username = attempt.resolved_by.username if attempt.resolved_by else 'N/A'
+        resolved_at_timestamp = attempt.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if attempt.resolved_at else 'N/A'
+        writer.writerow([
+            attempt.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            attempt.user.username,
+            str(attempt.data),
+            resolved_by_username,
+            resolved_at_timestamp
+        ])
+
+    return response

@@ -19,56 +19,60 @@
         </div>
     {% endif %}
 
-    <form method="post">
+    <form method="post" class="filter-form"> {# Reusing filter-form class #}
         {% csrf_token %}
         {% if confirm_creation %}
             <input type="hidden" name="confirm" value="true">
         {% endif %}
 
         {{ form.non_field_errors }} {# Errores generales del formulario #}
-        {% for field in form %}
-            <div class="form-group">
-                <label for="{{ field.id_for_label }}">{{ field.label_tag }}</label>
-                {% if field.name == 'vendedor' %}
-                    <input type="text" name="{{ field.name }}" list="vendedores-list" value="{{ field.value|default:'' }}" class="form-control">
-                    <datalist id="vendedores-list">
-                        {% for vendedor in vendedores %}
-                            <option value="{{ vendedor }}">
-                        {% endfor %}
-                    </datalist>
-                {% elif field.name == 'cliente' %}
-                    <input type="text" name="{{ field.name }}" list="clientes-list" value="{{ field.value|default:'' }}" class="form-control">
-                    <datalist id="clientes-list">
-                        {% for cliente in clientes %}
-                            <option value="{{ cliente }}">
-                        {% endfor %}
-                    </datalist>
+        <div class="filter-fields"> {# Reusing filter-fields class #}
+            {% for field in form %}
+                <div class="filter-field"> {# Reusing filter-field class #}
+                    <label for="{{ field.id_for_label }}">{{ field.label_tag }}</label>
+                    {% if field.name == 'vendedor' %}
+                        <input type="text" name="{{ field.name }}" list="vendedores-list" value="{{ field.value|default:'' }}" class="form-control">
+                        <datalist id="vendedores-list">
+                            {% for vendedor in vendedores %}
+                                <option value="{{ vendedor }}">
+                            {% endfor %}
+                        </datalist>
+                    {% elif field.name == 'cliente' %}
+                        <input type="text" name="{{ field.name }}" list="clientes-list" value="{{ field.value|default:'' }}" class="form-control">
+                        <datalist id="clientes-list">
+                            {% for cliente in clientes %}
+                                <option value="{{ cliente }}">
+                            {% endfor %}
+                        </datalist>
+                    {% else %}
+                        {{ field }}
+                    {% endif %}
+                    {% if field.name == 'banco_llegada' %}
+                        <a href="{% url 'bank_create' %}" target="_blank" rel="noopener noreferrer">+</a>
+                    {% endif %}
+                    {% if field.help_text %}
+                        <small class="form-text text-muted">{{ field.help_text }}</small>
+                    {% endif %}
+                    {% if field.errors %}
+                        <ul class="errorlist">
+                            {% for error in field.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        <div class="filter-actions"> {# Reusing filter-actions class for buttons #}
+            <button type="submit" class="submit-btn">
+                {% if confirm_creation %}
+                    Confirmar y Guardar
                 {% else %}
-                    {{ field }}
+                    Guardar
                 {% endif %}
-                {% if field.name == 'banco_llegada' %}
-                    <a href="{% url 'bank_create' %}" target="_blank" rel="noopener noreferrer">+</a>
-                {% endif %}
-                {% if field.help_text %}
-                    <small class="form-text text-muted">{{ field.help_text }}</small>
-                {% endif %}
-                {% if field.errors %}
-                    <ul class="errorlist">
-                        {% for error in field.errors %}
-                            <li>{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-            </div>
-        {% endfor %}
-        <button type="submit" class="submit-btn">
-            {% if confirm_creation %}
-                Confirmar y Guardar
-            {% else %}
-                Guardar Registro
-            {% endif %}
-        </button>
-        <a href="{% url 'record_list' %}" style="display: inline-block; padding: 10px 15px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; margin-left: 10px;">Cancelar</a>
+            </button>
+            <a href="{% url 'record_list' %}" class="btn-cancel">Cancelar</a>
+        </div>
     </form>
 
     {% if history %}

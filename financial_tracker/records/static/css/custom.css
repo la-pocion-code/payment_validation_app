@@ -181,15 +181,15 @@ thead th {
 }
 
 /* Form */
-.form-group {
+/* .form-group {
     margin-bottom: 1rem;
-}
+} */
 
 label {
     font-weight: bold;
 }
 
-input[type="text"],
+/* input[type="text"],
 input[type="date"],
 input[type="time"],
 input[type="number"],
@@ -198,7 +198,7 @@ select {
     padding: 0.5rem;
     border: 1px solid #ced4da;
     border-radius: 0.25rem;
-}
+} */
 
 .confirmation-message {
     border: 1px solid #ffc107;
@@ -226,7 +226,7 @@ select {
     justify-content: center;
     align-items: center;
     min-height: 100vh; /* Asegura que ocupe al menos el alto completo de la ventana */
-    background-color: #ce0fa8; /* Un fondo suave para la página */
+    background-color: #f0f2f5; /* Un fondo suave para la página */
     font-family: Arial, sans-serif;
 }
 
@@ -295,4 +295,119 @@ select {
     height: 24px;
     margin-right: 10px; /* Espacio entre el icono y el texto */
     vertical-align: middle; /* Alineación vertical */
+}
+
+/* Estilos para la sección de filtros */
+.filter-section {
+    background-color: #ffffff; /* Fondo blanco para la sección de filtros */
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Sutil sombra */
+}
+
+.filter-form {
+    display: flex; /* Usar Flexbox para el formulario */
+    flex-wrap: wrap; /* Permitir que los elementos se envuelvan en pantallas pequeñas */
+    gap: 20px; /* Espacio entre los grupos de filtros y acciones */
+    align-items: flex-start; /* Alinea los elementos en la parte superior */
+}
+
+.filter-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px; /* Espacio entre cada campo de filtro */
+    flex-grow: 1; /* Permite que los campos ocupen el espacio disponible */
+}
+
+.filter-fields .filter-field { /* Estilos para cada campo de filtro individual */
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 180px;
+    flex: 1;
+}
+
+.filter-fields label {
+    font-weight: bold;
+    color: #362573; /* Tu color morado */
+    margin-bottom: 5px;
+    text-align: left;
+    white-space: nowrap; /* Evita que el texto de la etiqueta se rompa */
+}
+
+.filter-fields input[type="text"],
+.filter-fields input[type="date"],
+.filter-fields input[type="time"],
+.filter-fields input[type="number"],
+.filter-fields select {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    width: 100%; /* Asegura que ocupen el ancho de su contenedor */
+    box-sizing: border-box; /* Incluye padding y border en el ancho total */
+}
+
+/* Estilos para el contenedor de acciones (botones) */
+.filter-actions {
+    display: flex;
+    gap: 10px; /* Espacio entre los botones */
+    align-items: flex-end; /* Alinea los botones con la parte inferior de los campos si están en la misma línea */
+    padding-top: 25px; /* Ajusta este padding si los campos tienen labels y los botones necesitan alinearse */
+}
+
+/* Ajuste específico para el botón Filtrar */
+.filter-actions .btn-primary {
+    padding: 10px 20px;
+    height: 40px; /* Para que todos los botones tengan la misma altura si los iconos no son exactos */
+    line-height: 1; /* Ajusta la altura del texto */
+    display: flex; /* Para centrar el texto verticalmente */
+    align-items: center; /* Para centrar el texto verticalmente */
+    justify-content: center; /* Para centrar el texto horizontalmente */
+}
+
+/* Estilos para los botones con iconos (Limpiar, Exportar) */
+.filter-actions .btn-limpiar {
+    height: 40px; /* Igualar altura con el botón de filtrar */
+    width: 40px; /* Para que el botón de icono sea cuadrado */
+    padding: 0; /* Eliminar padding extra si el icono ya lo tiene */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #dee2e6; /* Borde sutil para los iconos */
+    border-radius: 5px; /* Bordes redondeados */
+    background-color: #f8f9fa; /* Fondo claro */
+}
+
+.filter-actions .btn-limpiar:hover {
+    background-color: #e2e6ea; /* Un gris más oscuro al pasar el ratón */
+}
+
+.filter-actions .btn-limpiar img {
+    display: block; /* Elimina espacio extra debajo de la imagen */
+}
+
+/* Ajuste para pantallas más pequeñas */
+@media (max-width: 768px) {
+    .filter-form {
+        flex-direction: column; /* Apilar los campos y las acciones en pantallas pequeñas */
+        align-items: stretch; /* Estirar los elementos para ocupar el ancho completo */
+    }
+
+    .filter-fields, .filter-actions {
+        width: 100%;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .filter-actions {
+        align-items: center; /* Centrar los botones cuando están apilados */
+        padding-top: 15px;
+    }
+
+    .filter-actions .btn-primary,
+    .filter-actions .btn-limpiar {
+        width: 100%; /* Ocupar todo el ancho disponible */
+        max-width: 250px; /* Limitar el ancho si es demasiado grande */
+    }
 }

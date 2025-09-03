@@ -19,4 +19,6 @@ urlpatterns = [
     path('export_csv/', views.export_csv, name='export_csv'),
     path('duplicates/', views.DuplicateAttemptsListView.as_view(), name='duplicate_attempts_list'),
     path('duplicates/<int:pk>/resolve/', views.resolve_duplicate_attempt, name='resolve_duplicate_attempt'),
+    path('duplicates/history/', views.DuplicateAttemptsHistoryListView.as_view(), name='duplicate_attempts_history_list'),
+    path('duplicates/history/export/', views.export_duplicate_attempts_csv, name='export_duplicate_attempts_csv'),
 ]
