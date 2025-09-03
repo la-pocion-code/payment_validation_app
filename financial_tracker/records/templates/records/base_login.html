@@ -1,0 +1,15 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %} {% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
+    {# Si tienes algún otro CSS específico del login o quieres un favicon, añádelo aquí #}
+</head>
+<body>
+    {% block content %}
+    {% endblock content %}
+</body>
+</html>

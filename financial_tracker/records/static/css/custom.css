@@ -20,8 +20,9 @@ a:hover {
 
 .btn-primary, .submit-btn {
     background-color: #FF0082;
+    border-radius: 10pcx;
     border-color: #FF0082;
-    color: #fff;
+    color: #1b1a1a;
 }
 
 .btn-primary:hover, .submit-btn:hover {
@@ -78,11 +79,6 @@ a:hover {
     vertical-align: middle; /* Alinea verticalmente el icono con cualquier texto adyacente */
     /* Otros estilos si es necesario */
 }
-
-
-
-
-
 
 
 
@@ -224,3 +220,79 @@ select {
 
 
 
+/* Estilos para centrar el contenedor principal */
+.login-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh; /* Asegura que ocupe al menos el alto completo de la ventana */
+    background-color: #ce0fa8; /* Un fondo suave para la página */
+    font-family: Arial, sans-serif;
+}
+
+/* Estilos para el contenedor del login */
+.login-container {
+    background-color: #ffffff;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 100%;
+    max-width: 400px; /* Ancho máximo para el formulario */
+}
+
+/* Estilos para el logo */
+.login-logo img {
+    max-width: 120px;
+    margin-bottom: 25px;
+}
+
+/* Estilos para el título */
+.login-title {
+    color: #333333;
+    margin-bottom: 15px;
+    font-size: 2em;
+    font-weight: bold;
+}
+
+/* Estilos para la descripción */
+.login-description {
+    color: #666666;
+    margin-bottom: 30px;
+    font-size: 1.1em;
+    line-height: 1.5;
+}
+
+/* Estilos para el botón de Google */
+.google-login-btn {
+    display: inline-flex; /* Para alinear el icono y el texto */
+    align-items: center;
+    justify-content: center;
+    background-color: #4285F4; /* Color de Google Blue */
+    color: white;
+    padding: 15px 25px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-size: 1.1em;
+    font-weight: bold;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.google-login-btn:hover {
+    background-color: #357ae8; /* Un azul un poco más oscuro al pasar el ratón */
+    transform: translateY(-2px); /* Un pequeño efecto de levantamiento */
+}
+
+.google-login-btn:active {
+    background-color: #2b6cb0; /* Un azul más oscuro al hacer clic */
+    transform: translateY(0);
+}
+
+/* Estilos para el icono de Google dentro del botón */
+.google-icon {
+    width: 24px; /* Tamaño del icono */
+    height: 24px;
+    margin-right: 10px; /* Espacio entre el icono y el texto */
+    vertical-align: middle; /* Alineación vertical */
+}

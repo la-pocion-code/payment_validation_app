@@ -1,9 +1,20 @@
-{% extends 'records/base.html' %}
+{% extends 'records/base_login.html' %} {# ¡CAMBIO CRÍTICO AQUÍ! #}
+{% load static %}
 
 {% block title %}Login{% endblock %}
 
 {% block content %}
-    <h2>Iniciar Sesión</h2>
-    <p>Por favor, inicia sesión con tu cuenta de Google.</p>
-    <a href="{% url 'social:begin' 'google-oauth2' %}" class="submit-btn">Iniciar sesión con Google</a>
+    <div class="login-wrapper">
+        <div class="login-container">
+            <div class="login-logo">
+                <img src="{% static 'images/imagen_login.png' %}" alt="Logo">
+            </div>
+            <h1 class="login-title">Validación de Pagos</h1>
+            <p class="login-description">Por favor, inicia sesión con tu cuenta de Google <strong>@lapocion.com</strong>.</p>
+            <a href="{% url 'social:begin' 'google-oauth2' %}" class="google-login-btn">
+                <img src="{% static 'images/google_icon.png' %}" alt="Google Icon" class="google-icon">
+                Iniciar sesión con Google
+            </a>
+        </div>
+    </div>
 {% endblock %}
