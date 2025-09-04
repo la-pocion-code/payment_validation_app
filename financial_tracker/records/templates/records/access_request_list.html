@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Solicitudes de Acceso Pendientes</h2>
+    <h2>Gestión de Solicitudes de Acceso</h2>
     <hr>
     {% if messages %}
         {% for message in messages %}
@@ -20,7 +20,9 @@
                     <tr>
                         <th>Usuario</th>
                         <th>Email</th>
-                        <th>Fecha de Solicitud</th>
+                        <th>Fecha de Aprobación</th>
+                        <th>Aprobado</th>
+                        <th>Grupo</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -31,7 +33,28 @@
                             <td>{{ request.user.email }}</td>
                             <td>{{ request.timestamp|date:"d/m/Y H:i" }}</td>
                             <td>
-                                <a href="{% url 'approve_access_request' request.id %}" class="btn btn-success btn-sm">Aprobar</a>
+                                {% if request.approved %}
+                                    <span class="badge bg-success">Sí</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">No</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if request.user.is_superuser %}
+                                    Superusuario
+                                {% elif request.user.groups.all %}
+                                    {% for group in request.user.groups.all %}
+                                        {{ group.name }}{% if not forloop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    Sin Grupo
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not request.approved %}
+                                    <a href="{% url 'approve_access_request' request.id %}" class="btn btn-success btn-sm">Aprobar</a>
+                                {% endif %}
+                                <button type="button" class="btn btn-danger btn-sm delete-request-btn" data-request-id="{{ request.id }}" data-username="{{ request.user.username }}">Eliminar</button>
                             </td>
                         </tr>
                     {% endfor %}
@@ -40,8 +63,89 @@
         </div>
     {% else %}
         <div class="alert alert-info" role="alert">
-            No hay solicitudes de acceso pendientes.
+            No hay solicitudes de acceso para mostrar.
         </div>
     {% endif %}
 </div>
+
+{% include 'records/access_request_delete_modal.html' %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const deleteButtons = document.querySelectorAll('.delete-request-btn');
+        const accessRequestModal = document.getElementById('accessRequestModal');
+        // Ensure the modal is hidden on load
+        if (accessRequestModal) {
+            accessRequestModal.style.display = 'none';
+        }
+        const closeButton = accessRequestModal.querySelector('.close-button');
+        const confirmDeleteAccessRequestBtn = document.getElementById('confirmDeleteAccessRequestBtn');
+        const cancelDeleteAccessRequestBtn = document.getElementById('cancelDeleteAccessRequestBtn');
+        const modalUsername = document.getElementById('modalUsername');
+        let requestIdToDelete = null;
+
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                requestIdToDelete = this.getAttribute('data-request-id');
+                const username = this.getAttribute('data-username');
+                modalUsername.textContent = username;
+                accessRequestModal.style.display = 'flex'; // Show the modal
+            });
+        });
+
+        closeButton.addEventListener('click', function() {
+            accessRequestModal.style.display = 'none'; // Hide the modal
+        });
+
+        cancelDeleteAccessRequestBtn.addEventListener('click', function() {
+            accessRequestModal.style.display = 'none'; // Hide the modal
+        });
+
+        window.addEventListener('click', function(event) {
+            if (event.target == accessRequestModal) {
+                accessRequestModal.style.display = 'none'; // Hide the modal if clicked outside
+            }
+        });
+
+        confirmDeleteAccessRequestBtn.addEventListener('click', function() {
+            if (requestIdToDelete) {
+                fetch(`/access_requests/${requestIdToDelete}/delete/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest' // Important for Django's is_ajax
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload(); // Reload the page to show updated list
+                    } else {
+                        alert('Error al eliminar la solicitud: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ocurrió un error al procesar la solicitud.');
+                });
+            }
+        });
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    // Does this cookie string begin with the name we want?
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
 {% endblock %}

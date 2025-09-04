@@ -49,6 +49,7 @@ class FinancialRecord(models.Model):
     history = HistoricalRecords()
     creado = models.DateTimeField(auto_now_add=True)
     modificado = models.DateTimeField(auto_now=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_financial_records')
 
     class Meta:
         verbose_name = "Registro Financiero"

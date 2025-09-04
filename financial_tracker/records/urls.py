@@ -7,9 +7,11 @@ from . import views
 urlpatterns = [
     path('login/', views.CustomLoginView.as_view(), name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('access_denied/', views.access_denied_view, name='access_denied'),
     path('request_access/', views.request_access, name='request_access'),
     path('access_requests/', views.access_request_list, name='access_request_list'),
     path('access_requests/<int:request_id>/approve/', views.approve_access_request, name='approve_access_request'),
+    path('access_requests/<int:request_id>/delete/', views.delete_access_request, name='delete_access_request'),
     path('', views.FinancialRecordListView.as_view(), name='record_list'), # Ruta raíz para la lista de registros
     path('new/', views.RecordCreateView.as_view(), name='record_create'),
     path('<int:pk>/edit/', views.RecordUpdateView.as_view(), name='record_update'),

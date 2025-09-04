@@ -64,7 +64,7 @@ class FinancialRecordForm(forms.ModelForm):
 
 class FinancialRecordUpdateForm(FinancialRecordForm):
     class Meta(FinancialRecordForm.Meta):
-        fields = '__all__'
+        exclude = ['uploaded_by']
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
@@ -86,4 +86,4 @@ class BankForm(forms.ModelForm):
 
 
 class CSVUploadForm(forms.Form):
-    csv_file = forms.FileField(label="Seleccionar archivo CSV")
+    csv_file = forms.FileField(label="Seleccionar archivo CSV", max_length=5 * 1024 * 1024) # Added max_length for file size limit

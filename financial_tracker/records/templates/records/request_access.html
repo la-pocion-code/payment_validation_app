@@ -1,23 +1,18 @@
 {% extends 'records/base_login.html' %}
+{% load static %}
+
+{% block title %}Solicitud de Acceso{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="text-center">Solicitud de Acceso</h3>
-                </div>
-                <div class="card-body">
-                    <p>Tu cuenta ha sido creada, pero aún no tienes permisos para acceder a la aplicación.</p>
-                    <p>Por favor, contacta a un administrador para que te asigne un rol.</p>
-                    <p>Una vez que se te asigne un rol, podrás iniciar sesión.</p>
-                    <div class="text-center">
-                        <a href="{% url 'login' %}" class="btn btn-primary">Volver al Login</a>
-                    </div>
-                </div>
-            </div>
+<div class="login-wrapper">
+    <div class="login-container">
+        <div class="login-logo">
+            <img src="{% static 'images/imagen_login.png' %}" alt="Logo">
         </div>
+        <h1 class="login-title">Solicitud de Acceso</h1>
+        <p class="login-description">Tu cuenta ha sido creada, pero aún no tienes permisos para acceder a la aplicación.</p>
+        <p class="login-description">Por favor, contacta a un administrador para que te asigne un rol. Una vez que se te asigne un rol, podrás iniciar sesión.</p>
+        <a href="{% url 'login' %}" class="google-login-btn">Volver al Login</a>
     </div>
 </div>
 {% endblock %}

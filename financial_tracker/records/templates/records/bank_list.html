@@ -6,7 +6,7 @@
 {% block content %}
     <h2>Gestionar Bancos</h2>
 
-    <a href="{% url 'bank_create' %}" class="btn-primary">Crear Nuevo Banco</a>
+    <a href="#" id="open-bank-create-modal" class="btn-primary">Crear Nuevo Banco</a>
 
     <table border="1">
         <thead>
@@ -20,7 +20,7 @@
             <tr>
                 <td>{{ bank.name }}</td>
                 <td>
-                    <a href="{% url 'bank_update' bank.pk %}" class="btn-accion-icono" title="Editar">
+                    <a href="#" class="open-bank-edit-modal btn-accion-icono" title="Editar" data-bank-id="{{ bank.pk }}">
                         <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
                     </a> 
                     <a href="{% url 'bank_delete' bank.pk %}" class="btn-accion-icono" title="Eliminar">
@@ -33,4 +33,118 @@
             {% endfor %}
         </tbody>
     </table>
+
+    {# Modal Structure #}
+    <div id="bank-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>     
+            <div id="bank-form-container">
+                {# Bank form will be loaded here via AJAX #}
+            </div>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const bankModal = document.getElementById('bank-modal');
+        const closeButton = bankModal.querySelector('.close-button');
+        const bankFormContainer = document.getElementById('bank-form-container');
+
+        // Function to open the modal and load the form
+        function openBankModal(url) {
+            bankModal.style.display = 'flex'; // Show the modal
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // Important for Django to detect AJAX
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                bankFormContainer.innerHTML = html;
+                attachBankFormSubmitHandler(); // Attach handler after form is loaded
+            })
+            .catch(error => console.error('Error loading bank form:', error));
+        }
+
+        // Function to close the modal
+        closeButton.addEventListener('click', function() {
+            bankModal.style.display = 'none';
+            bankFormContainer.innerHTML = ''; // Clear form content
+        });
+
+        // Close modal if clicked outside content
+        window.addEventListener('click', function(event) {
+            if (event.target == bankModal) {
+                bankModal.style.display = 'none';
+                bankFormContainer.innerHTML = '';
+            }
+        });
+
+        // Handle "Create New Bank" button click
+        document.getElementById('open-bank-create-modal').addEventListener('click', function(e) {
+            e.preventDefault();
+            openBankModal('{% url "bank_create" %}');
+        });
+
+        // Handle "Edit" button click
+        document.querySelectorAll('.open-bank-edit-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const bankId = this.getAttribute('data-bank-id');
+                openBankModal(`/bank/${bankId}/edit/`); // Use the correct URL for editing
+            });
+        });
+
+        // Function to attach submit handler to the dynamically loaded form
+        function attachBankFormSubmitHandler() {
+            const bankForm = bankFormContainer.querySelector('form');
+            if (bankForm) {
+                bankForm.addEventListener('submit', function(e) {
+                    e.preventDefault(); // Prevent default form submission
+
+                    const formData = new FormData(bankForm);
+                    
+                    fetch(bankForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message || 'Operación exitosa!');
+                            bankModal.style.display = 'none'; // Close modal
+                            bankFormContainer.innerHTML = ''; // Clear form content
+                            location.reload(); // Reload the page to show updated list
+                        } else {
+                            // Display errors by re-rendering the form HTML
+                            bankFormContainer.innerHTML = data.form_html;
+                            attachBankFormSubmitHandler(); // Re-attach handler for the new form
+                        }
+                    })
+                    .catch(error => console.error('Error submitting bank form:', error));
+                });
+            }
+        }
+
+        // Helper function to get CSRF token (if not already available globally)
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
 {% endblock %}

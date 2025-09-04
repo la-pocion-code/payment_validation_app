@@ -157,6 +157,8 @@ AUTHENTICATION_BACKENDS = (
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = 'login'
+SOCIAL_AUTH_LOGIN_ERROR_URL = 'login'
+SOCIAL_AUTH_BACKEND_ERROR_URL = 'login'
 
 SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_details',
@@ -175,7 +177,7 @@ SOCIAL_AUTH_PIPELINE = (
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
 
-ADMIN_EMAILS = ['jcorrea@lapocion.com','venriquez@lapocion.com', 'wcastro@lapocion.com']
+ADMIN_EMAILS = ['jcorrea@lapocion.com','venriquez@lapocion.com', 'wcastro@lapocion.com' ]
 
 # Session timeout settings
 SESSION_COOKIE_AGE = 3600  # 1 hour in seconds

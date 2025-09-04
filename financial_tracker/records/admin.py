@@ -1,6 +1,6 @@
 # records/admin.py
 from django.contrib import admin
-from .models import FinancialRecord, Bank
+from .models import FinancialRecord, Bank, AccessRequest
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
@@ -15,6 +15,12 @@ class FinancialRecordAdmin(admin.ModelAdmin):
 class BankAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
+
+@admin.register(AccessRequest)
+class AccessRequestAdmin(admin.ModelAdmin):
+    list_display = ('user', 'approved', 'timestamp')
+    list_filter = ('approved',)
+    list_display_links = ('user',)
 
 # Unregister the provided model admin
 try:
