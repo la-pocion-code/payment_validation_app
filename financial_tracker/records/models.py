@@ -4,6 +4,21 @@ from django.utils import timezone
 from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import User
 
+class AuthorizedUser(models.Model):
+    email = models.EmailField(unique=True)
+
+    class Meta:
+        verbose_name = "Usuario Autorizado"
+        verbose_name_plural = "Usuarios Autorizados"
+
+    def __str__(self):
+        return self.email
+
+    def save(self, *args, **kwargs):
+        self.email = self.email.lower()
+        super(AuthorizedUser, self).save(*args, **kwargs)
+
+
 class Bank(models.Model):
     name = models.CharField(max_length=100, unique=True)
 

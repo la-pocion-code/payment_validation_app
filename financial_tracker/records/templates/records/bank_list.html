@@ -20,9 +20,10 @@
             <tr>
                 <td>{{ bank.name }}</td>
                 <td>
-                    {# Edit link (if BankUpdateView exists) #}
-                    {# <a href="{% url 'bank_update' bank.pk %}">Editar</a> #}
-                    <a href="{% url 'bank_delete' bank.pk %}" class="btn-accion-icono" title="Eliminar Banco">
+                    <a href="{% url 'bank_update' bank.pk %}" class="btn-accion-icono" title="Editar">
+                        <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+                    </a> 
+                    <a href="{% url 'bank_delete' bank.pk %}" class="btn-accion-icono" title="Eliminar">
                         <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
                     </a>
                 </td>

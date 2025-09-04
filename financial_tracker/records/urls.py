@@ -19,6 +19,7 @@ urlpatterns = [
     path('registro/restaurar/<int:history_id>/', views.restore_delete_record_view, name='restaurar_registro'),
     path('eliminados/', views.deleted_records_view, name='deleted_records_list'),
     path('bank/new/', views.BankCreateView.as_view(), name='bank_create'),
+    path('bank/<int:pk>/edit/', views.BankUpdateView.as_view(), name='bank_update'),
     path('bank/<int:pk>/delete/', views.BankDeleteView.as_view(), name='bank_delete'),
     path('banks/', views.BankListView.as_view(), name='bank_list'),
     path('export_csv/', views.export_csv, name='export_csv'),

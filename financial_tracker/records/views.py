@@ -57,7 +57,7 @@ def approve_access_request(request, request_id):
     return redirect('access_request_list')
 
 
-@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador'), name='dispatch')
 class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = FinancialRecord
     form_class = FinancialRecordForm
@@ -77,7 +77,7 @@ class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         context['clientes'] = FinancialRecord.objects.values_list('cliente', flat=True).distinct()
         return context
 
-@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
+@method_decorator(group_required('Admin', 'Facturador'), name='dispatch')
 class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = FinancialRecord
     form_class = FinancialRecordUpdateForm
@@ -113,7 +113,8 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         return self.request.user.is_superuser
 
     def form_valid(self, form):
-        messages.success(self.request, self.success_message)
+        record = self.get_object()
+        messages.success(self.request, f"El registro con comprobante {record.comprobante} ha sido eliminado exitosamente.")
         return super().form_valid(form)
 
 
@@ -133,7 +134,7 @@ class BankCreateView(LoginRequiredMixin, CreateView):
         if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({'success': False, 'form_html': render_to_string('records/bank_form.html', {'form': form}, request=self.request)})
 
-@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador', 'Facturador'), name='dispatch')
 class FinancialRecordListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
     template_name = 'records/records_list.html'
@@ -153,7 +154,7 @@ class FinancialRecordListView(LoginRequiredMixin, FilterView):
 
 # --- Vistas para Historial y Restauración (pueden permanecer como funciones) ---
 
-@login_required
+@group_required('Admin', 'Digitador', 'Facturador')
 def history_record_view(request, pk):
     record = get_object_or_404(FinancialRecord, pk=pk)
     history = record.history.all()
@@ -450,6 +451,22 @@ def export_duplicate_attempts_csv(request):
         ])
 
     return response
+
+class BankUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
+    model = Bank
+    form_class = BankForm
+    template_name = 'records/bank_form.html'
+    success_url = reverse_lazy('bank_list')
+    success_message = "¡Banco actualizado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Banco'
+        return context
+
 
 class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Bank

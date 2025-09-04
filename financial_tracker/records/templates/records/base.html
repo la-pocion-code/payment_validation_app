@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Financial Tracker{% endblock %}</title>
+    <title>{% block title %}Validacion Pagos Poción{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/custom.css' %}">
 </head>
 <body>
     {% if user.is_authenticated %}
     <div class="bienvenida-superior">
-        <span class="texto-bienvenida">Bienvenido {{ user.username }}</span>
+        <span class="texto-bienvenida">Bienvenido, {{ user.username }}</span>
         <a href="{% url 'logout' %}" class="cerrar-sesion">Cerrar Sesión</a>
     </div>
     {% endif %}
