@@ -72,7 +72,7 @@
                 </a>
                 {% if user.is_superuser %}
                     | {# ELIMINAR #}
-                    <a href="{% url 'record_delete' registro.pk %}" class="btn-accion-icono" title="Eliminar">
+                    <a href="#" class="open-record-delete-modal btn-accion-icono" title="Eliminar" data-record-id="{{ registro.pk }}" data-record-comprobante="{{ registro.comprobante }}">
                         <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
                     </a>
                 {% endif %}
@@ -95,4 +95,97 @@
     {% endif %}
   </div>
 {% endif %}
+
+    {# Record Delete Modal Structure #}
+    <div id="record-delete-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3>Confirmar Eliminación</h3>
+            <p>¿Estás seguro de que deseas eliminar el registro con comprobante: <strong id="modal-record-comprobante"></strong>?</p>
+            <div class="modal-actions">
+                <button id="confirm-record-delete-btn" class="btn btn-danger">Eliminar</button>
+                <button id="cancel-record-delete-btn" class="btn btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const recordDeleteModal = document.getElementById('record-delete-modal');
+        const closeButton = recordDeleteModal.querySelector('.close-button');
+        const modalRecordComprobante = document.getElementById('modal-record-comprobante');
+        const confirmDeleteBtn = document.getElementById('confirm-record-delete-btn');
+        const cancelDeleteBtn = document.getElementById('cancel-record-delete-btn');
+        let recordIdToDelete = null;
+
+        // Open modal
+        document.querySelectorAll('.open-record-delete-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                recordIdToDelete = this.getAttribute('data-record-id');
+                const recordComprobante = this.getAttribute('data-record-comprobante');
+                modalRecordComprobante.textContent = recordComprobante;
+                recordDeleteModal.style.display = 'flex';
+            });
+        });
+
+        // Close modal
+        closeButton.addEventListener('click', function() {
+            recordDeleteModal.style.display = 'none';
+        });
+
+        cancelDeleteBtn.addEventListener('click', function() {
+            recordDeleteModal.style.display = 'none';
+        });
+
+        window.addEventListener('click', function(event) {
+            if (event.target == recordDeleteModal) {
+                recordDeleteModal.style.display = 'none';
+            }
+        });
+
+        // Confirm delete
+        confirmDeleteBtn.addEventListener('click', function() {
+            if (recordIdToDelete) {
+                fetch(`/records/${recordIdToDelete}/delete/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message || 'Registro eliminado exitosamente!');
+                        recordDeleteModal.style.display = 'none';
+                        location.reload(); // Reload page to update list
+                    } else {
+                        alert('Error al eliminar el registro: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ocurrió un error al procesar la solicitud.');
+                });
+            }
+        });
+
+        // Helper function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
 {% endblock %}

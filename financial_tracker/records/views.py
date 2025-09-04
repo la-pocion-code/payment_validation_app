@@ -130,9 +130,20 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     def test_func(self):
         return self.request.user.is_superuser
 
-    def form_valid(self, form):
-        messages.success(self.request, self.success_message)
-        return super().form_valid(form)
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        success_url = self.get_success_url()
+        
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            try:
+                self.object.delete()
+                messages.success(self.request, self.success_message)
+                return JsonResponse({'success': True, 'message': self.success_message})
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': str(e)})
+        
+        # For non-AJAX requests, fallback to default behavior (render confirmation template or redirect)
+        return super().delete(request, *args, **kwargs)
 
 
 class BankCreateView(LoginRequiredMixin, CreateView):
