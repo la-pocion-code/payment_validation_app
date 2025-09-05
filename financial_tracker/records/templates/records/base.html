@@ -32,7 +32,7 @@
                     </a>
                     <a href="{% url 'bank_list' %}">Bancos</a>
                     <a href="{% url 'access_request_list' %}">
-                        Solicitudes
+                        Usuarios
                         {% if pending_requests_count > 0 %}
                             ({{ pending_requests_count }})
                         {% endif %}
@@ -61,5 +61,6 @@
         {% block content %}
         {% endblock %}
     </div>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

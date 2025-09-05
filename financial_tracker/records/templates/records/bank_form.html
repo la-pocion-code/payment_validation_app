@@ -1,38 +1,33 @@
-{% extends "records/base_login.html" %}
 {% load static %}
 
-{% block title %}{{ title }}{% endblock %}
+<h1>{{ title }}</h1>
 
-{% block content %}
-    <h1>{{ title }}</h1>
-
-    <form method="post" class="filter-form">
-        {% csrf_token %}
-        {{ form.non_field_errors }}
-        <div class="filter-fields">
-            {% for field in form %}
-                <div class="filter-field">
-                    <label for="{{ field.id_for_label }}">{{ field.label_tag }}</label>
-                    {{ field }}
-                    {% if field.help_text %}
-                        <small class="form-text text-muted">{{ field.help_text }}</small>
-                    {% endif %}
-                    {% if field.errors %}
-                        <ul class="errorlist">
-                            {% for error in field.errors %}
-                                <li>{{ error }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% endif %}
-                </div>
-            {% endfor %}
-        </div>
-        <div class="filter-actions">
-            <button type="submit" class="submit-btn" title="Guardar">
-                Guardar Banco
-                <img src="{% static 'images/floppy-disk-regular-full.svg' %}" alt="Guardar" width="20" height="20" style="margin-left: 5px; vertical-align: middle;">
-            </button>
-            <a href="{% url 'bank_list' %}" class="btn-cancel" >Cancelar</a>
-        </div>
-    </form>
-{% endblock %}
+<form method="post" class="filter-form" action="{{ request.path }}">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="filter-fields">
+        {% for field in form %}
+            <div class="filter-field">
+                <label for="{{ field.id_for_label }}">{{ field.label_tag }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                    <small class="form-text text-muted">{{ field.help_text }}</small>
+                {% endif %}
+                {% if field.errors %}
+                    <ul class="errorlist">
+                        {% for error in field.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="submit-btn" title="Guardar">
+            Guardar Banco
+            <img src="{% static 'images/floppy-disk-regular-full.svg' %}" alt="Guardar" width="20" height="20" style="margin-left: 5px; vertical-align: middle;">
+        </button>
+        <a href="#" class="btn-cancel">Cancelar</a>
+    </div>
+</form>

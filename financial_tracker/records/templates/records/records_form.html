@@ -33,7 +33,7 @@
                     {% if field.name == 'banco_llegada' %}
                         <div style="display: flex; align-items: center;">
                             {{ field }}
-                            <a href="{% url 'bank_create' %}" style="margin-left: 5px; text-decoration: none; font-size: 1.5em;">+</a>
+                            <a href="{% url 'bank_create' %}" id="add-bank-button" style="margin-left: 5px; text-decoration: none; font-size: 1.5em;">+</a>
                             {% if user.is_superuser and field.value and field.value.pk %}
                                 <a href="{% url 'bank_delete' field.value.pk %}" class="btn-accion-icono" title="Eliminar Banco" style="margin-left: 5px;">
                                     <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
@@ -115,4 +115,99 @@
         </tbody>
     </table>
     {% endif %}
+
+{# Modal for adding a new bank #}
+<div id="bank-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <div id="bank-form-container">
+            {# Bank form will be loaded here via AJAX #}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const bankModal = document.getElementById('bank-modal');
+    const closeButton = bankModal.querySelector('.close-button');
+    const bankFormContainer = document.getElementById('bank-form-container');
+    const addBankButton = document.getElementById('add-bank-button');
+    const bankSelect = document.querySelector('[name="banco_llegada"]');
+
+    function openBankModal(url) {
+        bankModal.style.display = 'flex';
+        fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            bankFormContainer.innerHTML = html;
+            attachBankFormSubmitHandler();
+        })
+        .catch(error => console.error('Error loading bank form:', error));
+    }
+
+    function closeModal() {
+        bankModal.style.display = 'none';
+        bankFormContainer.innerHTML = '';
+    }
+
+    closeButton.addEventListener('click', closeModal);
+    window.addEventListener('click', function(event) {
+        if (event.target == bankModal) {
+            closeModal();
+        }
+    });
+
+    addBankButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        openBankModal(this.href);
+    });
+
+    function attachBankFormSubmitHandler() {
+        const bankForm = bankFormContainer.querySelector('form');
+        if (bankForm) {
+            bankForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(bankForm);
+                fetch(bankForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Add the new bank to the dropdown
+                        const newOption = new Option(data.name, data.id, true, true);
+                        bankSelect.add(newOption);
+                        alert(data.message || 'Banco creado exitosamente!');
+                        closeModal();
+                    } else {
+                        bankFormContainer.innerHTML = data.form_html;
+                        attachBankFormSubmitHandler();
+                    }
+                })
+                .catch(error => console.error('Error submitting bank form:', error));
+            });
+
+            const cancelButton = bankForm.querySelector('.btn-cancel');
+            if (cancelButton) {
+                cancelButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    closeModal();
+                });
+            }
+        }
+    }
+});
+</script>
 {% endblock %}

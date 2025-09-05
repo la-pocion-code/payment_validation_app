@@ -3,6 +3,8 @@
 from django import forms
 from .models import FinancialRecord, Bank, DuplicateRecordAttempt
 import json
+from django.contrib.auth.models import User # New import
+from django.contrib.auth.forms import UserChangeForm # New import
 
 class FinancialRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
@@ -87,3 +89,11 @@ class BankForm(forms.ModelForm):
 
 class CSVUploadForm(forms.Form):
     csv_file = forms.FileField(label="Seleccionar archivo CSV", max_length=5 * 1024 * 1024) # Added max_length for file size limit
+
+class UserUpdateForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name', 'last_name', 'is_active', 'is_superuser', 'groups']
+        widgets = {
+            'groups': forms.CheckboxSelectMultiple
+        }
