@@ -1,14 +1,47 @@
-{% extends 'records/base.html' %}
-
-{% block content %}
 <div class="container mt-4">
     <h2>{{ title }}</h2>
     <hr>
-    <form method="post">
+    <form method="post" action="{% url 'user_update' user.pk %}">
         {% csrf_token %}
-        {{ form.as_p }}
+
+        <div class="form-group">
+            <label>Nombre de Usuario:</label>
+            <p><strong>{{ user.username }}</strong></p>
+        </div>
+
+        <div class="form-group">
+            <label>Correo Electrónico:</label>
+            <p><strong>{{ user.email }}</strong></p>
+        </div>
+
+        <div class="form-group">
+            <label>Nombre:</label>
+            <p><strong>{{ user.first_name|default:"N/A" }}</strong></p>
+        </div>
+
+        <div class="form-group">
+            <label>Apellido:</label>
+            <p><strong>{{ user.last_name|default:"N/A" }}</strong></p>
+        </div>
+
+        <hr>
+
+        <div class="form-group">
+            {{ form.is_active.label_tag }}
+            {{ form.is_active }}
+        </div>
+
+        <div class="form-group">
+            {{ form.is_superuser.label_tag }}
+            {{ form.is_superuser }}
+        </div>
+
+        <div class="form-group">
+            {{ form.groups.label_tag }}
+            {{ form.groups }}
+        </div>
+
         <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-        <a href="{% url 'access_request_list' %}" class="btn btn-secondary">Cancelar</a>
+        <a href="{% url 'access_request_list' %}" class="btn btn-secondary btn-cancel">Cancelar</a>
     </form>
 </div>
-{% endblock %}

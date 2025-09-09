@@ -68,8 +68,7 @@
                 </a> |
                 {# HISTORIAL #}
                 <a href="{% url 'historial_registro' registro.pk %}" class="btn-accion-icono" title="Historial">
-                    <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20">
-                </a>
+                    <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20"></a>
                 {% if user.is_superuser %}
                     | {# ELIMINAR #}
                     <a href="#" class="open-record-delete-modal btn-accion-icono" title="Eliminar" data-record-id="{{ registro.pk }}" data-record-comprobante="{{ registro.comprobante }}">
@@ -154,8 +153,21 @@
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Raw response:', response); // Log the raw response
+                    if (!response.ok) {
+                        // If response is not OK (e.g., 403, 500), try to read error message
+                        return response.json().then(errorData => {
+                            throw new Error(errorData.message || 'Error en la respuesta del servidor.');
+                        }).catch(e => {
+                            console.error('Error parsing error response as JSON:', e); // Log error parsing
+                            throw new Error('Error en la respuesta del servidor (no JSON o error de red).');
+                        });
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Parsed data:', data); // Log the parsed data
                     if (data.success) {
                         alert(data.message || 'Registro eliminado exitosamente!');
                         recordDeleteModal.style.display = 'none';
@@ -165,8 +177,8 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    alert('Ocurrió un error al procesar la solicitud.');
+                    console.error('Fetch error:', error); // More specific error log
+                    alert('Ocurrió un error al procesar la solicitud: ' + error.message); // Display error message
                 });
             }
         });

@@ -13,7 +13,7 @@ class FinancialRecordForm(forms.ModelForm):
 
     class Meta:
         model = FinancialRecord
-        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'cliente', 'vendedor']
+        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'cliente', 'vendedor', 'facturador', 'status', 'numero_factura']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time'}),
@@ -93,7 +93,7 @@ class CSVUploadForm(forms.Form):
 class UserUpdateForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 'is_active', 'is_superuser', 'groups']
+        fields = ['is_active', 'is_superuser', 'groups']
         widgets = {
             'groups': forms.CheckboxSelectMultiple
         }

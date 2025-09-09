@@ -11,6 +11,7 @@ from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.db import IntegrityError, transaction
 from datetime import datetime
+from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter
 from django_filters.views import FilterView
 from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm
@@ -82,7 +83,7 @@ class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = FinancialRecord
     form_class = FinancialRecordForm
     template_name = 'records/records_form.html'
-    success_url = reverse_lazy('record_list')
+    success_url = reverse_lazy('record_create')
     success_message = "¡Registro guardado exitosamente!"
 
     def get_form_kwargs(self):
@@ -128,21 +129,38 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     success_url = reverse_lazy('record_list')
     success_message = "¡Registro eliminado exitosamente!"
 
+    def dispatch(self, request, *args, **kwargs):
+        try:
+            return super().dispatch(request, *args, **kwargs)
+        except PermissionDenied:
+            if request.headers.get('x-requested-with', '').startswith('XMLHttpRequest'):
+                print(f"Permission denied during AJAX dispatch for user {request.user.username}.")
+                return JsonResponse({'success': False, 'message': 'No tienes permisos para realizar esta acción.'}, status=403)
+            raise # Re-raise for non-AJAX requests
+
     def test_func(self):
-        return self.request.user.is_superuser
+        is_superuser = self.request.user.is_superuser
+        if not is_superuser:
+            print(f"Permission denied for user {self.request.user.username}: Not a superuser.")
+        return is_superuser
 
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
-        success_url = self.get_success_url()
         
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             try:
+                if not self.test_func():
+                    print(f"Permission denied during AJAX delete for user {self.request.user.username}.")
+                    return JsonResponse({'success': False, 'message': 'No tienes permisos para realizar esta acción.'}, status=403)
+
                 self.object.delete()
-                messages.success(self.request, self.success_message)
+                print(f"Returning JSON success response for record {self.object.pk}")
                 return JsonResponse({'success': True, 'message': self.success_message})
             except Exception as e:
-                return JsonResponse({'success': False, 'message': str(e)})
+                print(f"Error deleting record: {e}")
+                return JsonResponse({'success': False, 'message': str(e)}, status=500)
         
+        # For non-AJAX requests, proceed with default DeleteView behavior
         return super().delete(request, *args, **kwargs)
 
 
@@ -278,6 +296,25 @@ class UserUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixi
     def test_func(self):
         return self.request.user.is_superuser
 
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            form = self.get_form()
+            html_form = render_to_string(self.template_name, {'form': form, 'title': 'Editar Usuario', 'user': self.object}, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            form.save()
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string(self.template_name, {'form': form, 'title': 'Editar Usuario', 'user': self.object}, request=self.request)})
+        return super().form_invalid(form)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Usuario'
@@ -292,9 +329,21 @@ class UserDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     def test_func(self):
         return self.request.user.is_superuser
 
-    def form_valid(self, form):
-        messages.success(self.request, self.success_message)
-        return super().form_valid(form)
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            context = self.get_context_data(object=self.object)
+            html_form = render_to_string(self.template_name, context, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            self.object.delete()
+            messages.success(self.request, self.success_message)
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().post(request, *args, **kwargs)
 
 def access_denied_view(request):
     return render(request, 'records/access_denied.html')

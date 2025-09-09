@@ -1,14 +1,10 @@
-{% extends 'records/base.html' %}
-
-{% block content %}
 <div class="container mt-4">
     <h2>Confirmar Eliminación de Usuario</h2>
     <hr>
     <p>¿Estás seguro de que quieres eliminar al usuario "<strong>{{ user.username }}</strong>"?</p>
-    <form method="post">
+    <form method="post" action="{% url 'user_delete' user.pk %}">
         {% csrf_token %}
         <button type="submit" class="btn btn-danger">Confirmar Eliminación</button>
-        <a href="{% url 'access_request_list' %}" class="btn btn-secondary">Cancelar</a>
+        <a href="#" class="btn btn-secondary btn-cancel">Cancelar</a>
     </form>
 </div>
-{% endblock %}
