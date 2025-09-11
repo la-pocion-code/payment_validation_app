@@ -182,6 +182,3 @@ ADMIN_EMAILS = ['jcorrea@lapocion.com','venriquez@lapocion.com', 'wcastro@lapoci
 # Session timeout settings
 SESSION_COOKIE_AGE = 3600  # 1 hour in seconds
 SESSION_SAVE_EVERY_REQUEST = True
-
-
-
