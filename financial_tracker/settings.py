@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(_file_).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -146,8 +146,15 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+# Asegúrate de que solo haya una ubicación para archivos estáticos
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'records/static'),
+    os.path.join(BASE_DIR, 'records', 'static'),
+]
+
+# Configuración mejorada para evitar duplicados
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
 ]
 
 # Configuración para WhiteNoise (servir archivos estáticos en producción)
