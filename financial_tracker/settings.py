@@ -27,16 +27,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "your-default-secret-key-for-development")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# DEBUG = os.environ.get("DEBUG", "False") == "True"
-
-DEBUG = False
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 # Configuración de ALLOWED_HOSTS más robusta
-ALLOWED_HOSTS = ['*']
-# if os.environ.get("ALLOWED_HOSTS"):
-#     ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS").split(",") if host.strip()]
-# elif DEBUG:
-#     ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'web-production-6b4c.up.railway.app']
+ALLOWED_HOSTS = []
+if os.environ.get("ALLOWED_HOSTS"):
+    ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS").split(",") if host.strip()]
+elif DEBUG:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'web-production-6b4c.up.railway.app']
 
 # Para Railway específicamente
 if os.environ.get("RAILWAY_ENVIRONMENT"):
