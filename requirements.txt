@@ -12,7 +12,6 @@ idna==3.10
 oauthlib==3.3.1
 pycparser==2.22
 PyJWT==2.10.1
-python-decouple==3.8
 python3-openid==3.2.0
 requests==2.32.5
 requests-oauthlib==2.0.0
