@@ -13,37 +13,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 import dj_database_url
-from decouple import config
 
+from dotenv import load_dotenv
 
-print("🧪 DEBUG INFO - Variables desde decouple:")
-
-# Lista de variables que quieres inspeccionar
-for var in [
-    "DEBUG",
-    "DATABASE_URL",
-    "SECRET_KEY",
-    "ALLOWED_HOSTS",
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_STORAGE_BUCKET_NAME",
-    "EMAIL_HOST",
-    "EMAIL_HOST_USER",
-    "EMAIL_HOST_PASSWORD",
-    "SOCIAL_AUTH_GOOGLE_OAUTH2_KEY",
-    "SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET",
-    "ADMIN_EMAILS"
-]:
-    try:
-        value = config(var)
-        print(f"✅ {var} = {value}")
-    except Exception as e:
-        print(f"⚠️  {var} no está definida: {e}")
-
-
-# from dotenv import load_dotenv
-
-# load_dotenv()
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -129,10 +102,7 @@ WSGI_APPLICATION = 'financial_tracker.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Configuración de base de datos más robusta
-DATABASE_URL = os.environ.get('DATABASE_URL')
-print("DATABASE_URL:", os.getenv("DATABASE_URL"))
-print("DATABASE_URL:", os.environ.get("DATABASE_URL"))
+
 
 
 
@@ -236,10 +206,6 @@ SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.user.user_details',
 )
 
-print("SOCIAL_AUTH_GOOGLE_OAUTH2_KEY:", os.getenv("SOCIAL_AUTH_GOOGLE_OAUTH2_KEY"))
-print("SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET:", os.getenv("SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET"))
-print("SICIAL_AUTH_PIPELINE:", os.environ.get("SOCIAL_AUTH_GOOGLE_OAUTH2_KEY"))
-print("SOCIAL_AUTH_BACKEND_ERROR_URL:", os.environ.get("SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET"))
 
 
 
@@ -284,4 +250,3 @@ if DEBUG:
 CSRF_TRUSTED_ORIGINS = ['http://*','https://web-production-6b4c.up.railway.app']
 
 
-print("✅ FOO:", os.getenv("FOO"))
