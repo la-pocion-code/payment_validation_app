@@ -16,8 +16,6 @@ import dj_database_url
 from decouple import config
 
 
-from decouple import config
-
 print("🧪 DEBUG INFO - Variables desde decouple:")
 
 # Lista de variables que quieres inspeccionar
@@ -284,3 +282,6 @@ if DEBUG:
 
 
 CSRF_TRUSTED_ORIGINS = ['http://*','https://web-production-6b4c.up.railway.app']
+
+
+print("✅ FOO:", os.getenv("FOO"))
