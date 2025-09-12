@@ -13,7 +13,34 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 import dj_database_url
-from dotenv import load_dotenv
+from decouple import config
+
+
+from decouple import config
+
+print("🧪 DEBUG INFO - Variables desde decouple:")
+
+# Lista de variables que quieres inspeccionar
+for var in [
+    "DEBUG",
+    "DATABASE_URL",
+    "SECRET_KEY",
+    "ALLOWED_HOSTS",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_STORAGE_BUCKET_NAME",
+    "EMAIL_HOST",
+    "EMAIL_HOST_USER",
+    "EMAIL_HOST_PASSWORD",
+]:
+    try:
+        value = config(var)
+        print(f"✅ {var} = {value}")
+    except Exception as e:
+        print(f"⚠️  {var} no está definida: {e}")
+
+
+# from dotenv import load_dotenv
 
 # load_dotenv()
 
