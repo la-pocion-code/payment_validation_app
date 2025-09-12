@@ -28,7 +28,7 @@ SECRET_KEY = "=x7717-3(_!9)36i%g22$3k75bme3dcfxx2nru71(hvz=j$l%1"
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost','web-production-6b4c.up.railway.app']
+ALLOWED_HOSTS = ['localhost','127.0.0.1','localhost','web-production-6b4c.up.railway.app']
 
 
 
@@ -103,23 +103,31 @@ WSGI_APPLICATION = 'financial_tracker.wsgi.application'
 
 # Configuración de base de datos más robusta
 DATABASE_URL = os.environ.get('DATABASE_URL')
+print("DATABASE_URL:", os.getenv("DATABASE_URL"))
 
-if DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
-else:
-    # Fallback para desarrollo local
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+
+DATABASES = {
+    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+}
+
+
+
+# if DATABASE_URL:
+#     DATABASES = {
+#         'default': dj_database_url.config(
+#             default=DATABASE_URL,
+#             conn_max_age=600,
+#             conn_health_checks=True,
+#         )
+#     }
+# else:
+#     # Fallback para desarrollo local
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.sqlite3',
+#             'NAME': BASE_DIR / 'db.sqlite3',
+#         }
+#     }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -233,3 +241,7 @@ if DEBUG:
             'level': 'INFO',
         },
     }
+
+
+
+CSRF_TRUSTED_ORIGINS = ['http://*','https://web-production-6b4c.up.railway.app']
