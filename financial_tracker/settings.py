@@ -32,6 +32,9 @@ for var in [
     "EMAIL_HOST",
     "EMAIL_HOST_USER",
     "EMAIL_HOST_PASSWORD",
+    "SOCIAL_AUTH_GOOGLE_OAUTH2_KEY",
+    "SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET",
+    "ADMIN_EMAILS"
 ]:
     try:
         value = config(var)
