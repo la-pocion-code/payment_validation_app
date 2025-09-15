@@ -27,6 +27,7 @@
             <tr>
                 <th>Usuario (Intento)</th>
                 <th>Fecha y Hora (Intento)</th>
+                <th>Tipo de Intento</th> {# NUEVO: Columna para el tipo de intento #}
                 <th>Datos del Intento</th>
                 <th>Resuelto por</th>
                 <th>Fecha y Hora (Resuelto)</th>
@@ -38,6 +39,7 @@
             <tr>
                 <td>{{ attempt.user.username }}</td>
                 <td>{{ attempt.timestamp|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ attempt.get_attempt_type_display }}</td> {# NUEVO: Mostrar el tipo de intento #}
                 <td>
                     <ul>
                         {% for key, value in attempt.data.items %}
@@ -50,18 +52,18 @@
                 <td>{% if attempt.is_resolved %}Resuelto{% else %}Pendiente{% endif %}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="4">No hay intentos de registros duplicados.</td></tr>
+            <tr><td colspan="7">No hay intentos de registros duplicados.</td></tr> {# ACTUALIZADO: colspan a 7 #}
             {% endfor %}
         </tbody>
     </table>
 
     {% if is_paginated %}
       <div>
-        {% if page_obj.has_previous %}
+        {% if page_obj.has_previous %}\
           <a href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">Anterior</a>
         {% endif %}
         <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_next %}
+        {% if page_obj.has_next %}\
           <a href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">Siguiente</a>
         {% endif %}
       </div>

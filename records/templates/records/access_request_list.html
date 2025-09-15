@@ -12,6 +12,41 @@
             </div>
         {% endfor %}
     {% endif %}
+
+    <h3 class="mt-5">Solicitudes de Acceso Pendientes</h3>
+    {% if requests %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Email</th>
+                        <th>Fecha de Solicitud</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requests %}
+                        <tr>
+                            <td>{{ req.user.username }}</td>
+                            <td>{{ req.user.email }}</td>
+                            <td>{{ req.requested_at|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <a href="{% url 'access_request_approve_deny' req.pk %}" class="btn btn-info btn-sm open-access-request-modal" title="Gestionar">
+                                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Gestionar" width="20" height="20"> 
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            No hay solicitudes de acceso pendientes.
+        </div>
+    {% endif %}
+
     <h3 class="mt-5">Gestión de Usuarios</h3>
     {% if users %}
         <div class="table-responsive">
@@ -98,7 +133,7 @@
         const closeButton = userModal.querySelector('.close-button');
         const userFormContainer = document.getElementById('user-form-container');
 
-        function openUserModal(url) {
+        function openModal(url) {
             userModal.style.display = 'flex';
             fetch(url, {
                 headers: {
@@ -108,9 +143,9 @@
             .then(response => response.text())
             .then(html => {
                 userFormContainer.innerHTML = html;
-                attachUserFormSubmitHandler();
+                attachFormSubmitHandler();
             })
-            .catch(error => console.error('Error loading user form:', error));
+            .catch(error => console.error('Error loading form:', error));
         }
 
         function closeModal() {
@@ -126,20 +161,21 @@
             }
         });
 
-        document.querySelectorAll('.open-user-edit-modal, .open-user-delete-modal').forEach(button => {
+        document.querySelectorAll('.open-user-edit-modal, .open-user-delete-modal, .open-access-request-modal').forEach(button => {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
-                openUserModal(this.href);
+                openModal(this.href);
             });
         });
 
-        function attachUserFormSubmitHandler() {
-            const userForm = userFormContainer.querySelector('form');
-            if (userForm) {
-                userForm.addEventListener('submit', function(e) {
+        function attachFormSubmitHandler() {
+            const currentForm = userFormContainer.querySelector('form');
+            if (currentForm) {
+                currentForm.addEventListener('submit', function(e) {
                     e.preventDefault();
-                    const formData = new FormData(userForm);
-                    fetch(userForm.action, {
+                    const formData = new FormData(currentForm);
+                    console.log('Submitting form...'); // Debug log
+                    fetch(currentForm.action, {
                         method: 'POST',
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest',
@@ -147,21 +183,25 @@
                         },
                         body: formData
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        console.log('Raw response:', response); // Debug log
+                        return response.json();
+                    })
                     .then(data => {
+                        console.log('Parsed data:', data); // Debug log
                         if (data.success) {
                             alert(data.message || 'Operación exitosa!');
                             closeModal();
                             location.reload();
                         } else {
                             userFormContainer.innerHTML = data.form_html;
-                            attachUserFormSubmitHandler();
+                            attachFormSubmitHandler();
                         }
                     })
-                    .catch(error => console.error('Error submitting user form:', error));
+                    .catch(error => console.error('Error submitting form:', error)); // Debug log
                 });
 
-                const cancelButton = userForm.querySelector('.btn-cancel');
+                const cancelButton = currentForm.querySelector('.btn-cancel');
                 if (cancelButton) {
                     cancelButton.addEventListener('click', function(e) {
                         e.preventDefault();

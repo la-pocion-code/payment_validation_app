@@ -20,7 +20,11 @@
         <nav>
             {% if user.is_authenticated %}
                 <a href="{% url 'record_list' %}">Registros</a>
-                <a href="{% url 'record_create' %}">Nuevo</a>
+                {% if 'Digitador' in user_groups or user.is_superuser %}
+                    <a href="{% url 'record_create' %}">Nuevo Registro</a>
+                {% endif %}
+
+                <!-- <a href="{% url 'record_create' %}">Nuevo</a> -->
                 {% if user.is_superuser %}
                     <a href="{% url 'csv_upload' %}">Cargar</a>
                     <a href="{% url 'deleted_records_list' %}">Eliminados</a>

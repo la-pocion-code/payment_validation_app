@@ -63,9 +63,11 @@
             <td>{{ registro.numero_factura }}</td>
             <td>
                 {# EDITAR #}
-                <a href="{% url 'record_update' registro.pk %}" class="btn-accion-icono" title="Editar">
+                {% if 'Facturador' in user_groups or user.is_superuser %}
+                    <a href="{% url 'record_update' registro.pk %}" class="btn-accion-icono" title="Editar">
                     <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
-                </a> |
+                    </a> |
+                {% endif %}
                 {# HISTORIAL #}
                 <a href="{% url 'historial_registro' registro.pk %}" class="btn-accion-icono" title="Historial">
                     <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20"></a>

@@ -92,6 +92,7 @@ TEMPLATES = [
                 'social_django.context_processors.login_redirect',
                 'records.context_processors.duplicate_attempts_count',
                 'records.context_processors.pending_requests_count',
+                'records.context_processors.user_group_names',  
             ],
         },
     },
@@ -106,28 +107,28 @@ WSGI_APPLICATION = 'financial_tracker.wsgi.application'
 
 
 
-DATABASES = {
-    'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
-}
+# DATABASES = {
+#     'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+# }
 
+DATABASE_URL = os.getenv('DATABASE_URL')
 
-
-# if DATABASE_URL:
-#     DATABASES = {
-#         'default': dj_database_url.config(
-#             default=DATABASE_URL,
-#             conn_max_age=600,
-#             conn_health_checks=True,
-#         )
-#     }
-# else:
-#     # Fallback para desarrollo local
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': 'django.db.backends.sqlite3',
-#             'NAME': BASE_DIR / 'db.sqlite3',
-#         }
-#     }
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+else:
+    # Fallback para desarrollo local
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -200,6 +201,7 @@ SOCIAL_AUTH_PIPELINE = (
     'records.pipeline.require_email_domain',
     'social_core.pipeline.user.get_username',
     'social_core.pipeline.user.create_user',
+    'records.pipeline.create_access_request',
     'records.pipeline.set_superuser_flag',
     'social_core.pipeline.social_auth.associate_user',
     'social_core.pipeline.social_auth.load_extra_data',
@@ -212,7 +214,7 @@ SOCIAL_AUTH_PIPELINE = (
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
 
-ADMIN_EMAILS = ['jcorrea@lapocion.com', 'venriquez@lapocion.com', 'wcastro@lapocion.com']
+ADMIN_EMAILS = ['jcorrea@lapocion.com', 'venriquez@lapocion.com', 'wcastro@lapocion.com', 'willcr32@gmail.com']
 
 # Session timeout settings
 SESSION_COOKIE_AGE = 3600  # 1 hour in seconds

@@ -3,13 +3,50 @@
 from django import forms
 from .models import FinancialRecord, Bank, DuplicateRecordAttempt
 import json
-from django.contrib.auth.models import User # New import
+from django.contrib.auth.models import User, Group # New import for Group
 from django.contrib.auth.forms import UserChangeForm # New import
+from .models import AccessRequest # New import for AccessRequest
+
+class AccessRequestApprovalForm(forms.ModelForm):
+    ACTION_CHOICES = [
+        ('approve', 'Aprobar'),
+        ('deny', 'Denegar'),
+    ]
+    approval_action = forms.ChoiceField(choices=ACTION_CHOICES, widget=forms.RadioSelect, initial='approve', label="Acción")
+    groups = forms.ModelMultipleChoiceField(
+        queryset=Group.objects.all(),
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        label="Asignar Grupos (si se aprueba)"
+    )
+
+    class Meta:
+        model = AccessRequest
+        fields = [] # No direct fields from AccessRequest model, handled by action field
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.user:
+            # Pre-populate groups if the user already belongs to some
+            self.fields['groups'].initial = self.instance.user.groups.all()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get('approval_action')
+        groups = cleaned_data.get('groups')
+
+        if action == 'approve' and (not groups or groups.count() == 0):
+            raise forms.ValidationError("Debe seleccionar al menos un grupo si aprueba la solicitud.")
+
+        return cleaned_data
+
 
 class FinancialRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super(FinancialRecordForm, self).__init__(*args, **kwargs)
+        # Atributo para guardar el registro similar encontrado
+        self.existing_record = None
 
     class Meta:
         model = FinancialRecord
@@ -39,30 +76,56 @@ class FinancialRecordForm(forms.ModelForm):
         banco_llegada = cleaned_data.get('banco_llegada')
         valor = cleaned_data.get('valor')
 
-        if fecha and hora and comprobante and banco_llegada and valor:
-            qs = FinancialRecord.objects.filter(
-                fecha=fecha,
-                hora=hora,
-                comprobante=comprobante,
-                banco_llegada=banco_llegada,
-                valor=valor
-            )
-            if self.instance and self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-
-            if qs.exists():
-                # Log the duplicate attempt
-                if self.request:
-                    # Convert cleaned_data to a JSON serializable format
-                    serializable_data = {k: str(v) for k, v in cleaned_data.items()}
-                    DuplicateRecordAttempt.objects.create(
-                        user=self.request.user,
-                        data=serializable_data
-                    )
-                raise forms.ValidationError(
-                    f"Registro duplicado: ya existe un registro con los mismos datos (Fecha: {fecha}, Hora: {hora}, Comprobante: {comprobante}, Banco: {banco_llegada}, Valor: {valor})."
+        # Solo realizamos estas verificaciones para nuevos registros
+        if not self.instance.pk:
+            # 1. Verificación de duplicado EXACTO (bloquea la creación) - ESTA DEBE IR PRIMERO
+            if fecha and hora and comprobante and banco_llegada and valor:
+                exact_qs = FinancialRecord.objects.filter(
+                    fecha=fecha,
+                    hora=hora,
+                    comprobante=comprobante,
+                    banco_llegada=banco_llegada,
+                    valor=valor
                 )
+                if exact_qs.exists():
+                    # Log del intento de duplicado EXACTO
+                    if self.request:
+                        serializable_data = {k: str(v) for k, v in cleaned_data.items()}
+                        DuplicateRecordAttempt.objects.create(
+                            user=self.request.user,
+                            data=serializable_data,
+                            attempt_type='DUPLICATE' # Tipo 'DUPLICATE'
+                        )
+                    raise forms.ValidationError(
+                        f"Registro duplicado exacto: ya existe un registro con los mismos datos (Fecha: {fecha}, Hora: {hora}, Comprobante: {comprobante}, Banco: {banco_llegada}, Valor: {valor})."
+                    )
+
+            # 2. Verificación de registro SIMILAR (para confirmación del usuario) - ESTA DEBE IR SEGUNDO
+            # Esta verificación se ejecuta si no se encontró un duplicado exacto.
+            if fecha and banco_llegada and valor:
+                similar_qs = FinancialRecord.objects.filter(
+                    fecha=fecha,
+                    banco_llegada=banco_llegada,
+                    valor=valor
+                )
+                # Excluimos los registros que ya habrían sido capturados como duplicados exactos
+                # Esto asegura que solo marquemos como "similar" lo que no es un duplicado exacto.
+                if fecha and hora and comprobante and banco_llegada and valor:
+                    similar_qs = similar_qs.exclude(
+                        fecha=fecha,
+                        hora=hora,
+                        comprobante=comprobante,
+                        banco_llegada=banco_llegada,
+                        valor=valor
+                    )
+
+                if similar_qs.exists():
+                    self.existing_record = similar_qs.first()
+                    # NO RETORNAR AQUÍ. Permitir que el método clean() termine.
+        
         return cleaned_data
+
+
 
 class FinancialRecordUpdateForm(FinancialRecordForm):
     class Meta(FinancialRecordForm.Meta):

@@ -12,6 +12,7 @@ urlpatterns = [
     path('access_requests/', views.access_request_list, name='access_request_list'),
     path('access_requests/<int:request_id>/approve/', views.approve_access_request, name='approve_access_request'),
     path('access_requests/<int:request_id>/delete/', views.delete_access_request, name='delete_access_request'),
+    path('access_requests/<int:pk>/approve_deny/', views.AccessRequestApprovalView.as_view(), name='access_request_approve_deny'), # New
     path('users/<int:pk>/edit/', views.UserUpdateView.as_view(), name='user_update'), # New
     path('users/<int:pk>/delete/', views.UserDeleteView.as_view(), name='user_delete'), # New
     path('', views.FinancialRecordListView.as_view(), name='record_list'), # Ruta raíz para la lista de registros

@@ -33,27 +33,45 @@
                     {% if field.name == 'banco_llegada' %}
                         <div style="display: flex; align-items: center;">
                             {{ field }}
-                            <a href="{% url 'bank_create' %}" id="add-bank-button" style="margin-left: 5px; text-decoration: none; font-size: 1.5em;">+</a>
+                            <a href="{% url 'bank_create' %}" id="add-bank-button" style="margin-left: 5px; text-decoration: none; font-size: 1.5em;"></a>
                             {% if user.is_superuser and field.value and field.value.pk %}
                                 <a href="{% url 'bank_delete' field.value.pk %}" class="btn-accion-icono" title="Eliminar Banco" style="margin-left: 5px;">
                                     <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
                                 </a>
                             {% endif %}
                         </div>
+
                     {% elif field.name == 'vendedor' %}
-                        <input type="text" name="{{ field.name }}" list="vendedores-list" value="{{ field.value|default:'' }}" class="form-control">
+                        <input 
+                            type="text" 
+                            name="{{ field.name }}" 
+                            list="vendedores-list" 
+                            value="{{ field.value|default_if_none:'' }}" 
+                            class="form-control" 
+                            {% if field.field.disabled %}disabled{% endif %}
+                        >
                         <datalist id="vendedores-list">
                             {% for vendedor in vendedores %}
-                                <option value="{{ vendedor }}">
+                                <option value="{{ vendedor }}"></option>
                             {% endfor %}
                         </datalist>
+
                     {% elif field.name == 'cliente' %}
-                        <input type="text" name="{{ field.name }}" list="clientes-list" value="{{ field.value|default:'' }}" class="form-control">
+                        <input 
+                            type="text" 
+                            name="{{ field.name }}" 
+                            list="clientes-list" 
+                            value="{{ field.value|default_if_none:'' }}" 
+                            class="form-control"
+                            {% if field.field.disabled %}disabled{% endif %}
+                        >
                         <datalist id="clientes-list">
                             {% for cliente in clientes %}
-                                <option value="{{ cliente }}">
+                                <option value="{{ cliente }}"></option>
                             {% endfor %}
                         </datalist>
+
+
                     {% else %}
                         {{ field }}
                     {% endif %}

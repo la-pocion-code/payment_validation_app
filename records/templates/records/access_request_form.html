@@ -1,0 +1,32 @@
+<div class="container mt-4">
+    <h2>{{ title }}</h2>
+    <hr>
+    <form method="post" action="{% url 'access_request_update' access_request.pk %}">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label>Usuario Solicitante:</label>
+            <p><strong>{{ access_request.user.username }}</strong></p>
+        </div>
+
+        <div class="form-group">
+            <label>Correo Electrónico:</label>
+            <p><strong>{{ access_request.user.email }}</strong></p>
+        </div>
+
+        <div class="form-group">
+            <label>Fecha de Solicitud:</label>
+            <p><strong>{{ access_request.timestamp|date:"d/m/Y H:i" }}</strong></p>
+        </div>
+
+        <hr>
+
+        <div class="form-group">
+            {{ form.action.label_tag }}
+            {{ form.action }}
+        </div>
+
+        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        <button type="button" class="btn btn-secondary btn-cancel" onclick="closeModal()">Cancelar</button>
+    </form>
+</div>

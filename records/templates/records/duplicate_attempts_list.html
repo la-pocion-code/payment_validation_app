@@ -13,6 +13,7 @@
             <tr>
                 <th>Usuario</th>
                 <th>Fecha y Hora</th>
+                <th>Tipo de Intento</th> {# NUEVO: Columna para el tipo de intento #}
                 <th>Datos del Intento</th>
                 <th>Acciones</th>
             </tr>
@@ -22,6 +23,7 @@
             <tr>
                 <td>{{ attempt.user.username }}</td>
                 <td>{{ attempt.timestamp|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ attempt.get_attempt_type_display }}</td> {# NUEVO: Mostrar el tipo de intento #}
                 <td>
                     <ul>
                         {% for key, value in attempt.data.items %}
@@ -34,7 +36,7 @@
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="4">No hay intentos de registros duplicados.</td></tr>
+            <tr><td colspan="5">No hay intentos de registros duplicados.</td></tr> {# ACTUALIZADO: colspan a 5 #}
             {% endfor %}
         </tbody>
     </table>
@@ -45,7 +47,7 @@
           <a href="?page={{ page_obj.previous_page_number }}">Anterior</a>
         {% endif %}
         <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_next %}
+        {% if page_obj.has_next %}\
           <a href="?page={{ page_obj.next_page_number }}">Siguiente</a>
         {% endif %}
       </div>

@@ -1,0 +1,202 @@
+{% extends 'records/base.html' %}
+{% load static %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Solicitudes de Acceso Pendientes</h2>
+    <hr>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if requests %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Email</th>
+                        <th>Fecha de Solicitud</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for request in requests %}
+                        <tr>
+                            <td>{{ request.user.username }}</td>
+                            <td>{{ request.user.email }}</td>
+                            <td>{{ request.timestamp|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <a href="{% url 'access_request_update' request.pk %}" class="btn btn-info btn-sm open-access-request-modal" title="Gestionar">
+                                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Gestionar" width="20" height="20">
+                                </a>
+                                <a href="{% url 'access_request_delete' request.pk %}" class="btn btn-danger btn-sm open-access-request-delete-modal" title="Eliminar" data-request-id="{{ request.pk }}" data-username="{{ request.user.username }}">
+                                    <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            No hay solicitudes de acceso pendientes.
+        </div>
+    {% endif %}
+</div>
+
+{# Modal Structure for Access Request Management #}
+<div id="access-request-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <div id="access-request-form-container">
+            {# Form will be loaded here via AJAX #}
+        </div>
+    </div>
+</div>
+
+{# Modal Structure for Access Request Delete Confirmation #}
+<div class="modal fade" id="confirmDeleteAccessRequestModal" tabindex="-1" aria-labelledby="confirmDeleteAccessRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmDeleteAccessRequestModalLabel">Confirmar Eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                ¿Estás seguro de que deseas eliminar la solicitud de acceso de <strong id="accessRequestUsername"></strong>? Esta acción no se puede deshacer.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteAccessRequestBtn">Eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const accessRequestModal = document.getElementById('access-request-modal');
+        const closeButton = accessRequestModal.querySelector('.close-button');
+        const accessRequestFormContainer = document.getElementById('access-request-form-container');
+
+        function openAccessRequestModal(url) {
+            accessRequestModal.style.display = 'flex';
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                accessRequestFormContainer.innerHTML = html;
+                attachAccessRequestFormSubmitHandler();
+            })
+            .catch(error => console.error('Error loading access request form:', error));
+        }
+
+        function closeModal() {
+            accessRequestModal.style.display = 'none';
+            accessRequestFormContainer.innerHTML = '';
+        }
+
+        closeButton.addEventListener('click', closeModal);
+
+        window.addEventListener('click', function(event) {
+            if (event.target == accessRequestModal) {
+                closeModal();
+            }
+        });
+
+        document.querySelectorAll('.open-access-request-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                openAccessRequestModal(this.href);
+            });
+        });
+
+        function attachAccessRequestFormSubmitHandler() {
+            const accessRequestForm = accessRequestFormContainer.querySelector('form');
+            if (accessRequestForm) {
+                accessRequestForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const formData = new FormData(accessRequestForm);
+                    fetch(accessRequestForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message || 'Operación exitosa!');
+                            closeModal();
+                            location.reload();
+                        } else {
+                            accessRequestFormContainer.innerHTML = data.form_html;
+                            attachAccessRequestFormSubmitHandler();
+                        }
+                    })
+                    .catch(error => console.error('Error submitting access request form:', error));
+                });
+
+                const cancelButton = accessRequestForm.querySelector('.btn-cancel');
+                if (cancelButton) {
+                    cancelButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        closeModal();
+                    });
+                }
+            }
+        }
+
+        // Delete Modal Logic
+        const confirmDeleteAccessRequestModal = new bootstrap.Modal(document.getElementById('confirmDeleteAccessRequestModal'));
+        let accessRequestToDeleteId = null;
+
+        document.querySelectorAll('.open-access-request-delete-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                accessRequestToDeleteId = this.dataset.requestId;
+                const username = this.dataset.username;
+                document.getElementById('accessRequestUsername').textContent = username;
+                confirmDeleteAccessRequestModal.show();
+            });
+        });
+
+        document.getElementById('confirmDeleteAccessRequestBtn').addEventListener('click', function() {
+            if (accessRequestToDeleteId) {
+                fetch(`{% url 'access_request_delete' 0 %}`.replace('0', accessRequestToDeleteId), {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message || 'Solicitud eliminada exitosamente!');
+                        confirmDeleteAccessRequestModal.hide();
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Error al eliminar la solicitud.');
+                    }
+                })
+                .catch(error => console.error('Error deleting access request:', error));
+            }
+        });
+    });
+</script>
+{% endblock %}

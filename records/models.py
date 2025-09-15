@@ -64,16 +64,24 @@ class FinancialRecord(models.Model):
         if self.valor is not None and self.valor < 0:
             raise ValidationError({'valor': 'El valor no puede ser negativo.'})
 
+
+
 class DuplicateRecordAttempt(models.Model):
+    ATTEMPT_TYPE_CHOICES = [
+        ('DUPLICATE', 'Duplicado Exacto'),
+        ('SIMILAR', 'Posible Duplicado (Confirmado)'),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(auto_now_add=True)
     data = models.JSONField()
     is_resolved = models.BooleanField(default=False)
     resolved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_attempts')
     resolved_at = models.DateTimeField(null=True, blank=True)
+    attempt_type = models.CharField(max_length=20, choices=ATTEMPT_TYPE_CHOICES, default='DUPLICATE') # Nuevo campo
 
     def __str__(self):
-        return f"Attempt by {self.user} at {self.timestamp}"
+        return f"{self.get_attempt_type_display()} by {self.user} at {self.timestamp}"
 
 class AccessRequest(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)

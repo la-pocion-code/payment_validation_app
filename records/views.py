@@ -21,6 +21,7 @@ from django.contrib.auth.models import Group, User
 from .decorators import group_required
 from django.utils.decorators import method_decorator
 from django.template.loader import render_to_string
+from .forms import AccessRequestApprovalForm # New import
 
 
 class CustomLoginView(LoginView):
@@ -52,9 +53,6 @@ def approve_access_request(request, request_id):
     access_request.approved = True
     access_request.save()
     
-    group, created = Group.objects.get_or_create(name='Usuario')
-    access_request.user.groups.add(group)
-    
     access_request.user.is_active = True
     access_request.user.save()
     
@@ -78,7 +76,7 @@ def delete_access_request(request, request_id):
     return redirect('access_request_list')
 
 
-@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador'), name='dispatch')
 class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = FinancialRecord
     form_class = FinancialRecordForm
@@ -98,7 +96,29 @@ class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         context['clientes'] = FinancialRecord.objects.values_list('cliente', flat=True).distinct()
         return context
 
-@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
+    def form_valid(self, form):
+        # Si existe un registro similar y el usuario NO ha confirmado, volvemos a renderizar para pedir confirmación.
+        if form.existing_record and not self.request.POST.get('confirm'):
+            context = self.get_context_data(form=form)
+            context['confirm_creation'] = True
+            context['existing_record'] = form.existing_record
+            return self.render_to_response(context)
+        
+        # Si el usuario ha confirmado la creación de un registro similar, lo registramos.
+        # form.existing_record ahora estará establecido en la segunda pasada si hay un similar.
+        if form.existing_record and self.request.POST.get('confirm') == 'true':
+            serializable_data = {k: str(v) for k, v in form.cleaned_data.items()}
+            DuplicateRecordAttempt.objects.create(
+                user=self.request.user,
+                data=serializable_data,
+                attempt_type='SIMILAR' # Establecemos el tipo como 'SIMILAR'
+            )
+            messages.info(self.request, "Se ha creado un registro a pesar de encontrar uno similar. Se ha registrado como posible duplicado.")
+
+        # Si no hay registro similar o si el usuario ya confirmó, procedemos a guardar.
+        return super().form_valid(form)
+
+@method_decorator(group_required('Admin', 'Facturador'), name='dispatch')
 class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = FinancialRecord
     form_class = FinancialRecordUpdateForm
@@ -129,28 +149,20 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     success_url = reverse_lazy('record_list')
     success_message = "¡Registro eliminado exitosamente!"
 
-    def dispatch(self, request, *args, **kwargs):
-        try:
-            return super().dispatch(request, *args, **kwargs)
-        except PermissionDenied:
-            if request.headers.get('x-requested-with', '').startswith('XMLHttpRequest'):
-                print(f"Permission denied during AJAX dispatch for user {request.user.username}.")
-                return JsonResponse({'success': False, 'message': 'No tienes permisos para realizar esta acción.'}, status=403)
-            raise # Re-raise for non-AJAX requests
-
     def test_func(self):
         is_superuser = self.request.user.is_superuser
         if not is_superuser:
             print(f"Permission denied for user {self.request.user.username}: Not a superuser.")
         return is_superuser
 
+    # Este método maneja las solicitudes DELETE (si el frontend las envía)
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
         
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             try:
                 if not self.test_func():
-                    print(f"Permission denied during AJAX delete for user {self.request.user.username}.")
+                    print(f"Permission denied during AJAX delete for user {request.user.username}.")
                     return JsonResponse({'success': False, 'message': 'No tienes permisos para realizar esta acción.'}, status=403)
 
                 self.object.delete()
@@ -160,8 +172,30 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
                 print(f"Error deleting record: {e}")
                 return JsonResponse({'success': False, 'message': str(e)}, status=500)
         
-        # For non-AJAX requests, proceed with default DeleteView behavior
+        # Para solicitudes no-AJAX, procede con el comportamiento por defecto de DeleteView
         return super().delete(request, *args, **kwargs)
+
+    # --- NUEVO MÉTODO POST PARA MANEJAR SOLICITUDES AJAX DESDE EL FRONTEND ---
+    def post(self, request, *args, **kwargs):
+        # Si la solicitud es AJAX, la manejamos de forma similar al método delete
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object() # Obtener el objeto antes de la eliminación
+            try:
+                if not self.test_func(): # Reutilizar la verificación de permisos
+                    print(f"Permission denied during AJAX POST delete for user {request.user.username}.")
+                    return JsonResponse({'success': False, 'message': 'No tienes permisos para realizar esta acción.'}, status=403)
+
+                self.object.delete() # Eliminar el objeto
+                messages.success(request, self.success_message) # Añadir mensaje de éxito
+                print(f"Returning JSON success response for record {self.object.pk} via POST.")
+                return JsonResponse({'success': True, 'message': self.success_message})
+            except Exception as e:
+                print(f"Error deleting record via POST: {e}")
+                return JsonResponse({'success': False, 'message': str(e)}, status=500)
+        
+        # Para solicitudes POST no-AJAX, o si no es AJAX, se usa el comportamiento por defecto de DeleteView
+        # que eliminará el objeto y redirigirá a success_url.
+        return super().post(request, *args, **kwargs)
 
 
 class BankCreateView(LoginRequiredMixin, CreateView):
@@ -235,7 +269,7 @@ class BankUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixi
         self.template_name = 'records/bank_form_standalone.html'
         return super().form_invalid(form)
 
-@method_decorator(group_required('Admin', 'Usuario'), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador', 'Facturador'), name='dispatch')
 class FinancialRecordListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
     template_name = 'records/records_list.html'
@@ -284,6 +318,74 @@ class BankListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def test_func(self):
         return self.request.user.is_superuser
+
+
+class AccessRequestApprovalView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
+    model = AccessRequest
+    form_class = AccessRequestApprovalForm
+    template_name = 'records/access_request_approval_modal.html'
+    success_url = reverse_lazy('access_request_list')
+    success_message = "¡Solicitud de acceso procesada exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            form = self.get_form()
+            context = {
+                'form': form,
+                'title': 'Gestionar Solicitud de Acceso',
+                'access_request': self.object,
+                'user_to_approve': self.object.user,
+            }
+            html_form = render_to_string(self.template_name, context, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            access_request = self.get_object()
+            action = form.cleaned_data['approval_action']
+            user_to_approve = access_request.user
+
+            if action == 'approve':
+                user_to_approve.is_active = True
+                user_to_approve.save()
+                
+                # Assign groups
+                selected_groups = form.cleaned_data['groups']
+                user_to_approve.groups.set(selected_groups) # Clears existing and sets new
+                
+                access_request.approved = True
+                access_request.delete() # Delete the request after approval
+                messages.success(self.request, f'Solicitud de acceso de {user_to_approve.username} aprobada y grupos asignados.')
+            elif action == 'deny':
+                access_request.delete() # Delete the request if denied
+                messages.info(self.request, f'Solicitud de acceso de {user_to_approve.username} denegada y eliminada.')
+            
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            context = {
+                'form': form,
+                'title': 'Gestionar Solicitud de Acceso',
+                'access_request': self.get_object(),
+                'user_to_approve': self.get_object().user,
+            }
+            html_form = render_to_string(self.template_name, context, request=self.request)
+            return JsonResponse({'success': False, 'form_html': html_form})
+        return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Gestionar Solicitud de Acceso'
+        context['access_request'] = self.get_object()
+        context['user_to_approve'] = self.get_object().user
+        return context
 
 
 class UserUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
