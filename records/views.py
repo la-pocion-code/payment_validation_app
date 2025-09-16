@@ -130,6 +130,19 @@ class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
         return kwargs
+    
+    def  form_valid(self, form):
+        if self.request.user.groups.filter(name='Facturador').exists():
+            # Si el usuario es 'Facturador', se le asigna automáticamente como facturador
+            # y el campo 'status' se establece en 'Facturado'.
+            form.instance.facturador = self.request.user.username
+            form.instance.status = 'Facturado'
+        
+     
+        return super().form_valid(form)
+    
+
+
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

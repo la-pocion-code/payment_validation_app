@@ -142,6 +142,17 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+
+        if user:
+            print(f"Usuario: {user.username}")
+            user_groups = list(user.groups.values_list('name', flat=True))
+            print(f"Grupos del usuario: {user_groups}")
+            is_facturador = 'Facturador' in user_groups
+            print(f"es Facturador? {is_facturador}" )
+
+
+
+
         if user and not user.is_superuser:
             self.fields['fecha'].disabled = True
             self.fields['hora'].disabled = True
@@ -150,6 +161,12 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
             self.fields['valor'].disabled = True
             self.fields['cliente'].disabled = True
             self.fields['vendedor'].disabled = True
+
+            if user.groups.filter(name='Facturador').exists():
+                self.instance.facturador = user.username
+                self.fields['facturador'].disabled = True
+            else:
+                self.fields['facturador'].disabled = True
 
     
 class BankForm(forms.ModelForm):
