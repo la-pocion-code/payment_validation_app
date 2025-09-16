@@ -143,15 +143,6 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
 
-        if user:
-            print(f"Usuario: {user.username}")
-            user_groups = list(user.groups.values_list('name', flat=True))
-            print(f"Grupos del usuario: {user_groups}")
-            is_facturador = 'Facturador' in user_groups
-            print(f"es Facturador? {is_facturador}" )
-
-
-
 
         if user and not user.is_superuser:
             self.fields['fecha'].disabled = True
