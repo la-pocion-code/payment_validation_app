@@ -6,6 +6,7 @@ import json
 from django.contrib.auth.models import User, Group # New import for Group
 from django.contrib.auth.forms import UserChangeForm # New import
 from .models import AccessRequest # New import for AccessRequest
+from django.utils.html import format_html
 
 class AccessRequestApprovalForm(forms.ModelForm):
     ACTION_CHOICES = [
@@ -47,6 +48,13 @@ class FinancialRecordForm(forms.ModelForm):
         super(FinancialRecordForm, self).__init__(*args, **kwargs)
         # Atributo para guardar el registro similar encontrado
         self.existing_record = None
+
+        if not self.instance.pk and not (self.request and self.request.user.is_superuser):
+            hidden_fields =  ['numero_factura', 'facturador', 'status']
+            for field in hidden_fields:
+                if field in self.fields:
+                    del self.fields[field]
+
 
     class Meta:
         model = FinancialRecord
@@ -97,7 +105,7 @@ class FinancialRecordForm(forms.ModelForm):
                             attempt_type='DUPLICATE' # Tipo 'DUPLICATE'
                         )
                     raise forms.ValidationError(
-                        f"Registro duplicado exacto: ya existe un registro con los mismos datos (Fecha: {fecha}, Hora: {hora}, Comprobante: {comprobante}, Banco: {banco_llegada}, Valor: {valor})."
+                        format_html('<div id="exact-duplicate-error">Registro duplicado exacto: ya existe un registro con los mismos datos (Fecha: {}, Hora: {}, Comprobante: {}, Banco: {}, Valor: {}).</div>', fecha, hora, comprobante, banco_llegada.name, valor)
                     )
 
             # 2. Verificación de registro SIMILAR (para confirmación del usuario) - ESTA DEBE IR SEGUNDO

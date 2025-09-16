@@ -144,6 +144,15 @@
     </div>
 </div>
 
+    {# Modal para Duplicado Exacto #}
+    <div id="exact-duplicate-modal" class="modal" style="display: none; justify-content: center; align-items: center; background-color: rgba(0,0,0,0.5);">
+        <div class="modal-content" style="text-align: center; padding: 30px; background: white; border-radius: 10px; max-width: 90%;">
+            <img src="{% static 'images/duplicado.png' %}" alt="Registro Duplicado" style="max-width: 100%; height: auto; max-height: 70vh;">
+            <p style="margin-top: 20px; font-weight: bold; font-size: 1.2em;">¡Registro Duplicado Detectado!</p>
+            <button id="close-duplicate-modal" class="btn btn-primary" style="margin-top: 15px;">Entendido</button>
+        </div>
+    </div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -226,6 +235,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
+
+    // --- Script para el modal de duplicado exacto ---
+    const duplicateModal = document.getElementById('exact-duplicate-modal');
+    const closeDuplicateModalBtn = document.getElementById('close-duplicate-modal');
+    const duplicateError = document.getElementById('exact-duplicate-error');
+
+    if (duplicateError) {
+        duplicateModal.style.display = 'flex';
+    }
+
+    if(closeDuplicateModalBtn) {
+        closeDuplicateModalBtn.addEventListener('click', function() {
+            duplicateModal.style.display = 'none';
+        });
+    }
+
+    window.addEventListener('click', function(event) {
+        if (event.target == duplicateModal) {
+            duplicateModal.style.display = 'none';
+        }
+    });
+    // --- Fin del script para el modal ---
 });
 </script>
 {% endblock %}
