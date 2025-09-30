@@ -1,7 +1,7 @@
 # records/forms.py
 
 from django import forms
-from django.forms import modelformset_factory
+from django.forms import modelformset_factory, BaseModelFormSet
 from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction
 import json
 from django.contrib.auth.models import User, Group
@@ -170,6 +170,26 @@ class UserUpdateForm(forms.ModelForm):
 
 # --- New Forms for Bulk Receipt Creation ---
 
+class BaseFinancialRecordFormSet(BaseModelFormSet):
+    def clean(self):
+        if any(self.errors):
+            return
+        
+        receipts = []
+        for form in self.forms:
+            if form.cleaned_data and not form.cleaned_data.get('DELETE'):
+                receipts_identifier = (
+                    form.cleaned_data.get('fecha'),
+                    form.cleaned_data.get('hora'),
+                    form.cleaned_data.get('comprobante'),
+                    form.cleaned_data.get('banco_llegada'),
+                    form.cleaned_data.get('valor')
+                )
+                if receipts_identifier in receipts:
+                    form.add_error(None, "Hay registros duplicados en el conjunto de formularios.")
+                receipts.append(receipts_identifier)
+
+                
 class TransactionForm(forms.ModelForm):
     class Meta:
         model = Transaction
@@ -181,6 +201,7 @@ class TransactionForm(forms.ModelForm):
 FinancialRecordFormSet = modelformset_factory(
     FinancialRecord,
     form=FinancialRecordForm,
+    formset=BaseFinancialRecordFormSet,
     fields=['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor'],
     extra=1,
     can_delete=True

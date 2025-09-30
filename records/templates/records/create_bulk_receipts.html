@@ -20,7 +20,11 @@
                 </div>
                 <div class="filter-field">
                     {{ transaction_form.date.label_tag }}
-                    {{ transaction_form.date }}
+                    <input type="date" name="{{ transaction_form.date.name }}" 
+                    id="id_transaction_date" 
+                    value="{{ transaction_form.date.value|default_if_none:'' | date:'Y-m-d'}}"
+                    class="form-control"
+                    />
                     {{ transaction_form.date.errors }}
                 </div>
                 <div class="filter-field">
@@ -112,18 +116,55 @@
 document.addEventListener('DOMContentLoaded', function() {
     const addFormBtn = document.getElementById('add-form');
     const container = document.getElementById('receipt-forms-container');
-    const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML;
+    const emptyFormTemplateEl = document.getElementById('empty-form-template');
     const totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+    const transactionDateField = document.getElementById('id_transaction_date');
+
+    if (!addFormBtn || !container || !emptyFormTemplateEl || !totalFormsInput || !transactionDateField) {
+        console.error('Uno o más elementos críticos para el script del formset no fueron encontrados.');
+        return;
+    }
+
+    const emptyFormTemplate = emptyFormTemplateEl.innerHTML;
+
+    function syncReceiptDate(receiptForm) {
+        const dateField = receiptForm.querySelector('input[type="date"]');
+        if (dateField && !dateField.value) {
+            dateField.value = transactionDateField.value;
+        }
+    }
+
+    container.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);
+
+    transactionDateField.addEventListener('change', function() {
+        const newDate = this.value;
+        container.querySelectorAll('.receipt-form-instance').forEach(function(form) {
+            const dateField = form.querySelector('input[type="date"]');
+            if (dateField) {
+                dateField.value = newDate;
+            }
+        });
+    });
 
     addFormBtn.addEventListener('click', function() {
-        const currentFormCount = parseInt(totalFormsInput.value);
-        const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, currentFormCount);
-        
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = newFormHtml;
-        
-        container.appendChild(tempDiv.firstElementChild);
-        totalFormsInput.value = currentFormCount + 1;
+        try {
+            const currentFormCount = parseInt(totalFormsInput.value, 10);
+            const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, currentFormCount);
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newFormHtml;
+            const newForm = tempDiv.firstElementChild;
+
+            if (newForm) {
+                container.appendChild(newForm);
+                syncReceiptDate(newForm);
+                totalFormsInput.value = currentFormCount + 1;
+            } else {
+                console.error('No se pudo crear un nuevo elemento de formulario. La plantilla podría estar vacía.');
+            }
+        } catch (e) {
+            console.error('Ocurrió un error al añadir un nuevo formulario:', e);
+        }
     });
 });
 </script>
