@@ -4,31 +4,15 @@
 {% block title %}Registros Financieros{% endblock %}
 
 {% block content %}
-<h2>Registros Financieros</h2>
+<h2>Transacciones</h2>
 
-<div class="filter-section"> {# Nuevo contenedor para los filtros y botones #}
-    <form method="get" class="filter-form"> {# Añadimos clase al formulario #}
-        <div class="filter-fields"> {# Contenedor para los campos de filtro #}
-            {% for field in filter.form %}
-                <div class="filter-field">
-                    {{ field.label_tag }}
-                    {{ field }}
-                </div>
-            {% endfor %}
-        </div>
-        
-        <div class="filter-actions"> {# Contenedor para los botones de acción #}
-            <button type="submit" class="btn-primary">Filtrar</button>
-            <a href="{% url 'record_list' %}" class="btn-limpiar" title="Limpiar Filtros">
-                <img src="{% static 'images/icon_clear_filters.svg' %}" alt="Limpiar Filtros" width="20" height="20">
-            </a>
-            {% if user.is_superuser %}
-                <a href="{% url 'export_csv' %}?{{ request.GET.urlencode }}" class="btn-limpiar" title="Exportar a CSV">
-                    <img src="{% static 'images/icon_export_csv.svg' %}" alt="Exportar a CSV" width="20" height="20">
-                </a>
-            {% endif %}
-        </div>
+<div class="filter-container">
+    <form method="get" action="">
+        {{ filter.form.as_p }}
+        <button type="submit">Aplicar Filtros</button>
+        <a href="{% url 'record_list' %}" class="clear-filters-button">Limpiar Filtros</a>
     </form>
+    <a href="{% url 'export_transactions_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="export-csv-button">Exportar Transacciones a CSV</a>
 </div>
 
 {# El resto de tu código de tabla y paginación se mantiene igual #}
@@ -36,51 +20,29 @@
     <thead>
         <tr>
             <th>Fecha</th>
-            <th>Hora</th>
-            <th>Comprobante</th>
-            <th>Banco</th>
-            <th>Valor</th>
             <th>Cliente</th>
             <th>Vendedor</th>
-            <th>Facturador</th>
-            <th>Status</th>
-            <th># Factura</th>
+            <th>Descripción</th>
+            <th>Valor Total</th>
             <th>Acciones</th>
         </tr>
     </thead>
     <tbody>
-        {% for registro in object_list %}
+        {% for transaction in object_list %}
         <tr>
-            <td>{{ registro.fecha|date:"d/m/Y" }}</td>
-            <td>{{ registro.hora|time:"H:i:s" }}</td>
-            <td>{{ registro.comprobante }}</td>
-            <td>{{ registro.banco_llegada }}</td>
-            <td>{{ registro.valor }}</td>
-            <td>{{ registro.cliente }}</td>
-            <td>{{ registro.vendedor }}</td>
-            <td>{{ registro.facturador }}</td>
-            <td>{{ registro.status }}</td>
-            <td>{{ registro.numero_factura }}</td>
+            <td>{{ transaction.date|date:"d/m/Y" }}</td>
+            <td>{{ transaction.cliente }}</td>
+            <td>{{ transaction.vendedor }}</td>
+            <td>{{ transaction.description }}</td>
+            <td>{{ transaction.total_valor }}</td>
             <td>
-                {# EDITAR #}
-                {% if 'Facturador' in user_groups or user.is_superuser %}
-                    <a href="{% url 'record_update' registro.pk %}" class="btn-accion-icono" title="Editar">
-                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
-                    </a> |
-                {% endif %}
-                {# HISTORIAL #}
-                <a href="{% url 'historial_registro' registro.pk %}" class="btn-accion-icono" title="Historial">
-                    <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20"></a>
-                {% if user.is_superuser %}
-                    | {# ELIMINAR #}
-                    <a href="#" class="open-record-delete-modal btn-accion-icono" title="Eliminar" data-record-id="{{ registro.pk }}" data-record-comprobante="{{ registro.comprobante }}">
-                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
-                    </a>
-                {% endif %}
+                <a href="{% url 'transaction_detail' transaction.pk %}">Ver</a> |
+                <a href="{% url 'transaction_update' transaction.pk %}">Editar</a> |
+                <a href="{% url 'transaction_delete' transaction.pk %}">Eliminar</a>
             </td>
         </tr>
         {% empty %}
-        <tr><td colspan="11">No hay registros para mostrar.</td></tr>
+        <tr><td colspan="6">No hay transacciones para mostrar.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -97,109 +59,6 @@
   </div>
 {% endif %}
 
-    {# Record Delete Modal Structure #}
-    <div id="record-delete-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h3>Confirmar Eliminación</h3>
-            <p>¿Estás seguro de que deseas eliminar el registro con comprobante: <strong id="modal-record-comprobante"></strong>?</p>
-            <div class="modal-actions">
-                <button id="confirm-record-delete-btn" class="btn btn-danger">Eliminar</button>
-                <button id="cancel-record-delete-btn" class="btn btn-secondary">Cancelar</button>
-            </div>
-        </div>
-    </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const recordDeleteModal = document.getElementById('record-delete-modal');
-        const closeButton = recordDeleteModal.querySelector('.close-button');
-        const modalRecordComprobante = document.getElementById('modal-record-comprobante');
-        const confirmDeleteBtn = document.getElementById('confirm-record-delete-btn');
-        const cancelDeleteBtn = document.getElementById('cancel-record-delete-btn');
-        let recordIdToDelete = null;
-
-        // Open modal
-        document.querySelectorAll('.open-record-delete-modal').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                recordIdToDelete = this.getAttribute('data-record-id');
-                const recordComprobante = this.getAttribute('data-record-comprobante');
-                modalRecordComprobante.textContent = recordComprobante;
-                recordDeleteModal.style.display = 'flex';
-            });
-        });
-
-        // Close modal
-        closeButton.addEventListener('click', function() {
-            recordDeleteModal.style.display = 'none';
-        });
-
-        cancelDeleteBtn.addEventListener('click', function() {
-            recordDeleteModal.style.display = 'none';
-        });
-
-        window.addEventListener('click', function(event) {
-            if (event.target == recordDeleteModal) {
-                recordDeleteModal.style.display = 'none';
-            }
-        });
-
-        // Confirm delete
-        confirmDeleteBtn.addEventListener('click', function() {
-            if (recordIdToDelete) {
-                fetch(`/records/${recordIdToDelete}/delete/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken'),
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => {
-                    console.log('Raw response:', response); // Log the raw response
-                    if (!response.ok) {
-                        // If response is not OK (e.g., 403, 500), try to read error message
-                        return response.json().then(errorData => {
-                            throw new Error(errorData.message || 'Error en la respuesta del servidor.');
-                        }).catch(e => {
-                            console.error('Error parsing error response as JSON:', e); // Log error parsing
-                            throw new Error('Error en la respuesta del servidor (no JSON o error de red).');
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Parsed data:', data); // Log the parsed data
-                    if (data.success) {
-                        alert(data.message || 'Registro eliminado exitosamente!');
-                        recordDeleteModal.style.display = 'none';
-                        location.reload(); // Reload page to update list
-                    } else {
-                        alert('Error al eliminar el registro: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Fetch error:', error); // More specific error log
-                    alert('Ocurrió un error al procesar la solicitud: ' + error.message); // Display error message
-                });
-            }
-        });
-
-        // Helper function to get CSRF token
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        }
-    });
-</script>
+    {# El modal de eliminación de registros ya no es relevante para la lista de transacciones #}
+{# Si se necesita un modal de eliminación para transacciones, se deberá implementar uno nuevo #}
 {% endblock %}

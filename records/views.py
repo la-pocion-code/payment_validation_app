@@ -12,10 +12,10 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView, D
 from django.db import IntegrityError, transaction
 from datetime import datetime
 from django.core.exceptions import PermissionDenied
-from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter
+from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter
 from django_filters.views import FilterView
-from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
@@ -76,47 +76,7 @@ def delete_access_request(request, request_id):
     return redirect('access_request_list')
 
 
-@method_decorator(group_required('Admin', 'Digitador'), name='dispatch')
-class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
-    model = FinancialRecord
-    form_class = FinancialRecordForm
-    template_name = 'records/records_form.html'
-    success_url = reverse_lazy('record_create')
-    success_message = "¡Registro guardado exitosamente!"
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['request'] = self.request
-        return kwargs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Nuevo Registro'
-        context['vendedores'] = FinancialRecord.objects.values_list('vendedor', flat=True).distinct()
-        context['clientes'] = FinancialRecord.objects.values_list('cliente', flat=True).distinct()
-        return context
-
-    def form_valid(self, form):
-        # Si existe un registro similar y el usuario NO ha confirmado, volvemos a renderizar para pedir confirmación.
-        if form.existing_record and not self.request.POST.get('confirm'):
-            context = self.get_context_data(form=form)
-            context['confirm_creation'] = True
-            context['existing_record'] = form.existing_record
-            return self.render_to_response(context)
-        
-        # Si el usuario ha confirmado la creación de un registro similar, lo registramos.
-        # form.existing_record ahora estará establecido en la segunda pasada si hay un similar.
-        if form.existing_record and self.request.POST.get('confirm') == 'true':
-            serializable_data = {k: str(v) for k, v in form.cleaned_data.items()}
-            DuplicateRecordAttempt.objects.create(
-                user=self.request.user,
-                data=serializable_data,
-                attempt_type='SIMILAR' # Establecemos el tipo como 'SIMILAR'
-            )
-            messages.info(self.request, "Se ha creado un registro a pesar de encontrar uno similar. Se ha registrado como posible duplicado.")
-
-        # Si no hay registro similar o si el usuario ya confirmó, procedemos a guardar.
-        return super().form_valid(form)
 
 @method_decorator(group_required('Admin', 'Facturador'), name='dispatch')
 class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
@@ -283,21 +243,50 @@ class BankUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixi
         return super().form_invalid(form)
 
 @method_decorator(group_required('Admin', 'Digitador', 'Facturador'), name='dispatch')
-class FinancialRecordListView(LoginRequiredMixin, FilterView):
-    model = FinancialRecord
+class TransactionListView(LoginRequiredMixin, FilterView): # Changed to FilterView
+    model = Transaction
     template_name = 'records/records_list.html'
-    filterset_class = FinancialRecordFilter
+    context_object_name = 'object_list'
+    filterset_class = TransactionFilter # Added filterset_class
     paginate_by = 50
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        return queryset.order_by('-creado')
+        return super().get_queryset().order_by('-date') # Use super().get_queryset() for filtering
 
-    def get_filterset_kwargs(self, filterset_class):
-        kwargs = super().get_filterset_kwargs(filterset_class)
-        if kwargs['data'] is None:
-            kwargs['data'] = {'status': 'Pendiente'}
-        return kwargs
+
+class TransactionDetailView(LoginRequiredMixin, DetailView):
+    model = Transaction
+    template_name = 'records/transaction_detail.html'
+    context_object_name = 'transaction'
+
+class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = Transaction
+    form_class = TransactionForm
+    template_name = 'records/transaction_form.html'
+    success_url = reverse_lazy('record_list')
+    success_message = "¡Transacción actualizada exitosamente!"
+
+class TransactionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = Transaction
+    template_name = 'records/transaction_confirm_delete.html'
+    success_url = reverse_lazy('record_list')
+    success_message = "¡Transacción eliminada exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def post(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            try:
+                if not self.test_func():
+                    return JsonResponse({'success': False, 'message': 'No tienes permisos para realizar esta acción.'}, status=403)
+                self.object.delete()
+                messages.success(request, self.success_message)
+                return JsonResponse({'success': True, 'message': self.success_message})
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': str(e)}, status=500)
+        return super().post(request, *args, **kwargs)
 
 class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Bank
@@ -534,6 +523,33 @@ def export_csv(request):
     return response
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
+def export_transactions_csv(request):
+    if not request.user.is_superuser:
+        messages.error(request, 'No tienes permisos para realizar esta acción.')
+        return redirect('record_list')
+
+    filterset = TransactionFilter(request.GET, queryset=Transaction.objects.all().order_by('-date'))
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="transactions.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'FECHA', 'DESCRIPCION', 'CLIENTE', 'VALOR_TOTAL'
+    ])
+
+    for transaction_obj in filterset.qs:
+        writer.writerow([
+            transaction_obj.date.strftime('%d/%m/%Y'),
+            transaction_obj.description,
+            transaction_obj.cliente,
+            transaction_obj.total_valor,
+        ])
+
+    return response
+
+@login_required
 def csv_upload_view(request):
     if not request.user.is_superuser:
         messages.error(request, 'No tienes permisos para cargar archivos.')
@@ -744,3 +760,50 @@ def export_duplicate_attempts_csv(request):
         ])
 
     return response
+
+@login_required
+@group_required('Admin', 'Digitador')
+def create_bulk_receipts(request):
+    # The FinancialRecordForm needs the request object for its duplicate check logic.
+    # We can pass it to the formset constructor with form_kwargs.
+    form_kwargs = {'request': request}
+
+    if request.method == 'POST':
+        transaction_form = TransactionForm(request.POST)
+        formset = FinancialRecordFormSet(request.POST, form_kwargs=form_kwargs)
+
+        if transaction_form.is_valid() and formset.is_valid():
+            # Use a database transaction to ensure all or nothing is saved.
+            with transaction.atomic():
+                # First, save the parent transaction so we get an ID.
+                new_transaction = transaction_form.save()
+
+                # Now, iterate through the forms in the formset.
+                for form in formset:
+                    # Check if the form has changed and has data
+                    if form.has_changed() and form.cleaned_data:
+                        # Check if the user marked this form for deletion
+                        if form.cleaned_data.get('DELETE'):
+                            # If the instance exists in the DB, delete it.
+                            if form.instance.pk:
+                                form.instance.delete()
+                        else:
+                            # This is a form with data to be saved.
+                            receipt = form.save(commit=False)
+                            receipt.transaction = new_transaction
+                            receipt.uploaded_by = request.user
+                            receipt.save()
+            
+            messages.success(request, 'Transacción y recibos guardados exitosamente.')
+            return redirect('record_list') # Redirect to a relevant page
+
+    else:
+        transaction_form = TransactionForm()
+        formset = FinancialRecordFormSet(queryset=FinancialRecord.objects.none(), form_kwargs=form_kwargs)
+
+    context = {
+        'transaction_form': transaction_form,
+        'formset': formset,
+        'title': 'Nuevo Registro'
+    }
+    return render(request, 'records/create_bulk_receipts.html', context)

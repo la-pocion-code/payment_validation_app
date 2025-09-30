@@ -1,11 +1,11 @@
 # records/forms.py
 
 from django import forms
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt
+from django.forms import modelformset_factory
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction
 import json
-from django.contrib.auth.models import User, Group # New import for Group
-from django.contrib.auth.forms import UserChangeForm # New import
-from .models import AccessRequest # New import for AccessRequest
+from django.contrib.auth.models import User, Group
+from django.contrib.auth.forms import UserChangeForm
 from django.utils.html import format_html
 
 class AccessRequestApprovalForm(forms.ModelForm):
@@ -58,7 +58,7 @@ class FinancialRecordForm(forms.ModelForm):
 
     class Meta:
         model = FinancialRecord
-        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'cliente', 'vendedor', 'facturador', 'status', 'numero_factura']
+        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'facturador', 'status', 'numero_factura']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time'}),
@@ -66,16 +66,7 @@ class FinancialRecordForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        cliente = cleaned_data.get('cliente')
-        vendedor = cleaned_data.get('vendedor')
-        comprobante = cleaned_data.get('comprobante')
-
-        if cliente:
-            cleaned_data['cliente'] = cliente.strip().title()
-        
-        if vendedor:
-            cleaned_data['vendedor'] = vendedor.strip().title()
-        
+        comprobante = cleaned_data.get('comprobante')      
         if comprobante:
             cleaned_data['comprobante'] = comprobante.strip()
 
@@ -176,3 +167,21 @@ class UserUpdateForm(forms.ModelForm):
         widgets = {
             'groups': forms.CheckboxSelectMultiple
         }
+
+# --- New Forms for Bulk Receipt Creation ---
+
+class TransactionForm(forms.ModelForm):
+    class Meta:
+        model = Transaction
+        fields = ['date', 'cliente', 'vendedor','description',]
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+FinancialRecordFormSet = modelformset_factory(
+    FinancialRecord,
+    form=FinancialRecordForm,
+    fields=['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor'],
+    extra=1,
+    can_delete=True
+)

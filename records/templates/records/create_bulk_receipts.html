@@ -1,0 +1,130 @@
+{% extends "records/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{{ title }}</h1>
+
+    <form method="post" class="filter-form">
+        {% csrf_token %}
+
+        <fieldset class="mb-4">
+            <legend>Datos de la Transacción</legend>
+            <div class="filter-fields">
+                <div class="filter-field">
+                    {{ transaction_form.description.label_tag }}
+                    {{ transaction_form.description }}
+                    {{ transaction_form.description.errors }}
+                </div>
+                <div class="filter-field">
+                    {{ transaction_form.date.label_tag }}
+                    {{ transaction_form.date }}
+                    {{ transaction_form.date.errors }}
+                </div>
+                <div class="filter-field">
+                    {{ transaction_form.cliente.label_tag }}
+                    {{ transaction_form.cliente }}
+                    {{ transaction_form.cliente.errors }}
+                    </div>
+                <div class="filter-field">
+                    {{ transaction_form.vendedor.label_tag }}
+                    {{ transaction_form.vendedor }}
+                    {{ transaction_form.vendedor.errors }}
+                </div>  
+            </div>
+        </fieldset>
+        
+        <hr class="my-4">
+
+        <fieldset>
+            <legend>Recibos</legend>
+            {{ formset.management_form }}
+            
+            <div id="receipt-forms-container">
+                {% for form in formset %}
+                <div class="receipt-form-instance mb-4 p-3 border rounded">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5>Recibo #{{ forloop.counter }}</h5>
+                        {% if formset.can_delete %}
+                        <div class="form-check">
+                            {{ form.DELETE }}
+                            <label class="form-check-label" for="{{ form.DELETE.id_for_label }}">Eliminar</label>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <hr>
+                    <div class="filter-fields">
+                        {% for field in form.visible_fields %}
+                            {% if field.name != 'DELETE' %}
+                            <div class="filter-field">
+                                {{ field.label_tag }}
+                                {{ field }}
+                                {{ field.errors }}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div id="empty-form-template" class="d-none">
+                <div class="receipt-form-instance mb-4 p-3 border rounded">
+                     <div class="d-flex justify-content-between align-items-center">
+                        <h5>Nuevo Recibo</h5>
+                        {% if formset.can_delete %}
+                        <div class="form-check">
+                            {{ formset.empty_form.DELETE }}
+                            <label class="form-check-label" for="{{ formset.empty_form.DELETE.id_for_label }}">Eliminar</label>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <hr>
+                    <div class="filter-fields">
+                        {% for field in formset.empty_form.visible_fields %}
+                            {% if field.name != 'DELETE' %}
+                            <div class="filter-field">
+                                {{ field.label_tag }}
+                                {{ field }}
+                                {{ field.errors }}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" id="add-form" class="btn btn-secondary btn-sm">Añadir otro recibo</button>
+        </fieldset>
+        
+        <hr class="my-4">
+
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Guardar Transacción</button>
+            <a href="{% url 'record_list' %}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addFormBtn = document.getElementById('add-form');
+    const container = document.getElementById('receipt-forms-container');
+    const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML;
+    const totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+
+    addFormBtn.addEventListener('click', function() {
+        const currentFormCount = parseInt(totalFormsInput.value);
+        const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, currentFormCount);
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newFormHtml;
+        
+        container.appendChild(tempDiv.firstElementChild);
+        totalFormsInput.value = currentFormCount + 1;
+    });
+});
+</script>
+{% endblock %}

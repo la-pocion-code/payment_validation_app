@@ -1,0 +1,27 @@
+{% extends 'records/base.html' %}
+
+{% block title %}Detalle de Transacción{% endblock %}
+
+{% block content %}
+    <h2>Detalle de Transacción #{{ transaction.pk }}</h2>
+    <p><strong>Fecha:</strong> {{ transaction.date|date:"d/m/Y" }}</p>
+    <p><strong>Cliente:</strong> {{ transaction.cliente }}</p>
+    <p><strong>Vendedor:</strong> {{ transaction.vendedor }}</p>
+    <p><strong>Valor Total:</strong> {{ transaction.total_valor }}</p>
+    <p><strong>Descripción:</strong> {{ transaction.description }}</p>
+
+    <h3>Recibos Asociados:</h3>
+    {% if transaction.receipts.all %}
+        <ul>
+            {% for receipt in transaction.receipts.all %}
+                <li>{{ receipt.fecha|date:"d/m/Y" }} - {{ receipt.comprobante }} - {{ receipt.valor }} - {{ receipt.status }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No hay recibos asociados a esta transacción.</p>
+    {% endif %}
+
+    <a href="{% url 'transaction_update' transaction.pk %}">Editar Transacción</a>
+    <a href="{% url 'transaction_delete' transaction.pk %}">Eliminar Transacción</a>
+    <a href="{% url 'record_list' %}">Volver a la lista de transacciones</a>
+{% endblock %}

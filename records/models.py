@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import User
+from django.db.models import Sum
 
 class AuthorizedUser(models.Model):
     email = models.EmailField(unique=True)
@@ -29,6 +30,26 @@ class Bank(models.Model):
         self.name = self.name.upper()
         super(Bank, self).save(*args, **kwargs)
 
+class Transaction(models.Model):
+    date = models.DateField(default=timezone.now, verbose_name="Fecha de Transacción")
+    cliente = models.CharField(max_length=200, blank=True, null=True)
+    vendedor = models.CharField(max_length=100, blank=True, null=True)    
+    description = models.CharField(max_length=255, verbose_name="Descripción", blank=True, null=True)
+       
+
+    @property
+    def total_valor(self):
+        return self.receipts.aggregate(total=Sum('valor'))['total'] or 0
+
+
+    class Meta:
+        verbose_name = "Transacción"
+        verbose_name_plural = "Transacciones"
+
+    def __str__(self):
+        return self.description if self.description else f"Transacción {self.id}"
+
+
 class FinancialRecord(models.Model):
     STATUS_CHOICES = [
         ('Pendiente', 'Pendiente'),
@@ -46,6 +67,14 @@ class FinancialRecord(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pendiente')
     numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
     facturador = models.CharField(max_length=100, blank=True, null=True, default=None)
+    transaction = models.ForeignKey(
+        'Transaction', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='receipts',
+        verbose_name="Transacción"
+    )
     history = HistoricalRecords()
     creado = models.DateTimeField(auto_now_add=True)
     modificado = models.DateTimeField(auto_now=True)
