@@ -203,6 +203,6 @@ FinancialRecordFormSet = modelformset_factory(
     form=FinancialRecordForm,
     formset=BaseFinancialRecordFormSet,
     fields=['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor'],
-    extra=1,
+    extra=0,
     can_delete=True
 )

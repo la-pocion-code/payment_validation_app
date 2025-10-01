@@ -611,7 +611,7 @@ def csv_upload_view(request):
             valid_statuses = [choice[0] for choice in FinancialRecord.STATUS_CHOICES]
 
             with transaction.atomic():
-                for i, row in enumerate(reader, start=2):
+                for i, row in enumerate(reader, start=1):
                     processed_rows_count += 1
                     if not row:
                         continue

@@ -47,43 +47,49 @@
             {{ formset.management_form }}
             
             <div id="receipt-forms-container">
+                {# Render the initial form(s) provided by extra=1 from forms.py #}
                 {% for form in formset %}
-                <div class="receipt-form-instance mb-4 p-3 border rounded">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5>Recibo #{{ forloop.counter }}</h5>
-                        {% if formset.can_delete %}
-                        <div class="form-check">
-                            {{ form.DELETE }}
-                            <label class="form-check-label" for="{{ form.DELETE.id_for_label }}">Eliminar</label>
-                        </div>
-                        {% endif %}
-                    </div>
-                    <hr>
-                    <div class="filter-fields">
-                        {% for field in form.visible_fields %}
-                            {% if field.name != 'DELETE' %}
-                            <div class="filter-field">
-                                {{ field.label_tag }}
-                                {{ field }}
-                                {{ field.errors }}
+                    <div class="receipt-form-instance mb-4 p-3 border rounded">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5>Recibo #{{ forloop.counter }}</h5>
+                            <div class="receipt-form-delete-controls">
+                                {% if formset.can_delete %}
+                                    <div class="form-check" style="display: none;">
+                                        {{ form.DELETE }}
+                                    </div>
+                                    <button type="button" class="btn btn-danger btn-sm remove-form-btn">Eliminar</button>
+                                {% endif %}
                             </div>
-                            {% endif %}
-                        {% endfor %}
+                        </div>
+                        <hr>
+                        <div class="filter-fields">
+                            {% for field in form.visible_fields %}
+                                {% if field.name != 'DELETE' %}
+                                <div class="filter-field">
+                                    {{ field.label_tag }}
+                                    {{ field }}
+                                    {{ field.errors }}
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
                     </div>
-                </div>
                 {% endfor %}
             </div>
 
+            {# This is the template for NEW forms added by JS. #}
             <div id="empty-form-template" class="d-none">
                 <div class="receipt-form-instance mb-4 p-3 border rounded">
-                     <div class="d-flex justify-content-between align-items-center">
-                        <h5>Nuevo Recibo</h5>
-                        {% if formset.can_delete %}
-                        <div class="form-check">
-                            {{ formset.empty_form.DELETE }}
-                            <label class="form-check-label" for="{{ formset.empty_form.DELETE.id_for_label }}">Eliminar</label>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5>Recibo</h5> {# Title will be set by JS #}
+                        <div class="receipt-form-delete-controls">
+                            {% if formset.can_delete %}
+                                <div class="form-check" style="display: none;">
+                                    {{ formset.empty_form.DELETE }}
+                                </div>
+                                <button type="button" class="btn btn-danger btn-sm remove-form-btn">Eliminar</button>
+                            {% endif %}
                         </div>
-                        {% endif %}
                     </div>
                     <hr>
                     <div class="filter-fields">
@@ -120,23 +126,115 @@ document.addEventListener('DOMContentLoaded', function() {
     const totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
     const transactionDateField = document.getElementById('id_transaction_date');
 
-    if (!addFormBtn || !container || !emptyFormTemplateEl || !totalFormsInput || !transactionDateField) {
-        console.error('Uno o más elementos críticos para el script del formset no fueron encontrados.');
+    if (!addFormBtn || !container || !emptyFormTemplateEl || !totalFormsInput) {
+        console.error('One or more critical script elements for the formset were not found.');
         return;
     }
 
     const emptyFormTemplate = emptyFormTemplateEl.innerHTML;
 
-    function syncReceiptDate(receiptForm) {
-        const dateField = receiptForm.querySelector('input[type="date"]');
-        if (dateField && !dateField.value) {
-            dateField.value = transactionDateField.value;
+    function getNextAvailableReceiptNumber() {
+        // Obtener todos los números usados en títulos h5 (solo de recibos visibles)
+        const usedNumbers = Array.from(container.querySelectorAll('.receipt-form-instance'))
+            .filter(form => 
+                form.style.display !== 'none' &&
+                !form.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked
+            )
+            .map(el => {
+                const h5 = el.querySelector('h5');
+                if (!h5) return null;
+                const match = h5.textContent.match(/Recibo #(\d+)/);
+                return match ? parseInt(match[1], 10) : null;
+            })
+            .filter(n => n !== null)
+            .sort((a, b) => a - b);
+
+        // Buscar el menor número no usado, comenzando desde 2
+        let nextNumber = 2;
+        for (const num of usedNumbers) {
+            if (num === nextNumber) {
+                nextNumber++;
+            } else if (num < nextNumber) {
+                // Continuar buscando
+                continue;
+            } else {
+                // Encontramos un hueco
+                break;
+            }
+        }
+        return nextNumber;
+    }
+
+    function renumberReceipts() {
+        const activeForms = Array.from(container.querySelectorAll('.receipt-form-instance'))
+            .filter(form =>
+                form.style.display !== 'none' &&
+                !form.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked
+            );
+
+        // Obtener números actuales
+        const currentNumbers = activeForms.map(form => {
+            const titleEl = form.querySelector('h5');
+            if (!titleEl) return null;
+            const match = titleEl.textContent.match(/Recibo #(\d+)/);
+            return match ? parseInt(match[1], 10) : null;
+        });
+
+        // Renumerar secuencialmente comenzando desde 2
+        let counter = 2;
+        for (let i = 0; i < activeForms.length; i++) {
+            const form = activeForms[i];
+            const titleEl = form.querySelector('h5');
+            if (titleEl) {
+                titleEl.textContent = 'Recibo #' + counter;
+                counter++;
+            }
         }
     }
 
-    container.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);
+    function addForm() {
+        const index = parseInt(totalFormsInput.value, 10);
+        const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, index);
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newFormHtml;
+        const newForm = tempDiv.firstElementChild;
 
-    transactionDateField.addEventListener('change', function() {
+        if (newForm) {
+            const titleEl = newForm.querySelector('h5');
+            if (titleEl) {
+                const nextNumber = getNextAvailableReceiptNumber();
+                titleEl.textContent = 'Recibo #' + nextNumber;
+            }
+
+            container.appendChild(newForm);
+            if(transactionDateField) syncReceiptDate(newForm);
+            totalFormsInput.value = index + 1;
+        }
+    }
+
+    function handleContainerClick(e) {
+        if (e.target && e.target.classList.contains('remove-form-btn')) {
+            const visibleForms = container.querySelectorAll('.receipt-form-instance:not([style*="display: none"])').length;
+            if (visibleForms < 1) {
+                alert('Debe haber al menos un recibo.');
+                return;
+            }
+
+            const formInstance = e.target.closest('.receipt-form-instance');
+            if (formInstance) {
+                const deleteInput = formInstance.querySelector('input[type="checkbox"][name$="-DELETE"]');
+                if (deleteInput) {
+                    deleteInput.checked = true;
+                }
+                formInstance.style.display = 'none';
+
+                renumberReceipts();  // Renumerar tras eliminar
+            }
+        }
+    }
+
+    function syncAllDates() {
         const newDate = this.value;
         container.querySelectorAll('.receipt-form-instance').forEach(function(form) {
             const dateField = form.querySelector('input[type="date"]');
@@ -144,28 +242,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 dateField.value = newDate;
             }
         });
-    });
+    }
 
-    addFormBtn.addEventListener('click', function() {
-        try {
-            const currentFormCount = parseInt(totalFormsInput.value, 10);
-            const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, currentFormCount);
-
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = newFormHtml;
-            const newForm = tempDiv.firstElementChild;
-
-            if (newForm) {
-                container.appendChild(newForm);
-                syncReceiptDate(newForm);
-                totalFormsInput.value = currentFormCount + 1;
-            } else {
-                console.error('No se pudo crear un nuevo elemento de formulario. La plantilla podría estar vacía.');
-            }
-        } catch (e) {
-            console.error('Ocurrió un error al añadir un nuevo formulario:', e);
+    function syncReceiptDate(receiptForm) {
+        const dateField = receiptForm.querySelector('input[type="date"]');
+        if (dateField && !dateField.value && transactionDateField) {
+            dateField.value = transactionDateField.value;
         }
-    });
+    }
+
+    // --- Inicialización --- //
+    addFormBtn.addEventListener('click', addForm);
+    container.addEventListener('click', handleContainerClick);
+    if(transactionDateField) transactionDateField.addEventListener('change', syncAllDates);
+
+    // Sincronizar fecha en formularios existentes
+    document.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);
 });
 </script>
+
 {% endblock %}
