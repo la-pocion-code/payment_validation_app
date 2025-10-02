@@ -31,10 +31,18 @@ class Bank(models.Model):
         super(Bank, self).save(*args, **kwargs)
 
 class Transaction(models.Model):
+    STATUS_CHOICES = [
+        ('Pendiente', 'Pendiente'),
+        ('Facturado', 'Facturado'),
+        ('Anulado', 'Anulado'),
+    ]
     date = models.DateField(default=timezone.now, verbose_name="Fecha de Transacción")
     cliente = models.CharField(max_length=200, blank=True, null=True)
     vendedor = models.CharField(max_length=100, blank=True, null=True)    
     description = models.CharField(max_length=255, verbose_name="Descripción", blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pendiente', verbose_name="Estado de Transacción")
+    numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
+    facturador = models.CharField(max_length=100, blank=True, null=True, default=None)
        
 
     @property
@@ -51,11 +59,6 @@ class Transaction(models.Model):
 
 
 class FinancialRecord(models.Model):
-    STATUS_CHOICES = [
-        ('Pendiente', 'Pendiente'),
-        ('Facturado', 'Facturado'),
-        ('Anulado', 'Anulado'),
-    ]
     fecha = models.DateField()
     hora = models.TimeField()
     comprobante = models.CharField(max_length=200, verbose_name="# Comprobante")
@@ -63,10 +66,6 @@ class FinancialRecord(models.Model):
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     cliente = models.CharField(max_length=200, blank=True, null=True)
     vendedor = models.CharField(max_length=100, blank=True, null=True)
-    # status = models.CharField(max_length=50, blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pendiente')
-    numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
-    facturador = models.CharField(max_length=100, blank=True, null=True, default=None)
     transaction = models.ForeignKey(
         'Transaction', 
         on_delete=models.SET_NULL, 

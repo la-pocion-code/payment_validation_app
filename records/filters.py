@@ -32,7 +32,7 @@ class FinancialRecordFilter(django_filters.FilterSet):
 
     class Meta:
         model = FinancialRecord
-        fields = ['status', 'banco_llegada', 'vendedor', 'facturador', 'cliente',]
+        fields = ['transaction__status', 'banco_llegada', 'vendedor', 'transaction__facturador', 'cliente']
 
 class DuplicateRecordAttemptFilter(django_filters.FilterSet):
     timestamp__gte = django_filters.DateFilter(
@@ -70,8 +70,7 @@ class TransactionFilter(django_filters.FilterSet):
     )
     # Filter by status of the associated FinancialRecords
     status = django_filters.ChoiceFilter(
-        field_name='receipts__status',
-        choices=FinancialRecord.STATUS_CHOICES,
+        choices=Transaction.STATUS_CHOICES,
         label='Estado'
     )
     # Filter by bank of the associated FinancialRecords

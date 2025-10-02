@@ -1,13 +1,123 @@
 {% extends 'records/base.html' %}
+{% load static %}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
     <h2>{{ title }}</h2>
-    <form method="post">
+    <form method="post" id="transaction-form">
         {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Guardar</button>
-        <a href="{% url 'record_list' %}">Cancelar.</a>
+        
+        {# Transaction Form #}
+        <fieldset>
+            <legend>Detalles de la Transacción</legend>
+            {{ form.as_p }}
+        </fieldset>
+
+        {# Financial Records Formset #}
+        <fieldset>
+            <legend>Recibos Asociados</legend>
+            {{ formset.management_form }}
+            <div id="formset-container">
+                {% for form in formset %}
+                    <div class="receipt-form-instance {% if form.errors %}has-errors{% endif %}">
+                        {% if form.instance.pk %}<p>Recibo existente #{{ form.instance.pk }}</p>{% else %}<p>Nuevo Recibo</p>{% endif %}
+                        {% if form.non_field_errors %}
+                            <div class="non-field-errors">
+                                {% for error in form.non_field_errors %}
+                                    <p class="errorlist">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {{ form.as_p }}
+                        {% if formset.can_delete %}
+                            <p>{{ form.DELETE }} Eliminar Recibo</p>
+                        {% endif %}
+                        <hr>
+                    </div>
+                {% endfor %}
+            </div>
+            <button type="button" id="add-receipt-btn">Añadir Recibo</button>
+        </fieldset>
+
+        <button type="submit">Guardar Cambios</button>
+        <a href="{% url 'record_list' %}">Cancelar</a>
     </form>
+
+    <style>
+        .receipt-form-instance {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .receipt-form-instance.has-errors {
+            border-color: red;
+            background-color: #ffebeb;
+        }
+        .non-field-errors {
+            color: red;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .errorlist {
+            color: red;
+            margin-left: 0;
+            padding-left: 0;
+        }
+        #add-receipt-btn {
+            margin-top: 10px;
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #add-receipt-btn:hover {
+            background-color: #45a049;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const addReceiptBtn = document.getElementById('add-receipt-btn');
+            const formsetContainer = document.getElementById('formset-container');
+            const totalForms = document.querySelector('#id_receipt_set-TOTAL_FORMS');
+
+            addReceiptBtn.addEventListener('click', function() {
+                const currentForms = formsetContainer.querySelectorAll('.receipt-form-instance').length;
+                const newFormIndex = totalForms.value;
+                const emptyForm = `
+                    <div class="receipt-form-instance">
+                        <p>Nuevo Recibo</p>
+                        {% for field in formset.empty_form %}
+                            <p>
+                                {{ field.label_tag }}
+                                {{ field }}
+                                {% if field.help_text %}
+                                    <span class="helptext">{{ field.help_text }}</span>
+                                {% endif %}
+                                {% if field.errors %}
+                                    <ul class="errorlist">
+                                        {% for error in field.errors %}
+                                            <li>{{ error }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </p>
+                        {% endfor %}
+                        {% if formset.can_delete %}
+                            <p><input type="checkbox" name="receipt_set-${newFormIndex}-DELETE" id="id_receipt_set-${newFormIndex}-DELETE"> Eliminar Recibo</p>
+                        {% endif %}
+                        <hr>
+                    </div>
+                `;
+                const newFormHtml = emptyForm.replace(/__prefix__/g, newFormIndex);
+                formsetContainer.insertAdjacentHTML('beforeend', newFormHtml);
+                totalForms.value = parseInt(totalForms.value) + 1;
+            });
+        });
+    </script>
 {% endblock %}

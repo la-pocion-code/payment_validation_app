@@ -15,34 +15,72 @@
     <a href="{% url 'export_transactions_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="export-csv-button">Exportar Transacciones a CSV</a>
 </div>
 
-{# El resto de tu código de tabla y paginación se mantiene igual #}
-<table border="1">
+<table border="1" class="transaction-table">
     <thead>
         <tr>
+            <th></th> {# For expand/collapse button #}
             <th>Fecha</th>
             <th>Cliente</th>
             <th>Vendedor</th>
-            <th>Descripción</th>
+            <th>Facturador</th>
+            <th>numero_factura</th>
             <th>Valor Total</th>
+            <th>Status</th>
             <th>Acciones</th>
         </tr>
     </thead>
     <tbody>
         {% for transaction in object_list %}
-        <tr>
+        <tr class="transaction-row" data-transaction-id="{{ transaction.pk }}">
+            <td><button class="toggle-receipts-btn" data-transaction-id="{{ transaction.pk }}">+</button></td>
             <td>{{ transaction.date|date:"d/m/Y" }}</td>
             <td>{{ transaction.cliente }}</td>
             <td>{{ transaction.vendedor }}</td>
-            <td>{{ transaction.description }}</td>
+            <td>{{ transaction.facturador }}</td>
+            <td>{{ transaction.numero_factura }}</td>
             <td>{{ transaction.total_valor }}</td>
+            <td>{{ transaction.status }}</td>
             <td>
                 <a href="{% url 'transaction_detail' transaction.pk %}">Ver</a> |
                 <a href="{% url 'transaction_update' transaction.pk %}">Editar</a> |
                 <a href="{% url 'transaction_delete' transaction.pk %}">Eliminar</a>
             </td>
         </tr>
+        <tr class="receipts-row" id="receipts-{{ transaction.pk }}" style="display: none;">
+            <td colspan="7"> {# colspan should match the number of columns in the main table #}
+                <div class="receipts-container">
+                    <h4>Recibos para Transacción #{{ transaction.pk }}</h4>
+                    {% if transaction.receipts.all %}
+                    <table class="receipts-table" border="1">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Comprobante</th>
+                                <th>Banco Llegada</th>
+                                <th>Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for receipt in transaction.receipts.all %}
+                            <tr>
+                                <td>{{ receipt.fecha|date:"d/m/Y" }}</td>
+                                <td>{{ receipt.hora|time:"H:i" }}</td>
+                                <td>{{ receipt.comprobante }}</td>
+                                <td>{{ receipt.banco_llegada.name }}</td>
+                                <td>{{ receipt.valor }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p>No hay recibos asociados a esta transacción.</p>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
         {% empty %}
-        <tr><td colspan="6">No hay transacciones para mostrar.</td></tr>
+        <tr><td colspan="7">No hay transacciones para mostrar.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -59,6 +97,52 @@
   </div>
 {% endif %}
 
-    {# El modal de eliminación de registros ya no es relevante para la lista de transacciones #}
-{# Si se necesita un modal de eliminación para transacciones, se deberá implementar uno nuevo #}
+<style>
+    .receipts-container {
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-top: 1px solid #eee;
+        margin-top: 5px;
+    }
+    .receipts-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    .receipts-table th, .receipts-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    .receipts-table th {
+        background-color: #e0e0e0;
+    }
+    .toggle-receipts-btn {
+        cursor: pointer;
+        background: none;
+        border: 1px solid #ccc;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: bold;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.toggle-receipts-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const transactionId = this.dataset.transactionId;
+                const receiptsRow = document.getElementById(`receipts-${transactionId}`);
+                if (receiptsRow.style.display === 'none') {
+                    receiptsRow.style.display = 'table-row';
+                    this.textContent = '-';
+                } else {
+                    receiptsRow.style.display = 'none';
+                    this.textContent = '+';
+                }
+            });
+        });
+    });
+</script>
+
 {% endblock %}

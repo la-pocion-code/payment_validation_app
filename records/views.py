@@ -14,6 +14,7 @@ from datetime import datetime
 from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter
 from django_filters.views import FilterView
+from django.forms import inlineformset_factory
 from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet
 from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction
 from django.contrib.auth.views import LoginView
@@ -96,7 +97,7 @@ class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
             # Si el usuario es 'Facturador', se le asigna automáticamente como facturador
             # y el campo 'status' se establece en 'Facturado'.
             form.instance.facturador = self.request.user.username
-            form.instance.status = 'Facturado'
+            # form.instance.status = 'Facturado'
         
      
         return super().form_valid(form)
@@ -251,7 +252,7 @@ class TransactionListView(LoginRequiredMixin, FilterView): # Changed to FilterVi
     paginate_by = 50
 
     def get_queryset(self):
-        return super().get_queryset().order_by('-date') # Use super().get_queryset() for filtering
+        return super().get_queryset().prefetch_related('receipts').order_by('-date') # Use super().get_queryset() for filtering
 
 
 class TransactionDetailView(LoginRequiredMixin, DetailView):
@@ -259,12 +260,47 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
     template_name = 'records/transaction_detail.html'
     context_object_name = 'transaction'
 
+FinancialRecordInlineFormSet = inlineformset_factory(
+    Transaction,
+    FinancialRecord,
+    form=FinancialRecordForm, # Assuming FinancialRecordForm is suitable for editing
+    extra=1, # Start with one empty form
+    can_delete=True
+)
+
 class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Transaction
     form_class = TransactionForm
     template_name = 'records/transaction_form.html'
     success_url = reverse_lazy('record_list')
     success_message = "¡Transacción actualizada exitosamente!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Transacción'
+        if self.request.POST:
+            context['formset'] = FinancialRecordInlineFormSet(self.request.POST, instance=self.object, form_kwargs={'request': self.request})
+        else:
+            context['formset'] = FinancialRecordInlineFormSet(instance=self.object, form_kwargs={'request': self.request})
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        formset = context['formset']
+        with transaction.atomic():
+            self.object = form.save()
+            if formset.is_valid():
+                formset.instance = self.object
+                formset.save()
+            else:
+                # If formset is invalid, re-render the form with errors
+                return self.form_invalid(form)
+        messages.success(self.request, self.success_message)
+        return redirect(self.get_success_url())
+
+    def form_invalid(self, form):
+        messages.error(self.request, 'Por favor, corrija los errores en el formulario.')
+        return self.render_to_response(self.get_context_data(form=form))
 
 class TransactionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Transaction
@@ -796,8 +832,15 @@ def create_bulk_receipts(request):
             
             messages.success(request, 'Transacción y recibos guardados exitosamente.')
             return redirect('record_list') # Redirect to a relevant page
+        else:
+            messages.error(request, 'Por favor, corrija los errores en el formulario.')
+            print(f"DEBUG: Transaction Form Errors: {transaction_form.errors}")
+            print(f"DEBUG: Formset Errors: {formset.errors}")
+            for i, form in enumerate(formset):
+                if form.errors:
+                    print(f"DEBUG: Form {i} Errors: {form.errors}")
 
-    else:
+    else: # GET request
         transaction_form = TransactionForm()
         formset = FinancialRecordFormSet(queryset=FinancialRecord.objects.none(), form_kwargs=form_kwargs)
 

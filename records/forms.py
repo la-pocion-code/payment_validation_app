@@ -48,17 +48,11 @@ class FinancialRecordForm(forms.ModelForm):
         super(FinancialRecordForm, self).__init__(*args, **kwargs)
         # Atributo para guardar el registro similar encontrado
         self.existing_record = None
-
-        if not self.instance.pk and not (self.request and self.request.user.is_superuser):
-            hidden_fields =  ['numero_factura', 'facturador', 'status']
-            for field in hidden_fields:
-                if field in self.fields:
-                    del self.fields[field]
-
+        print(f"DEBUG: FinancialRecordForm __init__ - instance.pk: {self.instance.pk}, request: {self.request is not None}") # AÑADIR ESTO
 
     class Meta:
         model = FinancialRecord
-        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'facturador', 'status', 'numero_factura']
+        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'cliente', 'vendedor']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time'}),
@@ -66,6 +60,7 @@ class FinancialRecordForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        print(f"DEBUG: FinancialRecordForm clean() called for data: {cleaned_data}") # AÑADIR ESTO
         comprobante = cleaned_data.get('comprobante')      
         if comprobante:
             cleaned_data['comprobante'] = comprobante.strip()
@@ -119,8 +114,17 @@ class FinancialRecordForm(forms.ModelForm):
                     )
 
                 if similar_qs.exists():
-                    self.existing_record = similar_qs.first()
-                    # NO RETORNAR AQUÍ. Permitir que el método clean() termine.
+                    # Log del intento de duplicado SIMILAR
+                    if self.request:
+                        serializable_data = {k: str(v) for k, v in cleaned_data.items()}
+                        DuplicateRecordAttempt.objects.create(
+                            user=self.request.user,
+                            data=serializable_data,
+                            attempt_type='SIMILAR' # Tipo 'SIMILAR'
+                        )
+                    raise forms.ValidationError(
+                        format_html('<div id="similar-duplicate-error">Posible registro duplicado: ya existe un registro con la misma Fecha: {}, Banco: {} y Valor: {}. Por favor, revisa los registros existentes.</div>', fecha, banco_llegada.name, valor)
+                    )
         
         return cleaned_data
 
@@ -185,7 +189,10 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
                     form.cleaned_data.get('banco_llegada'),
                     form.cleaned_data.get('valor')
                 )
+                print(f"DEBUG: Formset clean - receipts_identifier: {receipts_identifier}")
+                print(f"DEBUG: Formset clean - current receipts list: {receipts}")
                 if receipts_identifier in receipts:
+                    print(f"DEBUG: Formset clean - DUPLICATE DETECTED: {receipts_identifier}")
                     form.add_error(None, "Hay registros duplicados en el conjunto de formularios.")
                 receipts.append(receipts_identifier)
 
@@ -193,7 +200,7 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
 class TransactionForm(forms.ModelForm):
     class Meta:
         model = Transaction
-        fields = ['date', 'cliente', 'vendedor','description',]
+        fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
         }

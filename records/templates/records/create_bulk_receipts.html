@@ -7,11 +7,29 @@
 <div class="container mt-4">
     <h1>{{ title }}</h1>
 
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
     <form method="post" class="filter-form">
         {% csrf_token %}
 
         <fieldset class="mb-4">
             <legend>Datos de la Transacción</legend>
+            {% if transaction_form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in transaction_form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+            {% endif %}
             <div class="filter-fields">
                 <div class="filter-field">
                     {{ transaction_form.description.label_tag }}
@@ -46,22 +64,38 @@
             <legend>Recibos</legend>
             {{ formset.management_form }}
             
+            {% if formset.non_form_errors %}
+                <div class="alert alert-danger">
+                    {% for error in formset.non_form_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
             <div id="receipt-forms-container">
-                {# Render the initial form(s) provided by extra=1 from forms.py #}
                 {% for form in formset %}
-                    <div class="receipt-form-instance mb-4 p-3 border rounded">
+                    <div class="receipt-form-instance mb-4 p-3 border rounded{% if form.errors %} has-errors{% endif %}">
                         <div class="d-flex justify-content-between align-items-center">
                             <h5>Recibo #{{ forloop.counter }}</h5>
                             <div class="receipt-form-delete-controls">
                                 {% if formset.can_delete %}
-                                    <div class="form-check" style="display: none;">
+                                    <div class="form-check" {% if not form.instance.pk %}style="display: none;"{% endif %}>
                                         {{ form.DELETE }}
                                     </div>
-                                    <button type="button" class="btn btn-danger btn-sm remove-form-btn">Eliminar</button>
+                                    {% if form.instance.pk %}
+                                        <button type="button" class="btn btn-danger btn-sm remove-form-btn">Eliminar</button>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                         </div>
                         <hr>
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    {{ error|safe }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                         <div class="filter-fields">
                             {% for field in form.visible_fields %}
                                 {% if field.name != 'DELETE' %}
@@ -77,11 +111,10 @@
                 {% endfor %}
             </div>
 
-            {# This is the template for NEW forms added by JS. #}
-            <div id="empty-form-template" class="d-none">
+           <div id="empty-form-template" style="display: none;">
                 <div class="receipt-form-instance mb-4 p-3 border rounded">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5>Recibo</h5> {# Title will be set by JS #}
+                        <h5>Recibo</h5>
                         <div class="receipt-form-delete-controls">
                             {% if formset.can_delete %}
                                 <div class="form-check" style="display: none;">
@@ -119,6 +152,7 @@
 </div>
 
 <script>
+
 document.addEventListener('DOMContentLoaded', function() {
     const addFormBtn = document.getElementById('add-form');
     const container = document.getElementById('receipt-forms-container');
@@ -134,7 +168,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const emptyFormTemplate = emptyFormTemplateEl.innerHTML;
 
     function getNextAvailableReceiptNumber() {
-        // Obtener todos los números usados en títulos h5 (solo de recibos visibles)
         const usedNumbers = Array.from(container.querySelectorAll('.receipt-form-instance'))
             .filter(form => 
                 form.style.display !== 'none' &&
@@ -149,16 +182,13 @@ document.addEventListener('DOMContentLoaded', function() {
             .filter(n => n !== null)
             .sort((a, b) => a - b);
 
-        // Buscar el menor número no usado, comenzando desde 2
-        let nextNumber = 2;
+        let nextNumber = 1;
         for (const num of usedNumbers) {
             if (num === nextNumber) {
                 nextNumber++;
             } else if (num < nextNumber) {
-                // Continuar buscando
                 continue;
             } else {
-                // Encontramos un hueco
                 break;
             }
         }
@@ -172,15 +202,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 !form.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked
             );
 
-        // Obtener números actuales
-        const currentNumbers = activeForms.map(form => {
-            const titleEl = form.querySelector('h5');
-            if (!titleEl) return null;
-            const match = titleEl.textContent.match(/Recibo #(\d+)/);
-            return match ? parseInt(match[1], 10) : null;
-        });
-
-        // Renumerar secuencialmente comenzando desde 2
         let counter = 2;
         for (let i = 0; i < activeForms.length; i++) {
             const form = activeForms[i];
@@ -207,7 +228,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 titleEl.textContent = 'Recibo #' + nextNumber;
             }
 
-            container.appendChild(newForm);
+            const lastForm = container.querySelector('.receipt-form-instance:last-child');
+            if (lastForm) {
+                lastForm.insertAdjacentElement('afterend', newForm);
+            } else {
+                container.appendChild(newForm);
+            }
+            
             if(transactionDateField) syncReceiptDate(newForm);
             totalFormsInput.value = index + 1;
         }
@@ -229,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 formInstance.style.display = 'none';
 
-                renumberReceipts();  // Renumerar tras eliminar
+                renumberReceipts();
             }
         }
     }
@@ -258,6 +285,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Sincronizar fecha en formularios existentes
     document.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);
+
+    // *** AGREGAR UN RECIBO ADICIONAL POR DEFECTO AL CARGAR LA PÁGINA ***
+    addForm();
 });
 </script>
 
