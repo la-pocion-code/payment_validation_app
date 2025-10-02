@@ -111,7 +111,7 @@
                 {% endfor %}
             </div>
 
-           <div id="empty-form-template" style="display: none;">
+           <template id="empty-form-template">
                 <div class="receipt-form-instance mb-4 p-3 border rounded">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5>Recibo</h5>
@@ -137,7 +137,7 @@
                         {% endfor %}
                     </div>
                 </div>
-            </div>
+            </template>
 
             <button type="button" id="add-form" class="btn btn-secondary btn-sm">Añadir otro recibo</button>
         </fieldset>
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 !form.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked
             );
 
-        let counter = 2;
+        let counter = 1;
         for (let i = 0; i < activeForms.length; i++) {
             const form = activeForms[i];
             const titleEl = form.querySelector('h5');
@@ -287,7 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);
 
     // *** AGREGAR UN RECIBO ADICIONAL POR DEFECTO AL CARGAR LA PÁGINA ***
-    addForm();
+    // addForm(); // Se comenta para evitar la adición automática de un formulario al cargar.
 });
 </script>
 

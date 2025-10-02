@@ -7,10 +7,41 @@
 <h2>Transacciones</h2>
 
 <div class="filter-container">
-    <form method="get" action="">
-        {{ filter.form.as_p }}
-        <button type="submit">Aplicar Filtros</button>
-        <a href="{% url 'record_list' %}" class="clear-filters-button">Limpiar Filtros</a>
+    <form method="get" action="" class="filter-form">
+        <div class="filter-fields">
+            <div class="filter-field">
+                {{ filter.form.date__gte.label_tag }}
+                {{ filter.form.date__gte }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.date__lte.label_tag }}
+                {{ filter.form.date__lte }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.cliente.label_tag }}
+                {{ filter.form.cliente }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.vendedor.label_tag }}
+                {{ filter.form.vendedor }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.facturador.label_tag }}
+                {{ filter.form.facturador }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.numero_factura.label_tag }}
+                {{ filter.form.numero_factura }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.status.label_tag }}
+                {{ filter.form.status }}
+            </div>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Aplicar Filtros</button>
+            <a href="{% url 'record_list' %}" class="btn btn-secondary">Limpiar Filtros</a>
+        </div>
     </form>
     <a href="{% url 'export_transactions_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="export-csv-button">Exportar Transacciones a CSV</a>
 </div>
@@ -96,36 +127,6 @@
     {% endif %}
   </div>
 {% endif %}
-
-<style>
-    .receipts-container {
-        padding: 10px;
-        background-color: #f9f9f9;
-        border-top: 1px solid #eee;
-        margin-top: 5px;
-    }
-    .receipts-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-    }
-    .receipts-table th, .receipts-table td {
-        border: 1px solid #ddd;
-        padding: 8px;
-        text-align: left;
-    }
-    .receipts-table th {
-        background-color: #e0e0e0;
-    }
-    .toggle-receipts-btn {
-        cursor: pointer;
-        background: none;
-        border: 1px solid #ccc;
-        padding: 2px 6px;
-        border-radius: 3px;
-        font-weight: bold;
-    }
-</style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {

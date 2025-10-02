@@ -148,11 +148,11 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
             self.fields['cliente'].disabled = True
             self.fields['vendedor'].disabled = True
 
-            if user.groups.filter(name='Facturador').exists():
-                self.instance.facturador = user.username
-                self.fields['facturador'].disabled = True
-            else:
-                self.fields['facturador'].disabled = True
+            # if user.groups.filter(name='Facturador').exists():
+            #     self.instance.facturador = user.username
+            #     self.fields['facturador'].disabled = True
+            # else:
+            #     self.fields['facturador'].disabled = True
 
     
 class BankForm(forms.ModelForm):
@@ -200,7 +200,7 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
 class TransactionForm(forms.ModelForm):
     class Meta:
         model = Transaction
-        fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador']
+        fields = ['date', 'cliente', 'vendedor','description', 'numero_factura', 'facturador']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
         }

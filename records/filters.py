@@ -62,37 +62,49 @@ class DuplicateRecordAttemptFilter(django_filters.FilterSet):
         fields = ['user', 'timestamp__gte', 'timestamp__lte', 'banco']
 
 class TransactionFilter(django_filters.FilterSet):
-    # Filter by client of the associated FinancialRecords
-    cliente = django_filters.CharFilter(
-        field_name='receipts__cliente',
-        lookup_expr='icontains',
-        label='Cliente'
-    )
-    # Filter by status of the associated FinancialRecords
-    status = django_filters.ChoiceFilter(
-        choices=Transaction.STATUS_CHOICES,
-        label='Estado'
-    )
-    # Filter by bank of the associated FinancialRecords
-    banco_llegada = django_filters.ModelChoiceFilter(
-        field_name='receipts__banco_llegada',
-        queryset=Bank.objects.all(),
-        label='Banco Llegada'
-    )
-    # Filter by date of the transaction
     date__gte = django_filters.DateFilter(
         field_name='date',
         lookup_expr='gte',
         label='Fecha desde',
-        widget=forms.DateInput(attrs={'type': 'date'})
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
     date__lte = django_filters.DateFilter(
         field_name='date',
         lookup_expr='lte',
         label='Fecha hasta',
-        widget=forms.DateInput(attrs={'type': 'date'})
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+    cliente = django_filters.CharFilter(
+        field_name='cliente',
+        lookup_expr='icontains',
+        label='Cliente'
+    )
+    vendedor = django_filters.CharFilter(
+        field_name='vendedor',
+        lookup_expr='icontains',
+        label='Vendedor'
+    )
+    facturador = django_filters.CharFilter(
+        field_name='facturador',
+        lookup_expr='icontains',
+        label='Facturador'
+    )
+    numero_factura = django_filters.CharFilter(
+        field_name='numero_factura',
+        lookup_expr='icontains',
+        label='# de Factura'
+    )
+    status = django_filters.ChoiceFilter(
+        choices=Transaction.STATUS_CHOICES,
+        label='Estado'
     )
 
     class Meta:
         model = Transaction
-        fields = ['cliente', 'status', 'banco_llegada', 'date__gte', 'date__lte']
+        fields = ['date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'status' not in self.data:
+            self.data = self.data.copy()
+            self.data['status'] = 'Pendiente'

@@ -4,21 +4,99 @@
 
 {% block content %}
     <h2>Detalle de Transacción #{{ transaction.pk }}</h2>
-    <p><strong>Fecha:</strong> {{ transaction.date|date:"d/m/Y" }}</p>
-    <p><strong>Cliente:</strong> {{ transaction.cliente }}</p>
-    <p><strong>Vendedor:</strong> {{ transaction.vendedor }}</p>
-    <p><strong>Valor Total:</strong> {{ transaction.total_valor }}</p>
-    <p><strong>Descripción:</strong> {{ transaction.description }}</p>
+
+    <table class="transaction-details-horizontal">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Vendedor</th>
+                <th>Valor Total</th>
+                <th>Descripción</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ transaction.date|date:"d/m/Y" }}</td>
+                <td>{{ transaction.cliente }}</td>
+                <td>{{ transaction.vendedor }}</td>
+                <td>{{ transaction.total_valor }}</td>
+                <td>{{ transaction.description }}</td>
+                <td>{{ transaction.status }}</td>
+            </tr>
+        </tbody>
+    </table>
 
     <h3>Recibos Asociados:</h3>
+
+
     {% if transaction.receipts.all %}
-        <ul>
-            {% for receipt in transaction.receipts.all %}
-                <li>{{ receipt.fecha|date:"d/m/Y" }} - {{ receipt.comprobante }} - {{ receipt.valor }} - {{ receipt.status }}</li>
-            {% endfor %}
-        </ul>
+        <table class="receipts-table" border="1">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Hora</th>
+                    <th>Comprobante</th>
+                    <th>Banco de Llegada</th>
+                    <th>Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for receipt in transaction.receipts.all %}
+                    <tr>
+                        <td>{{ receipt.fecha|date:"d/m/Y" }}</td>
+                        <td>{{ receipt.hora|time:"H:i" }}</td>
+                        <td>{{ receipt.comprobante }}</td>
+                        <td>{{ receipt.banco_llegada.name }}</td>
+                        <td>{{ receipt.valor }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     {% else %}
         <p>No hay recibos asociados a esta transacción.</p>
+    {% endif %}
+
+    <h3>Historial de Cambios:</h3>
+    {% if history %}
+        <table class="history-table" border="1">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Usuario</th>
+                    <th>Tipo</th>
+                    <th>Cambios</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in history %}
+                    <tr>
+                        <td>{{ record.history_date|date:"d/m/Y H:i" }}</td>
+                        <td>{{ record.history_user|default:"Sistema" }}</td>
+                        <td>{{ record.get_history_type_display }}</td>
+                        <td>
+                            {% if record.history_type == '~' and record.delta %}
+                                <ul>
+                                {% for change in record.delta %}
+                                    <li>
+                                        <strong>{{ change.field|capfirst }}:</strong>
+                                        de <em>{{ change.old }}</em> a <em>{{ change.new }}</em>
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            {% elif record.history_type == '+' %}
+                                Creado
+                            {% elif record.history_type == '-' %}
+                                Eliminado
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No hay historial de cambios para esta transacción.</p>
     {% endif %}
 
     <a href="{% url 'transaction_update' transaction.pk %}">Editar Transacción</a>

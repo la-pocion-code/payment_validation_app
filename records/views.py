@@ -260,6 +260,15 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
     template_name = 'records/transaction_detail.html'
     context_object_name = 'transaction'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        history = self.object.history.all()
+        for h in history:
+            if h.prev_record:
+                h.delta = h.diff_against(h.prev_record)
+        context['history'] = history
+        return context
+
 FinancialRecordInlineFormSet = inlineformset_factory(
     Transaction,
     FinancialRecord,
@@ -812,7 +821,9 @@ def create_bulk_receipts(request):
             # Use a database transaction to ensure all or nothing is saved.
             with transaction.atomic():
                 # First, save the parent transaction so we get an ID.
-                new_transaction = transaction_form.save()
+                new_transaction = transaction_form.save(commit=False)
+                new_transaction.status = 'Pendiente'
+                new_transaction.save()
 
                 # Now, iterate through the forms in the formset.
                 for form in formset:
