@@ -27,7 +27,8 @@
                 <!-- <a href="{% url 'record_create' %}">Nuevo</a> -->
                 {% if user.is_superuser %}
                     <a href="{% url 'csv_upload' %}">Cargar</a>
-                    <a href="{% url 'deleted_records_list' %}">Eliminados</a>
+                    <a href="{% url 'deleted_receipts_list' %}">Recibos Eliminados</a>
+                    <a href="{% url 'deleted_transactions_list' %}">Transacciones Eliminadas</a>
                     <a href="{% url 'duplicate_attempts_list' %}">
                         Duplicados 
                         {% if duplicate_attempts_count > 0 %}

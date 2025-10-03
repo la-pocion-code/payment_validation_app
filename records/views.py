@@ -535,6 +535,26 @@ def deleted_records_view(request):
     return render(request, 'records/deleted_records_list.html', context)
 
 @login_required
+@user_passes_test(lambda u: u.is_superuser)
+def deleted_transactions_view(request):
+    deleted_transactions = Transaction.history.filter(history_type='-').order_by('-history_date')
+    context = {
+        'deleted_transactions': deleted_transactions,
+        'title': 'Transacciones Eliminadas'
+    }
+    return render(request, 'records/deleted_transactions_list.html', context)
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def restore_transaction_view(request, history_id):
+    history_record = get_object_or_404(Transaction.history, history_id=history_id)
+    
+    history_record.instance.save()
+    
+    messages.success(request, f'Transacción ID {history_record.instance.pk} restaurada exitosamente.')
+    return redirect('deleted_transactions_list') # Redirect back to the list of deleted items
+
+@login_required
 def export_csv(request):
     if not request.user.is_superuser:
         messages.error(request, 'No tienes permisos para realizar esta acción.')

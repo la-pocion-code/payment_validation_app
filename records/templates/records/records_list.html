@@ -8,6 +8,7 @@
 
 <div class="filter-container">
     <form method="get" action="" class="filter-form">
+        {% csrf_token %}
         <div class="filter-fields">
             <div class="filter-field">
                 {{ filter.form.date__gte.label_tag }}
@@ -74,11 +75,11 @@
             <td>
                 <a href="{% url 'transaction_detail' transaction.pk %}">Ver</a> |
                 <a href="{% url 'transaction_update' transaction.pk %}">Editar</a> |
-                <a href="{% url 'transaction_delete' transaction.pk %}">Eliminar</a>
+                <button type="button" class="btn-link-style btn-delete-transaction" data-url="{% url 'transaction_delete' transaction.pk %}">Eliminar</button>
             </td>
         </tr>
         <tr class="receipts-row" id="receipts-{{ transaction.pk }}" style="display: none;">
-            <td colspan="7"> {# colspan should match the number of columns in the main table #}
+            <td colspan="9">
                 <div class="receipts-container">
                     <h4>Recibos para Transacción #{{ transaction.pk }}</h4>
                     {% if transaction.receipts.all %}
@@ -111,10 +112,23 @@
             </td>
         </tr>
         {% empty %}
-        <tr><td colspan="7">No hay transacciones para mostrar.</td></tr>
+        <tr><td colspan="9">No hay transacciones para mostrar.</td></tr>
         {% endfor %}
     </tbody>
 </table>
+
+{# Modal de Confirmación #}
+<div id="delete-confirm-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h4>Confirmar Eliminación</h4>
+        <p>¿Estás seguro de que quieres eliminar esta transacción?</p>
+        <div class="modal-buttons">
+            <button type="button" id="modal-confirm-delete" class="btn btn-danger">Confirmar</button>
+            <button type="button" id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
+        </div>
+    </div>
+</div>
 
 {% if is_paginated %}
   <div>
@@ -128,22 +142,100 @@
   </div>
 {% endif %}
 
+<style>
+    .receipts-container { padding: 10px; background-color: #f9f9f9; border-top: 1px solid #eee; margin-top: 5px; }
+    .receipts-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .receipts-table th, .receipts-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    .receipts-table th { background-color: #e0e0e0; }
+    .toggle-receipts-btn { cursor: pointer; background: none; border: 1px solid #ccc; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
+    .btn-link-style { background: none; border: none; color: #FF0082; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; }
+    .btn-link-style:hover { color: #EA5455; }
+
+    /* Modal Styles */
+    .modal { position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; outline: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+    .modal-content { position: relative; background-color: #fefefe; padding: 20px; border: 1px solid #888; width: auto; max-width: 500px; border-radius: 8px; text-align: center; }
+    .modal-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+    .close-button { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
+</style>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.toggle-receipts-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const transactionId = this.dataset.transactionId;
-                const receiptsRow = document.getElementById(`receipts-${transactionId}`);
-                if (receiptsRow.style.display === 'none') {
-                    receiptsRow.style.display = 'table-row';
-                    this.textContent = '-';
-                } else {
-                    receiptsRow.style.display = 'none';
-                    this.textContent = '+';
-                }
-            });
+document.addEventListener('DOMContentLoaded', function() {
+    // --- Toggle Receipts --- //
+    document.querySelectorAll('.toggle-receipts-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const transactionId = this.dataset.transactionId;
+            const receiptsRow = document.getElementById(`receipts-${transactionId}`);
+            if (receiptsRow.style.display === 'none') {
+                receiptsRow.style.display = 'table-row';
+                this.textContent = '-';
+            } else {
+                receiptsRow.style.display = 'none';
+                this.textContent = '+';
+            }
         });
     });
+
+    // --- Delete Transaction Modal --- //
+    const modal = document.getElementById('delete-confirm-modal');
+    const closeModal = modal.querySelector('.close-button');
+    const confirmDeleteBtn = document.getElementById('modal-confirm-delete');
+    const cancelDeleteBtn = document.getElementById('modal-cancel-delete');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    let urlToDelete = null;
+    let rowToDelete = null;
+
+    document.querySelectorAll('.btn-delete-transaction').forEach(button => {
+        button.addEventListener('click', function() {
+            urlToDelete = this.dataset.url;
+            rowToDelete = this.closest('tr');
+            modal.style.display = 'flex';
+        });
+    });
+
+    closeModal.addEventListener('click', () => modal.style.display = 'none');
+    cancelDeleteBtn.addEventListener('click', () => modal.style.display = 'none');
+    window.addEventListener('click', (event) => {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    confirmDeleteBtn.addEventListener('click', function() {
+        if (!urlToDelete) return;
+
+        fetch(urlToDelete, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest' // To help Django view identify AJAX
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove the main row and the receipts row
+                const receiptsRow = document.getElementById(`receipts-${rowToDelete.dataset.transactionId}`);
+                rowToDelete.remove();
+                if (receiptsRow) {
+                    receiptsRow.remove();
+                }
+                // Optionally, show a success message (e.g., using a toast library)
+                alert(data.message || 'Transacción eliminada exitosamente.');
+            } else {
+                alert(data.message || 'Ocurrió un error al eliminar la transacción.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ocurrió un error de red.');
+        })
+        .finally(() => {
+            modal.style.display = 'none';
+            urlToDelete = null;
+            rowToDelete = null;
+        });
+    });
+});
 </script>
 
 {% endblock %}

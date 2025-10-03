@@ -24,7 +24,7 @@
                         <td>{{ record.fecha|date:"d/m/Y" }} - {{ record.comprobante }} - {{ record.valor }}</td>
                         <td>
                             {% if user.is_superuser %}
-                                <form action="{% url 'restaurar_registro' record.history_id %}" method="post" style="display: inline;">
+                                <form action="{% url 'restore_receipt' record.history_id %}" method="post" style="display: inline;">
                                     {% csrf_token %}
                                     <button type="submit" class="submit-btn">Restaurar</button>
                                 </form>

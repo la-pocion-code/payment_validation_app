@@ -1,0 +1,51 @@
+{% extends 'records/base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID de Transacción</th>
+                <th>Fecha de Eliminación</th>
+                <th>Eliminado por</th>
+                <th>Cliente</th>
+                <th>Descripción</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in deleted_transactions %}
+                <tr>
+                    <td>{{ record.instance.pk }}</td>
+                    <td>{{ record.history_date|date:"d/m/Y H:i" }}</td>
+                    <td>{{ record.history_user|default:"Sistema" }}</td>
+                    <td>{{ record.instance.cliente }}</td>
+                    <td>{{ record.instance.description }}</td>
+                    <td>
+                        <form action="{% url 'restore_transaction' record.history_id %}" method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit">Restaurar</button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6">No hay transacciones eliminadas.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{% url 'record_list' %}">Volver a la lista de transacciones</a>
+{% endblock %}
