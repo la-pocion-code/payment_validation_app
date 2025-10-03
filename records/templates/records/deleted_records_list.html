@@ -38,3 +38,65 @@
         <p>No hay registros eliminados.</p>
     {% endif %}
 {% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const restoreForms = document.querySelectorAll('form[action*="restore_receipt"]');
+
+    restoreForms.forEach(form => {
+        form.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent normal form submission
+
+            const url = this.action;
+            const csrfToken = this.querySelector('input[name="csrfmiddlewaretoken"]').value;
+            const row = this.closest('tr');
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    row.style.transition = 'opacity 0.5s ease';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        row.remove();
+                        const tbody = document.querySelector('table tbody');
+                        if (tbody && tbody.children.length === 0) {
+                            const colCount = row.children.length;
+                            const emptyRow = `<tr><td colspan="${colCount}">No hay registros eliminados.</td></tr>`;
+                            const table = tbody.closest('table');
+                            table.insertAdjacentHTML('afterend', '<p>No hay registros eliminados.</p>');
+                            table.remove();
+                        }
+                    }, 500);
+                    
+                    // Opcional: Mostrar una notificación más sutil en lugar de un alert
+                    // Por ejemplo, usando una librería como Toastify o creando un div temporal.
+                } else {
+                    alert('Error al restaurar el recibo: ' + (data.message || 'Error desconocido.'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                let errorMessage = 'Ocurrió un error de red o del servidor.';
+                if (error && error.message) {
+                    errorMessage = error.message;
+                }
+                alert(errorMessage);
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

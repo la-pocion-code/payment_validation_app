@@ -513,14 +513,33 @@ def history_record_view(request, pk):
 
 @login_required
 def restore_delete_record_view(request, history_id):
-    history_record = get_object_or_404(FinancialRecord.history, history_id=history_id)
-    if not request.user.is_superuser:
-        messages.error(request, 'No tienes permisos para restaurar registros.')
-        return redirect('historial_registro', pk=history_record.instance.pk)
+    if request.method == 'POST':
+        history_record = get_object_or_404(FinancialRecord.history, history_id=history_id)
+        
+        if not request.user.is_superuser:
+            message = 'No tienes permisos para restaurar registros.'
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'message': message}, status=403)
+            messages.error(request, message)
+            return redirect('historial_registro', pk=history_record.instance.pk)
 
-    history_record.instance.save()
-    messages.success(request, f'Registro restaurado exitosamente a la versión del {history_record.history_date}.')
-    return redirect('historial_registro', pk=history_record.instance.pk)
+        if not history_record.instance.transaction_id or not Transaction.objects.filter(pk=history_record.instance.transaction_id).exists():
+            message = 'No se puede restaurar el recibo porque la transacción asociada ya no existe.'
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'message': message}, status=400)
+            messages.error(request, message)
+            return redirect('deleted_receipts_list')
+
+        history_record.instance.save()
+        message = f'Registro restaurado exitosamente a la versión del {history_record.history_date}.'
+        
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'message': message})
+        
+        messages.success(request, message)
+        return redirect('deleted_receipts_list')
+    
+    return redirect('deleted_receipts_list')
 
 @login_required
 def deleted_records_view(request):
@@ -528,18 +547,39 @@ def deleted_records_view(request):
         messages.error(request, 'No tienes permisos para ver esta página.')
         return redirect('record_list')
     
-    deleted_records = FinancialRecord.history.filter(history_type='-').order_by('-history_date')
+    # 1. Obtener todos los registros del historial marcados como eliminados ('-').
+    all_deleted_records_qs = FinancialRecord.history.filter(history_type='-').order_by('-history_date')
+    
+    # 2. Obtener los IDs de los registros originales que fueron eliminados.
+    # El campo 'id' en el modelo de historial corresponde al 'pk' del modelo original.
+    deleted_record_ids = all_deleted_records_qs.values_list('id', flat=True)
+    
+    # 3. Identificar cuáles de esos IDs han sido restaurados (es decir, existen de nuevo en la tabla principal).
+    restored_ids = FinancialRecord.objects.filter(pk__in=deleted_record_ids).values_list('pk', flat=True)
+    
+    # 4. Excluir los registros restaurados de la lista de eliminados.
+    truly_deleted_records = all_deleted_records_qs.exclude(id__in=restored_ids)
     context = {
-        'deleted_records': deleted_records
+        'deleted_records': truly_deleted_records
     }
     return render(request, 'records/deleted_records_list.html', context)
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def deleted_transactions_view(request):
-    deleted_transactions = Transaction.history.filter(history_type='-').order_by('-history_date')
+    # 1. Obtener todos los registros del historial de transacciones marcados como eliminados ('-').
+    all_deleted_transactions_qs = Transaction.history.filter(history_type='-').order_by('-history_date')
+
+    # 2. Obtener los IDs originales de las transacciones eliminadas.
+    deleted_transaction_ids = all_deleted_transactions_qs.values_list('id', flat=True)
+
+    # 3. Identificar cuáles de esos IDs han sido restaurados (existen de nuevo en la tabla principal).
+    restored_ids = Transaction.objects.filter(pk__in=deleted_transaction_ids).values_list('pk', flat=True)
+
+    # 4. Excluir las transacciones restauradas de la lista de eliminados.
+    truly_deleted_transactions = all_deleted_transactions_qs.exclude(id__in=restored_ids)
     context = {
-        'deleted_transactions': deleted_transactions,
+        'deleted_transactions': truly_deleted_transactions,
         'title': 'Transacciones Eliminadas'
     }
     return render(request, 'records/deleted_transactions_list.html', context)
@@ -547,12 +587,20 @@ def deleted_transactions_view(request):
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def restore_transaction_view(request, history_id):
-    history_record = get_object_or_404(Transaction.history, history_id=history_id)
+    if request.method == 'POST':
+        history_record = get_object_or_404(Transaction.history, history_id=history_id)
+        
+        history_record.instance.save()
+        
+        message = f'Transacción ID {history_record.instance.pk} restaurada exitosamente.'
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'message': message})
+        
+        messages.success(request, message)
+        return redirect('deleted_transactions_list')
     
-    history_record.instance.save()
-    
-    messages.success(request, f'Transacción ID {history_record.instance.pk} restaurada exitosamente.')
-    return redirect('deleted_transactions_list') # Redirect back to the list of deleted items
+    return redirect('deleted_transactions_list')
 
 @login_required
 def export_csv(request):

@@ -49,3 +49,68 @@
 
     <a href="{% url 'record_list' %}">Volver a la lista de transacciones</a>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const restoreForms = document.querySelectorAll('form[action*="restore"]');
+
+    restoreForms.forEach(form => {
+        form.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent normal form submission
+
+            const url = this.action;
+            const csrfToken = this.querySelector('input[name="csrfmiddlewaretoken"]').value;
+            const row = this.closest('tr');
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json'
+                },
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Try to get error message from response body
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Fade out and remove the row from the table
+                    row.style.transition = 'opacity 0.5s ease';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        row.remove();
+                        // Check if table body is empty and show the "no records" message
+                        const tbody = document.querySelector('table tbody');
+                        if (tbody && tbody.children.length === 0) {
+                            const colCount = row.children.length; // Get column count from the row we just removed
+                            const emptyRow = `<tr><td colspan="${colCount}">No hay transacciones eliminadas.</td></tr>`;
+                            tbody.innerHTML = emptyRow;
+                        }
+                    }, 500);
+                    
+                    // A simple alert for feedback. A more sophisticated notification system could be used.
+                    alert(data.message); 
+                } else {
+                    // This 'else' block might not be reached if the error is thrown from response.ok check
+                    alert('Error al restaurar la transacción: ' + (data.message || 'Error desconocido.'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                let errorMessage = 'Ocurrió un error de red o del servidor.';
+                if (error && error.message) {
+                    errorMessage = error.message;
+                }
+                alert(errorMessage);
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
