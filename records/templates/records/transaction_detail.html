@@ -78,7 +78,7 @@
                         <td>
                             {% if record.history_type == '~' and record.delta %}
                                 <ul>
-                                {% for change in record.delta %}
+                                {% for change in record.delta.changes %}
                                     <li>
                                         <strong>{{ change.field|capfirst }}:</strong>
                                         de <em>{{ change.old }}</em> a <em>{{ change.new }}</em>

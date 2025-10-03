@@ -11,7 +11,31 @@
         {# Transaction Form #}
         <fieldset>
             <legend>Detalles de la Transacción</legend>
-            {{ form.as_p }}
+            <table class="transaction-details-horizontal">
+                <thead>
+                    <tr>
+                        <th>Fecha Transaccón</th>
+                        <th>Cliente</th>
+                        <th>Vendedor</th>
+                        <th>Descripción</th>
+                        <th>Facturador</th>
+                        <th># de Factura</th>
+                        <th>Estado Transacción</th>
+                        
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ form.date }} {{ form.date.errors }}</td>
+                        <td>{{ form.cliente }} {{ form.cliente.errors }}</td>
+                        <td>{{ form.vendedor }} {{ form.vendedor.errors }}</td>
+                        <td>{{ form.description }} {{ form.description.errors }}</td>
+                        <td>{{ form.facturador }} {{ form.facturador.errors }}</td>
+                        <td>{{ form.numero_factura }} {{ form.numero_factura.errors }}</td>
+                        <td>{{ form.status }} {{ form.status.errors }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </fieldset>
 
         {# Financial Records Formset #}
@@ -20,8 +44,9 @@
             {{ formset.management_form }}
             <div id="formset-container">
                 {% for form in formset %}
-                    <div class="receipt-form-instance {% if form.errors %}has-errors{% endif %}">
-                        {% if form.instance.pk %}<p>Recibo existente #{{ form.instance.pk }}</p>{% else %}<p>Nuevo Recibo</p>{% endif %}
+                    <div class="receipt-form-instance {% if form.errors %}has-errors{% endif %}" id="receipt-form-{{ forloop.counter0 }}">
+                        {% if form.instance.pk %}<h5>Recibo existente #{{ form.instance.pk }}</h5>{% else %}<h5>Nuevo Recibo</h5>{% endif %}
+                        
                         {% if form.non_field_errors %}
                             <div class="non-field-errors">
                                 {% for error in form.non_field_errors %}
@@ -29,11 +54,22 @@
                                 {% endfor %}
                             </div>
                         {% endif %}
-                        {{ form.as_p }}
-                        {% if formset.can_delete %}
-                            <p>{{ form.DELETE }} Eliminar Recibo</p>
-                        {% endif %}
-                        <hr>
+
+                        <div class="receipt-form-fields">
+                            <div class="receipt-field">{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
+                            <div class="receipt-field">{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
+                            <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
+                            <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
+                            <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
+                            <div class="receipt-delete-wrapper">
+                                {% if formset.can_delete %}
+                                    <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
+                                    <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
+                                    <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {{ form.id }}
                     </div>
                 {% endfor %}
             </div>
@@ -44,80 +80,178 @@
         <a href="{% url 'record_list' %}">Cancelar</a>
     </form>
 
+    {# Modal de Confirmación #}
+    <div id="delete-confirm-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h4>Confirmar Eliminación</h4>
+            <p>¿Estás seguro de que quieres eliminar este recibo?</p>
+            <div class="modal-buttons">
+                <button type="button" id="modal-confirm-delete" class="btn btn-danger">Confirmar</button>
+                <button type="button" id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <template id="empty-form-template">
+        <div class="receipt-form-instance" id="receipt-form-__prefix__">
+            <h5>Nuevo Recibo</h5>
+            <div class="receipt-form-fields">
+                <div class="receipt-field">{{ formset.empty_form.fecha.label_tag }}{{ formset.empty_form.fecha }}</div>
+                <div class="receipt-field">{{ formset.empty_form.hora.label_tag }}{{ formset.empty_form.hora }}</div>
+                <div class="receipt-field">{{ formset.empty_form.comprobante.label_tag }}{{ formset.empty_form.comprobante }}</div>
+                <div class="receipt-field">{{ formset.empty_form.banco_llegada.label_tag }}{{ formset.empty_form.banco_llegada }}</div>
+                <div class="receipt-field">{{ formset.empty_form.valor.label_tag }}{{ formset.empty_form.valor }}</div>
+                <div class="receipt-delete-wrapper">
+                    {% if formset.can_delete %}
+                        <div class="delete-checkbox" style="display: none;">{{ formset.empty_form.DELETE }}</div>
+                        <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
+                        <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
+                    {% endif %}
+                </div>
+            </div>
+            {{ formset.empty_form.id }}
+        </div>
+    </template>
+
     <style>
+        .transaction-form-table {
+            width: 100%; margin-bottom: 20px; border-collapse: collapse;
+        }
+        .transaction-form-table th, .transaction-form-table td {
+            padding: 12px; vertical-align: top; border-top: 1px solid #dee2e6;
+        }
+        .transaction-form-table th {
+            text-align: left; width: 20%; font-weight: bold;
+        }
+        .transaction-form-table input, .transaction-form-table select, .transaction-form-table textarea {
+            width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+        }
+        .transaction-form-table .errorlist {
+            color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 10px; margin: 5px 0 0 0; list-style-type: none;
+        }
+
         .receipt-form-instance {
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
+            border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px; background-color: #f9f9f9; transition: background-color 0.3s ease;
         }
-        .receipt-form-instance.has-errors {
-            border-color: red;
-            background-color: #ffebeb;
+        .receipt-form-fields {
+            display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-start;
         }
-        .non-field-errors {
-            color: red;
-            font-weight: bold;
-            margin-bottom: 10px;
+        .receipt-field {
+            display: flex; flex-direction: column; flex: 1; min-width: 150px;
         }
-        .errorlist {
-            color: red;
-            margin-left: 0;
-            padding-left: 0;
+        .receipt-field label {
+            font-weight: bold; margin-bottom: 5px;
         }
-        #add-receipt-btn {
-            margin-top: 10px;
-            padding: 8px 15px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+        .receipt-field input, .receipt-field select {
+            width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
         }
-        #add-receipt-btn:hover {
-            background-color: #45a049;
+        .receipt-delete-wrapper {
+            flex: 0 0 100px; display: flex; align-items: flex-end; padding-bottom: 8px;
         }
+
+        .receipt-form-instance.marked-for-deletion {
+            background-color: #f8d7da;
+            opacity: 0.6;
+        }
+        .receipt-form-instance.marked-for-deletion input, .receipt-form-instance.marked-for-deletion select {
+            text-decoration: line-through;
+        }
+
+        .receipt-form-instance.has-errors { border-color: red; background-color: #ffebeb; }
+        .non-field-errors { color: red; font-weight: bold; margin-bottom: 10px; }
+        .errorlist { color: red; margin: 5px 0 0 0; padding: 0; list-style-type: none; }
+        #add-receipt-btn { margin-top: 10px; padding: 8px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #add-receipt-btn:hover { background-color: #218838; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-danger:hover { background-color: #c82333; }
+
+        /* Modal Styles */
+        .modal { position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; outline: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+        .modal-content { position: relative; background-color: #fefefe; padding: 20px; border: 1px solid #888; width: auto; max-width: 500px; border-radius: 8px; text-align: center; }
+        .modal-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+        .close-button { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
     </style>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const addReceiptBtn = document.getElementById('add-receipt-btn');
-            const formsetContainer = document.getElementById('formset-container');
-            const totalForms = document.querySelector('#id_receipt_set-TOTAL_FORMS');
+    document.addEventListener('DOMContentLoaded', function() {
+        const formsetContainer = document.getElementById('formset-container');
+        const addReceiptBtn = document.getElementById('add-receipt-btn');
+        const totalForms = document.querySelector('#id_receipts-TOTAL_FORMS');
+        const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML;
+        
+        // Modal elements
+        const modal = document.getElementById('delete-confirm-modal');
+        const closeModal = modal.querySelector('.close-button');
+        const confirmDeleteBtn = document.getElementById('modal-confirm-delete');
+        const cancelDeleteBtn = document.getElementById('modal-cancel-delete');
+        let formToMarkForDeletion = null;
 
-            addReceiptBtn.addEventListener('click', function() {
-                const currentForms = formsetContainer.querySelectorAll('.receipt-form-instance').length;
-                const newFormIndex = totalForms.value;
-                const emptyForm = `
-                    <div class="receipt-form-instance">
-                        <p>Nuevo Recibo</p>
-                        {% for field in formset.empty_form %}
-                            <p>
-                                {{ field.label_tag }}
-                                {{ field }}
-                                {% if field.help_text %}
-                                    <span class="helptext">{{ field.help_text }}</span>
-                                {% endif %}
-                                {% if field.errors %}
-                                    <ul class="errorlist">
-                                        {% for error in field.errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endif %}
-                            </p>
-                        {% endfor %}
-                        {% if formset.can_delete %}
-                            <p><input type="checkbox" name="receipt_set-${newFormIndex}-DELETE" id="id_receipt_set-${newFormIndex}-DELETE"> Eliminar Recibo</p>
-                        {% endif %}
-                        <hr>
-                    </div>
-                `;
-                const newFormHtml = emptyForm.replace(/__prefix__/g, newFormIndex);
-                formsetContainer.insertAdjacentHTML('beforeend', newFormHtml);
-                totalForms.value = parseInt(totalForms.value) + 1;
-            });
+        function showModal(formInstance) {
+            formToMarkForDeletion = formInstance;
+            modal.style.display = 'flex';
+        }
+
+        function hideModal() {
+            formToMarkForDeletion = null;
+            modal.style.display = 'none';
+        }
+
+        function markForDeletion(formInstance) {
+            const deleteCheckbox = formInstance.querySelector('[id$="-DELETE"]');
+            if (deleteCheckbox) {
+                deleteCheckbox.checked = true;
+                formInstance.classList.add('marked-for-deletion');
+                formInstance.querySelector('.btn-delete-receipt').style.display = 'none';
+                formInstance.querySelector('.btn-undo-delete').style.display = 'inline-block';
+            }
+        }
+
+        function undoMarkForDeletion(formInstance) {
+            const deleteCheckbox = formInstance.querySelector('[id$="-DELETE"]');
+            if (deleteCheckbox) {
+                deleteCheckbox.checked = false;
+                formInstance.classList.remove('marked-for-deletion');
+                formInstance.querySelector('.btn-delete-receipt').style.display = 'inline-block';
+                formInstance.querySelector('.btn-undo-delete').style.display = 'none';
+            }
+        }
+
+        // Event listeners for modal buttons
+        confirmDeleteBtn.addEventListener('click', function() {
+            if (formToMarkForDeletion) {
+                markForDeletion(formToMarkForDeletion);
+            }
+            hideModal();
         });
+
+        cancelDeleteBtn.addEventListener('click', hideModal);
+        closeModal.addEventListener('click', hideModal);
+        window.addEventListener('click', function(event) {
+            if (event.target == modal) {
+                hideModal();
+            }
+        });
+
+        // Event delegation for delete and undo buttons
+        formsetContainer.addEventListener('click', function(event) {
+            if (event.target.classList.contains('btn-delete-receipt')) {
+                const formInstance = event.target.closest('.receipt-form-instance');
+                showModal(formInstance);
+            }
+            if (event.target.classList.contains('btn-undo-delete')) {
+                const formInstance = event.target.closest('.receipt-form-instance');
+                undoMarkForDeletion(formInstance);
+            }
+        });
+
+        // Add new form
+        addReceiptBtn.addEventListener('click', function() {
+            const formIndex = totalForms.value;
+            const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIndex);
+            formsetContainer.insertAdjacentHTML('beforeend', newFormHtml);
+            totalForms.value = parseInt(formIndex) + 1;
+        });
+    });
     </script>
 {% endblock %}

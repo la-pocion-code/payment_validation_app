@@ -200,7 +200,7 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
 class TransactionForm(forms.ModelForm):
     class Meta:
         model = Transaction
-        fields = ['date', 'cliente', 'vendedor','description', 'numero_factura', 'facturador']
+        fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
         }

@@ -273,7 +273,7 @@ FinancialRecordInlineFormSet = inlineformset_factory(
     Transaction,
     FinancialRecord,
     form=FinancialRecordForm, # Assuming FinancialRecordForm is suitable for editing
-    extra=1, # Start with one empty form
+    extra=0, # Start with zero empty forms
     can_delete=True
 )
 
