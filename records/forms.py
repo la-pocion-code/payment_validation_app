@@ -61,8 +61,7 @@ class FinancialRecordForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        print(f"DEBUG: FinancialRecordForm clean() called for data: {cleaned_data}") # AÑADIR ESTO
-        comprobante = cleaned_data.get('comprobante')      
+        comprobante = cleaned_data.get('comprobante')
         if comprobante:
             cleaned_data['comprobante'] = comprobante.strip()
 
@@ -73,7 +72,9 @@ class FinancialRecordForm(forms.ModelForm):
 
         # Solo realizamos estas verificaciones para nuevos registros
         if not self.instance.pk:
-            # 1. Verificación de duplicado EXACTO (bloquea la creación) - ESTA DEBE IR PRIMERO
+            # --- Verificación de Duplicados ---
+
+            # 1. Verificación de duplicado EXACTO
             if fecha and hora and comprobante and banco_llegada and valor:
                 exact_qs = FinancialRecord.objects.filter(
                     fecha=fecha,
@@ -83,50 +84,42 @@ class FinancialRecordForm(forms.ModelForm):
                     valor=valor
                 )
                 if exact_qs.exists():
-                    # Log del intento de duplicado EXACTO
                     if self.request:
                         serializable_data = {k: str(v) for k, v in cleaned_data.items()}
                         DuplicateRecordAttempt.objects.create(
                             user=self.request.user,
                             data=serializable_data,
-                            attempt_type='DUPLICATE' # Tipo 'DUPLICATE'
+                            attempt_type='DUPLICATE'
                         )
                     raise forms.ValidationError(
                         format_html('<div id="exact-duplicate-error">Registro duplicado exacto: ya existe un registro con los mismos datos (Fecha: {}, Hora: {}, Comprobante: {}, Banco: {}, Valor: {}).</div>', fecha, hora, comprobante, banco_llegada.name, valor)
                     )
 
-            # 2. Verificación de registro SIMILAR (para confirmación del usuario) - ESTA DEBE IR SEGUNDO
-            # Esta verificación se ejecuta si no se encontró un duplicado exacto.
-            if fecha and banco_llegada and valor:
+            # 2. Verificación de registro SIMILAR (más específica)
+            if fecha and hora and banco_llegada and valor:
                 similar_qs = FinancialRecord.objects.filter(
                     fecha=fecha,
+                    hora=hora,
                     banco_llegada=banco_llegada,
                     valor=valor
                 )
-                # Excluimos los registros que ya habrían sido capturados como duplicados exactos
-                # Esto asegura que solo marquemos como "similar" lo que no es un duplicado exacto.
-                if fecha and hora and comprobante and banco_llegada and valor:
-                    similar_qs = similar_qs.exclude(
-                        fecha=fecha,
-                        hora=hora,
-                        comprobante=comprobante,
-                        banco_llegada=banco_llegada,
-                        valor=valor
-                    )
+
+                # Excluimos el duplicado exacto si el comprobante también está presente.
+                if comprobante:
+                    similar_qs = similar_qs.exclude(comprobante=comprobante)
 
                 if similar_qs.exists():
-                    # Log del intento de duplicado SIMILAR
                     if self.request:
                         serializable_data = {k: str(v) for k, v in cleaned_data.items()}
                         DuplicateRecordAttempt.objects.create(
                             user=self.request.user,
                             data=serializable_data,
-                            attempt_type='SIMILAR' # Tipo 'SIMILAR'
+                            attempt_type='SIMILAR'
                         )
                     raise forms.ValidationError(
-                        format_html('<div id="similar-duplicate-error">Posible registro duplicado: ya existe un registro con la misma Fecha: {}, Banco: {} y Valor: {}. Por favor, revisa los registros existentes.</div>', fecha, banco_llegada.name, valor)
+                        format_html('<div id="similar-duplicate-error">Posible registro duplicado: ya existe un registro con la misma Fecha, Hora, Banco y Valor. Por favor, revisa los registros existentes.</div>')
                     )
-        
+
         return cleaned_data
 
 
