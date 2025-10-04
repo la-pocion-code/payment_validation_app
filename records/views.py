@@ -21,6 +21,7 @@ from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
 from django.utils.decorators import method_decorator
+from .services import CSVProcessor # Importar la nueva clase de servicio
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm # New import
 
@@ -662,147 +663,35 @@ def export_transactions_csv(request):
 
     return response
 
-@login_required
+@user_passes_test(lambda u: u.is_superuser)
 def csv_upload_view(request):
-    if not request.user.is_superuser:
-        messages.error(request, 'No tienes permisos para cargar archivos.')
-        return redirect('record_list')
-
     if request.method == 'POST':
         form = CSVUploadForm(request.POST, request.FILES)
         if form.is_valid():
             csv_file = form.cleaned_data['csv_file']
-
             if not csv_file.name.endswith('.csv'):
                 messages.error(request, 'Error: Por favor, sube un archivo CSV válido.')
                 return redirect('csv_upload')
-
-            decoded_file = TextIOWrapper(csv_file.file, encoding='utf-8-sig')
             
             try:
-                dialect = csv.Sniffer().sniff(decoded_file.read(1024))
-                decoded_file.seek(0)
-                reader = csv.reader(decoded_file, dialect)
-            except csv.Error:
-                decoded_file.seek(0)
-                reader = csv.reader(decoded_file, delimiter=';')
+                # Delegamos el procesamiento a la nueva clase
+                processor = CSVProcessor(csv_file)
+                result = processor.process()
 
+                # Mostramos los mensajes al usuario basados en el resultado
+                messages.success(request, 'Proceso de carga masiva finalizado.')
+                for msg_type, text in result.get_messages():
+                    getattr(messages, msg_type)(request, text)
 
-            header = next(reader, None)
-
-            if header is None:
-                messages.error(request, 'El archivo CSV está vacío.')
-                return redirect('csv_upload')
-            
-            column_mapping = {
-                'FECHA': 'fecha',
-                'HORA': 'hora',
-                '#COMPROBANTE': 'comprobante',
-                'BANCO LLEGADA': 'banco_llegada',
-                'VALOR': 'valor',
-                'CLIENTE': 'cliente',
-                'VENDEDOR': 'vendedor',
-                'STATUS': 'status',
-                '# DE FACTURA': 'numero_factura',
-                'FACTURADOR': 'facturador',
-            }
-
-            missing_columns = [col for col in column_mapping.keys() if col not in header]
-            if missing_columns:
-                messages.error(request, f'Error: Faltan las siguientes columnas en el CSV: {", ".join(missing_columns)}. Asegúrate de que los nombres de las columnas coincidan exactamente.')
-                return redirect('csv_upload')
-
-            header_to_index = {col: index for index, col in enumerate(header)}
-
-            records_to_create = []
-            duplicates_count = 0
-            successfully_created = 0
-            line_errors = []
-            processed_rows_count = 0
-            status_rejected_count = 0
-
-            valid_statuses = [choice[0] for choice in FinancialRecord.STATUS_CHOICES]
-
-            with transaction.atomic():
-                for i, row in enumerate(reader, start=1):
-                    processed_rows_count += 1
-                    if not row:
-                        continue
-
-                    row_data = {}
-                    has_error_in_row = False
-
-                    for col_name, field_name in column_mapping.items():
-                        try:
-                            value = row[header_to_index[col_name]].strip()
-                            if field_name == 'fecha':
-                                row_data[field_name] = datetime.strptime(value, '%d/%m/%Y').date()
-                            elif field_name == 'hora':
-                                row_data[field_name] = datetime.strptime(value, '%H:%M:%S').time()
-                            elif field_name == 'valor':
-                                row_data[field_name] = float(value.replace(',', '.'))
-                            elif field_name == 'banco_llegada':
-                                bank, created = Bank.objects.get_or_create(name=value.upper())
-                                row_data[field_name] = bank
-                            elif field_name == 'status':
-                                cleaned_status = value.strip().capitalize()
-                                if cleaned_status not in valid_statuses:
-                                    line_errors.append(f"Línea {i}: Estado '{value}' no válido. Debe ser uno de {valid_statuses}.")
-                                    status_rejected_count += 1
-                                    has_error_in_row = True
-                                    break
-                                row_data[field_name] = cleaned_status
-                            elif field_name == 'cliente':
-                                row_data[field_name] = value.strip().title()
-                            else:
-                                row_data[field_name] = value
-                        except (ValueError, IndexError) as e:
-                            line_errors.append(f"Línea {i}: Error en la columna '{col_name}': {e}. Dato original: '{row[header_to_index.get(col_name, 'N/A')]}'")
-                            has_error_in_row = True
-                            break
-
-                    if has_error_in_row:
-                        continue
-
-                    record = FinancialRecord(**row_data)
-                    records_to_create.append(record)
-                    
-
-            if records_to_create:
-                try:
-                    count_before = FinancialRecord.objects.count()
-                    created_objects = FinancialRecord.objects.bulk_create(records_to_create, ignore_conflicts=True)
-                    count_after = FinancialRecord.objects.count()
-                    successfully_created = count_after - count_before
-                    duplicates_count = len(records_to_create) - successfully_created
-
-                except IntegrityError as e:
-                    messages.error(request, f'Error masivo: Ocurrió un error de integridad de la base de datos al intentar cargar los registros. Puede haber duplicados que no fueron detectados previamente. Detalles: {e}')
-                    return redirect('csv_upload')
-                except Exception as e:
-                    messages.error(request, f'Ocurrió un error inesperado al realizar la carga masiva: {e}')
-                    return redirect('csv_upload')
-            else:
-                messages.warning(request, 'No se encontraron registros válidos para cargar en el archivo CSV.')
-
-
-            messages.success(request, f'Proceso de carga masiva finalizado.')
-            messages.info(request, f'Registros procesados: {processed_rows_count} (excluyendo encabezado).')
-            messages.info(request, f'Registros creados exitosamente: {successfully_created}.')
-            messages.info(request, f'Registros rechazados por duplicidad: {duplicates_count}.')
-            if status_rejected_count > 0:
-                messages.warning(request, f'Registros rechazados por formato de estado no válido: {status_rejected_count}.')
-            if line_errors:
-                messages.warning(request, f'{len(line_errors)} registros tuvieron errores de formato o validación:')
-                for err in line_errors:
-                    messages.warning(request, err)
+            except Exception as e:
+                # Capturamos cualquier error inesperado durante el procesamiento
+                messages.error(request, f'Ocurrió un error inesperado: {e}')
             
             return redirect('record_list')
     else:
         form = CSVUploadForm()
 
-    context = {'form': form}
-    return render(request, 'records/csv_upload_form.html', context)
+    return render(request, 'records/csv_upload_form.html', {'form': form})
 
 class DuplicateAttemptsListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = DuplicateRecordAttempt
@@ -918,6 +807,13 @@ def create_bulk_receipts(request):
             for i, form in enumerate(formset):
                 if form.errors:
                     print(f"DEBUG: Form {i} Errors: {form.errors}")
+            
+            context = {
+                'transaction_form': transaction_form,
+                'formset': formset,
+                'title': 'Nuevo Registro'
+            }
+            return render(request, 'records/create_bulk_receipts.html', context)
 
     else: # GET request
         transaction_form = TransactionForm()

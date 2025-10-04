@@ -7,6 +7,7 @@ import json
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserChangeForm
 from django.utils.html import format_html
+from django.utils import timezone
 
 class AccessRequestApprovalForm(forms.ModelForm):
     ACTION_CHOICES = [
@@ -198,11 +199,19 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
 
                 
 class TransactionForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # For new transactions, set status to 'Pendiente' and hide the field.
+        if not self.instance.pk:
+            self.fields['status'].initial = 'Pendiente'
+            self.fields['status'].widget = forms.HiddenInput()
+            self.fields['date'].initial = timezone.now().date()
+
     class Meta:
         model = Transaction
         fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador']
         widgets = {
-            'date': forms.DateInput(attrs={'type': 'date'}),
+            'date': forms.DateInput(attrs={'type': 'date', 'id': 'id_transaction_date', 'class': 'form-control'}),
         }
 
 FinancialRecordFormSet = modelformset_factory(

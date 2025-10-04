@@ -40,11 +40,18 @@
             </div>
         </div>
         <div class="filter-actions">
-            <button type="submit" class="btn btn-primary">Aplicar Filtros</button>
-            <a href="{% url 'record_list' %}" class="btn btn-secondary">Limpiar Filtros</a>
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'record_list' %}" class="btn-limpiar" title="Limpiar Filtros">
+                <img src="{% static 'images/icon_clear_filters.svg' %}" alt="Limpiar Filtros" width="20" height="20">
+            </a>
+            {% if user.is_superuser %}
+                <a href="{% url 'export_transactions_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn-limpiar" title="Exportar a CSV">
+                    <img src="{% static 'images/icon_export_csv.svg' %}" alt="Exportar a CSV" width="20" height="20">
+                </a>
+            {% endif %}
         </div>
+
     </form>
-    <a href="{% url 'export_transactions_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="export-csv-button">Exportar Transacciones a CSV</a>
 </div>
 
 <table border="1" class="transaction-table">
@@ -73,9 +80,24 @@
             <td>{{ transaction.total_valor }}</td>
             <td>{{ transaction.status }}</td>
             <td>
-                <a href="{% url 'transaction_detail' transaction.pk %}">Ver</a> |
-                <a href="{% url 'transaction_update' transaction.pk %}">Editar</a> |
-                <button type="button" class="btn-link-style btn-delete-transaction" data-url="{% url 'transaction_delete' transaction.pk %}">Eliminar</button>
+                {# EDITAR #}
+                {% if 'Facturador' in user_groups or user.is_superuser %}
+                    <a href="{% url 'transaction_update' transaction.pk %}" class="btn-accion-icono" title="Editar">
+                        <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+                    </a> |
+                {% endif %}
+                {# HISTORIAL #}
+                <a href="{% url 'transaction_detail' transaction.pk %}" class="btn-accion-icono" title="Historial">
+                    <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20"></a>
+                {% if user.is_superuser %}
+                    | {# ELIMINAR #}
+                    {# Mantén 'btn-delete-transaction' para que tu JS lo capture y añade 'btn-accion-icono' para los estilos #}
+                    <button type="button" class="btn-delete-transaction btn-accion-icono" title="Eliminar" data-url="{% url 'transaction_delete' transaction.pk %}">
+                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                    </button>
+                {% endif %}
+
+
             </td>
         </tr>
         <tr class="receipts-row" id="receipts-{{ transaction.pk }}" style="display: none;">

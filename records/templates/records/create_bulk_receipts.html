@@ -20,6 +20,7 @@
 
     <form method="post" class="filter-form">
         {% csrf_token %}
+        {{ transaction_form.status }}
 
         <fieldset class="mb-4">
             <legend>Datos de la Transacción</legend>
@@ -38,11 +39,7 @@
                 </div>
                 <div class="filter-field">
                     {{ transaction_form.date.label_tag }}
-                    <input type="date" name="{{ transaction_form.date.name }}" 
-                    id="id_transaction_date" 
-                    value="{{ transaction_form.date.value|default_if_none:'' | date:'Y-m-d'}}"
-                    class="form-control"
-                    />
+                    {{ transaction_form.date }}
                     {{ transaction_form.date.errors }}
                 </div>
                 <div class="filter-field">
@@ -231,7 +228,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const lastForm = container.querySelector('.receipt-form-instance:last-child');
             if (lastForm) {
                 lastForm.insertAdjacentElement('afterend', newForm);
-            } else {
+            }
+            else {
                 container.appendChild(newForm);
             }
             
