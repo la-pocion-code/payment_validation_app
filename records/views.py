@@ -253,7 +253,7 @@ class TransactionListView(LoginRequiredMixin, FilterView): # Changed to FilterVi
     paginate_by = 50
 
     def get_queryset(self):
-        return super().get_queryset().prefetch_related('receipts').order_by('-date') # Use super().get_queryset() for filtering
+        return super().get_queryset().prefetch_related('receipts').order_by('-id') # Use super().get_queryset() for filtering
 
 
 class TransactionDetailView(LoginRequiredMixin, DetailView):

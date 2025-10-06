@@ -62,6 +62,10 @@ class DuplicateRecordAttemptFilter(django_filters.FilterSet):
         fields = ['user', 'timestamp__gte', 'timestamp__lte', 'banco']
 
 class TransactionFilter(django_filters.FilterSet):
+    id = django_filters.NumberFilter(
+        field_name='id',
+        label='ID Transacción'
+    )
     date__gte = django_filters.DateFilter(
         field_name='date',
         lookup_expr='gte',
@@ -101,7 +105,7 @@ class TransactionFilter(django_filters.FilterSet):
 
     class Meta:
         model = Transaction
-        fields = ['date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status']
+        fields = ['id', 'date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

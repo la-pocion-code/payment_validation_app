@@ -11,6 +11,10 @@
         {% csrf_token %}
         <div class="filter-fields">
             <div class="filter-field">
+                {{ filter.form.id.label_tag }}
+                {{ filter.form.id }}
+            </div>
+            <div class="filter-field">
                 {{ filter.form.date__gte.label_tag }}
                 {{ filter.form.date__gte }}
             </div>
@@ -58,6 +62,7 @@
     <thead>
         <tr>
             <th></th> {# For expand/collapse button #}
+            <th>ID</th>
             <th>Fecha</th>
             <th>Cliente</th>
             <th>Vendedor</th>
@@ -72,6 +77,7 @@
         {% for transaction in object_list %}
         <tr class="transaction-row" data-transaction-id="{{ transaction.pk }}">
             <td><button class="toggle-receipts-btn" data-transaction-id="{{ transaction.pk }}">+</button></td>
+            <td>{{ transaction.pk }}</td>
             <td>{{ transaction.date|date:"d/m/Y" }}</td>
             <td>{{ transaction.cliente }}</td>
             <td>{{ transaction.vendedor }}</td>
@@ -101,7 +107,7 @@
             </td>
         </tr>
         <tr class="receipts-row" id="receipts-{{ transaction.pk }}" style="display: none;">
-            <td colspan="9">
+            <td colspan="10">
                 <div class="receipts-container">
                     <h4>Recibos para Transacción #{{ transaction.pk }}</h4>
                     {% if transaction.receipts.all %}
@@ -134,7 +140,7 @@
             </td>
         </tr>
         {% empty %}
-        <tr><td colspan="9">No hay transacciones para mostrar.</td></tr>
+        <tr><td colspan="10">No hay transacciones para mostrar.</td></tr>
         {% endfor %}
     </tbody>
 </table>
