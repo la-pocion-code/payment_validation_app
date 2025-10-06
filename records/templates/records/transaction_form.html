@@ -26,11 +26,26 @@
                 </thead>
                 <tbody>
                     <tr>
+                    {% if request.user.is_superuser or 'Digitador' in user_group_names %}
                         <td>{{ form.date }} {{ form.date.errors }}</td>
                         <td>{{ form.cliente }} {{ form.cliente.errors }}</td>
                         <td>{{ form.vendedor }} {{ form.vendedor.errors }}</td>
                         <td>{{ form.description }} {{ form.description.errors }}</td>
-                        <td>{{ form.facturador }} {{ form.facturador.errors }}</td>
+                    {% else %}
+                        <td><input type="text" class="form-control" value="{{ form.date.value }}" readonly></td>
+                        <td><input type="text" class="form-control" value="{{ form.cliente.value }}" readonly></td>
+                        <td><input type="text" class="form-control" value="{{ form.vendedor.value }}" readonly></td>
+                        <td><input type="text" class="form-control" value="{{ form.description.value }}" readonly></td>
+                    {% endif %}
+                        <td>
+                            {% if request.user.is_superuser or 'Digitador' not in user_group_names %}
+                                {{ form.facturador }}
+                            {% else %}
+                                <input type="text" value="{{ request.user.username }}" readonly class="form-control">
+                                <input type="hidden" name="facturador" value="{{ request.user.username }}">
+                            {% endif %}
+                            {{ form.facturador.errors }}
+                        </td>
                         <td>{{ form.numero_factura }} {{ form.numero_factura.errors }}</td>
                         <td>{{ form.status }} {{ form.status.errors }}</td>
                     </tr>
@@ -45,8 +60,12 @@
             <div id="formset-container">
                 {% for form in formset %}
                     <div class="receipt-form-instance {% if form.errors %}has-errors{% endif %}" id="receipt-form-{{ forloop.counter0 }}">
-                        {% if form.instance.pk %}<h5>Recibo existente #{{ form.instance.pk }}</h5>{% else %}<h5>Nuevo Recibo</h5>{% endif %}
-                        
+                        {% if form.instance.pk %}
+                            <h5>Recibo existente #{{ form.instance.pk }}</h5>
+                        {% else %}
+                            <h5>Nuevo Recibo</h5>
+                        {% endif %}
+
                         {% if form.non_field_errors %}
                             <div class="non-field-errors">
                                 {% for error in form.non_field_errors %}
@@ -56,31 +75,62 @@
                         {% endif %}
 
                         <div class="receipt-form-fields">
-                            <div class="receipt-field">{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
-                            <div class="receipt-field">{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
-                            <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
-                            <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
-                            <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
-                            <div class="receipt-delete-wrapper">
-                                {% if formset.can_delete %}
-                                    <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
-                                    <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
-                                    <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
-                                {% endif %}
-                            </div>
+                            {% if request.user.is_superuser or 'Digitador' in user_group_names %}
+                                <div class="receipt-field">{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
+                                <div class="receipt-field">{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
+                                <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
+                                <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
+                                <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
+                                <div class="receipt-delete-wrapper">
+                                    {% if formset.can_delete %}
+                                        <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
+                                        <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
+                                        <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="receipt-field">
+                                    {{ form.fecha.label }}: <input type="text" class="form-control" value="{{ form.fecha.value }}" readonly>
+                                </div>
+                                <div class="receipt-field">
+                                    {{ form.hora.label }}: <input type="text" class="form-control" value="{{ form.hora.value }}" readonly>
+                                </div>
+                                <div class="receipt-field">
+                                    {{ form.comprobante.label }}: <input type="text" class="form-control" value="{{ form.comprobante.value }}" readonly>
+                                </div>
+                                <div class="receipt-field">
+                                    {{ form.banco_llegada.label }}: <input type="text" class="form-control" value="{{ form.banco_llegada.value }}" readonly>
+                                </div>
+                                <div class="receipt-field">
+                                    {{ form.valor.label }}: <input type="text" class="form-control" value="{{ form.valor.value }}" readonly>
+                                </div>
+                            {% endif %}
                         </div>
                         {{ form.id }}
                     </div>
                 {% endfor %}
             </div>
-            <button type="button" id="add-receipt-btn">Añadir Recibo</button>
+
+            {% if request.user.is_superuser or 'Digitador' in user_group_names %}
+                <button type="button" id="add-receipt-btn">Añadir Recibo</button>
+            {% endif %}
         </fieldset>
 
-        <button type="submit">Guardar Cambios</button>
-        <a href="{% url 'record_list' %}">Cancelar</a>
+
+        <div class="d-flex justify-content-start gap-2 mt-4">
+            <button type="submit" class="btn btn-primary d-flex align-items-center">
+                <img src="{% static 'images/floppy-disk-regular-full.svg' %}" alt="Guardar" width="20" height="20" class="me-2">Guardar Cambios
+            </button>
+            {% if user.is_superuser %}
+            <button type="button" id="btn-delete-transaction" class="btn-delete-transaction btn-accion-icono">
+                <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20" class="me-2">
+            </button>
+            {% endif %}
+            <a href="{% url 'record_list' %}" class="btn btn-secondary d-flex align-items-center">Volver a la lista</a>
+        </div>
     </form>
 
-    {# Modal de Confirmación #}
+    {# Modal de Confirmación para Recibos (ya existente) #}
     <div id="delete-confirm-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close-button">&times;</span>
@@ -89,6 +139,19 @@
             <div class="modal-buttons">
                 <button type="button" id="modal-confirm-delete" class="btn btn-danger">Confirmar</button>
                 <button type="button" id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    {# NUEVO Modal de Confirmación para Transacción #}
+    <div id="delete-transaction-confirm-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h4>Confirmar Eliminación</h4>
+            <p>¿Estás seguro de que quieres eliminar esta transacción completa y todos sus recibos asociados?</p>
+            <div class="modal-buttons">
+                <a href="{% url 'transaction_delete' object.pk %}" class="btn btn-danger">Confirmar Eliminación</a>
+                <button type="button" class="btn btn-secondary" id="modal-cancel-delete-transaction">Cancelar</button>
             </div>
         </div>
     </div>
@@ -251,6 +314,27 @@
             const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIndex);
             formsetContainer.insertAdjacentHTML('beforeend', newFormHtml);
             totalForms.value = parseInt(formIndex) + 1;
+        });
+
+        // --- NUEVO: Lógica para el modal de eliminación de transacción ---
+        const deleteTransactionModal = document.getElementById('delete-transaction-confirm-modal');
+        const openDeleteTransactionModalBtn = document.getElementById('btn-delete-transaction');
+        const closeDeleteTransactionModalBtn = deleteTransactionModal.querySelector('.close-button');
+        const cancelDeleteTransactionModalBtn = document.getElementById('modal-cancel-delete-transaction');
+
+        openDeleteTransactionModalBtn.addEventListener('click', function() {
+            deleteTransactionModal.style.display = 'flex';
+        });
+
+        const closeTxModal = () => deleteTransactionModal.style.display = 'none';
+
+        closeDeleteTransactionModalBtn.addEventListener('click', closeTxModal);
+        cancelDeleteTransactionModalBtn.addEventListener('click', closeTxModal);
+
+        window.addEventListener('click', function(event) {
+            if (event.target == deleteTransactionModal) {
+                closeTxModal();
+            }
         });
     });
     </script>

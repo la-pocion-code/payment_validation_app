@@ -288,6 +288,7 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Transacción'
+        context['is_facturador'] = self.request.user.groups.filter(name='facturador').exists()
         if self.request.POST:
             context['formset'] = FinancialRecordInlineFormSet(self.request.POST, instance=self.object, form_kwargs={'request': self.request})
         else:
