@@ -56,7 +56,7 @@ class FinancialRecordForm(forms.ModelForm):
         fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'cliente', 'vendedor']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
-            'hora': forms.TimeInput(attrs={'type': 'time'}),
+            'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
         }
 
     def clean(self):
