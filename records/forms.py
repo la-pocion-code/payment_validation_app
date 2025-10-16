@@ -193,12 +193,23 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
                 
 class TransactionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         # For new transactions, set status to 'Pendiente' and hide the field.
         if not self.instance.pk:
             self.fields['status'].initial = 'Pendiente'
             self.fields['status'].widget = forms.HiddenInput()
             self.fields['date'].initial = timezone.now().date()
+
+        if user and not user.is_superuser:
+            if user.groups.filter(name='Facturador').exists():
+                allowed_fields = ['description', 'status', 'numero_factura']
+                for field_name, field in self.fields.items():
+                    if field_name not in allowed_fields:
+                        field.disabled = True
+            else:
+                for field in self.fields.values():
+                    field.disabled = True
 
     class Meta:
         model = Transaction

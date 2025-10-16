@@ -294,18 +294,28 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
         else:
             context['formset'] = FinancialRecordInlineFormSet(instance=self.object, form_kwargs={'request': self.request})
         return context
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
 
     def form_valid(self, form):
         context = self.get_context_data()
         formset = context['formset']
+        is_facturador = self.request.user.groups.filter(name='Facturador').exists()
+        is_superuser = self.request.user.is_superuser
+
         with transaction.atomic():
             self.object = form.save()
-            if formset.is_valid():
-                formset.instance = self.object
-                formset.save()
-            else:
-                # If formset is invalid, re-render the form with errors
-                return self.form_invalid(form)
+
+            if not is_facturador or is_superuser:
+                if formset.is_valid():
+                    formset.instance = self.object
+                    formset.save()
+                else:
+                    return self.form_invalid(form)
+
         messages.success(self.request, self.success_message)
         return redirect(self.get_success_url())
 
