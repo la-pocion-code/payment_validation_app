@@ -83,6 +83,7 @@ class FinancialRecord(models.Model):
     class Meta:
         verbose_name = "Registro Financiero"
         verbose_name_plural = "Registros Financieros"
+        unique_together = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor']
 
     def __str__(self):
         return f"{self.fecha} - {self.comprobante} - {self.valor}"
