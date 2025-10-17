@@ -14,13 +14,11 @@ class CSVProcessor:
         self.csv_file = csv_file
         self.column_mapping = {
             'FECHA': 'fecha', 'HORA': 'hora', '#COMPROBANTE': 'comprobante',
-            'BANCO LLEGADA': 'banco_llegada', 'VALOR': 'valor', 'CLIENTE': 'cliente',
-            'VENDEDOR': 'vendedor', 'STATUS': 'status', '# DE FACTURA': 'numero_factura',
-            'FACTURADOR': 'facturador',
+            'BANCO LLEGADA': 'banco_llegada', 'VALOR': 'valor',
         }
         self.results = {
             "processed": 0, "created": 0, "duplicates": 0,
-            "status_rejected": 0, "line_errors": []
+            "line_errors": []
         }
 
     def _get_reader(self):
@@ -40,7 +38,7 @@ class CSVProcessor:
         if missing_columns:
             raise ValueError(f'Faltan las siguientes columnas en el CSV: {", ".join(missing_columns)}')
 
-    def _parse_row(self, row, header_map, valid_statuses):
+    def _parse_row(self, row, header_map):
         """Parsea una fila del CSV y la convierte en un diccionario de datos."""
         row_data = {}
         for col_name, field_name in self.column_mapping.items():
@@ -54,14 +52,6 @@ class CSVProcessor:
             elif field_name == 'banco_llegada':
                 bank, _ = Bank.objects.get_or_create(name=value.upper())
                 row_data[field_name] = bank
-            elif field_name == 'status':
-                cleaned_status = value.strip().capitalize()
-                if cleaned_status not in valid_statuses:
-                    self.results['status_rejected'] += 1
-                    raise ValueError(f"Estado '{value}' no válido. Debe ser uno de {valid_statuses}.")
-                row_data[field_name] = cleaned_status
-            elif field_name == 'cliente':
-                row_data[field_name] = value.strip().title()
             else:
                 row_data[field_name] = value
         return row_data
@@ -77,7 +67,6 @@ class CSVProcessor:
         
         self._validate_header(header)
         header_map = {col: i for i, col in enumerate(header)}
-        valid_statuses = [choice[0] for choice in FinancialRecord.STATUS_CHOICES]
         
         records_to_create = []
         for i, row in enumerate(reader, start=2): # Empezar en 2 para contar la cabecera
@@ -85,7 +74,7 @@ class CSVProcessor:
             if not row:
                 continue
             try:
-                row_data = self._parse_row(row, header_map, valid_statuses)
+                row_data = self._parse_row(row, header_map)
                 records_to_create.append(FinancialRecord(**row_data))
             except (ValueError, IndexError) as e:
                 original_value = row[header_map.get(e.args[0], 'N/A')] if isinstance(e, KeyError) else 'N/A'
@@ -114,8 +103,6 @@ class CSVProcessor:
         messages.append(('info', f"Registros creados exitosamente: {self.results['created']}."))
         if self.results['duplicates'] > 0:
             messages.append(('info', f"Registros rechazados por duplicidad: {self.results['duplicates']}."))
-        if self.results['status_rejected'] > 0:
-            messages.append(('warning', f"Registros rechazados por formato de estado no válido: {self.results['status_rejected']}."))
         
         num_line_errors = len(self.results['line_errors'])
         if num_line_errors > 0:

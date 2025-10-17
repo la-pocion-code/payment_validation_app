@@ -87,11 +87,11 @@
             <td>{{ transaction.status }}</td>
             <td>
                 {# EDITAR #}
-               
+               {% if user.is_superuser or 'Facturador' in user_groups%}
                 <a href="{% url 'transaction_update' transaction.pk %}" class="btn-accion-icono" title="Editar">
                     <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
                 </a> |
-                
+                {% endif %}
                 {# HISTORIAL #}
                 <a href="{% url 'transaction_detail' transaction.pk %}" class="btn-accion-icono" title="Historial">
                     <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20"></a>

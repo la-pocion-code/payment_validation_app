@@ -1,8 +1,10 @@
 {% extends 'records/base.html' %}
+{% load static %}
 
 {% block title %}Detalle de Transacción{% endblock %}
 
 {% block content %}
+    {% csrf_token %}
     <h2>Detalle de Transacción #{{ transaction.pk }}</h2>
 
     <table class="transaction-details-horizontal">
@@ -99,7 +101,124 @@
         <p>No hay historial de cambios para esta transacción.</p>
     {% endif %}
 
-    <a href="{% url 'transaction_update' transaction.pk %}">Editar Transacción</a>
-    <a href="{% url 'transaction_delete' transaction.pk %}">Eliminar Transacción</a>
-    <a href="{% url 'record_list' %}">Volver a la lista de transacciones</a>
+    {# Modal para confirmar eliminación #}
+    <div id="delete-confirm-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Confirmar Eliminación</h2>
+            <p>¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer.</p>
+            <div class="modal-buttons">
+                <button id="modal-confirm-delete" class="btn btn-danger">Eliminar</button>
+                <button id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    {% comment %} <a href="{% url 'transaction_update' transaction.pk %}">Editar Transacción</a> {% endcomment %}
+    <a href="{% url 'transaction_update' transaction.pk %}" class="btn-accion-icono" title="Editar">
+                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+    </a> |
+    {% if user.is_superuser %}
+        
+        {# ELIMINAR #}
+        {# Mantén 'btn-delete-transaction' para que tu JS lo capture y añade 'btn-accion-icono' para los estilos #}
+        <button type="button" class="btn-delete-transaction btn-accion-icono" title="Eliminar" data-url="{% url 'transaction_delete' transaction.pk %}">
+            <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+        </button>
+        |
+    {% endif %}
+        
+    <a href="{% url 'record_list' %}">Atrás</a>
+
+
+<style>
+    .receipts-container { padding: 10px; background-color: #f9f9f9; border-top: 1px solid #eee; margin-top: 5px; }
+    .receipts-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .receipts-table th, .receipts-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    .receipts-table th { background-color: #e0e0e0; }
+    .toggle-receipts-btn { cursor: pointer; background: none; border: 1px solid #ccc; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
+    .btn-link-style { background: none; border: none; color: #FF0082; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; }
+    .btn-link-style:hover { color: #EA5455; }
+
+    /* Modal Styles */
+    .modal { position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; outline: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+    .modal-content { position: relative; background-color: #fefefe; padding: 20px; border: 1px solid #888; width: auto; max-width: 500px; border-radius: 8px; text-align: center; }
+    .modal-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+    .close-button { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- Toggle Receipts --- //
+    document.querySelectorAll('.toggle-receipts-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const transactionId = this.dataset.transactionId;
+            const receiptsRow = document.getElementById(`receipts-${transactionId}`);
+            if (receiptsRow.style.display === 'none') {
+                receiptsRow.style.display = 'table-row';
+                this.textContent = '-';
+            } else {
+                receiptsRow.style.display = 'none';
+                this.textContent = '+';
+            }
+        });
+    });
+
+    // --- Delete Transaction Modal --- //
+    const modal = document.getElementById('delete-confirm-modal');
+    const closeModal = modal.querySelector('.close-button');
+    const confirmDeleteBtn = document.getElementById('modal-confirm-delete');
+    const cancelDeleteBtn = document.getElementById('modal-cancel-delete');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    let urlToDelete = null;
+    let rowToDelete = null;
+
+    document.querySelectorAll('.btn-delete-transaction').forEach(button => {
+        button.addEventListener('click', function() {
+            urlToDelete = this.dataset.url;
+            rowToDelete = this.closest('tr');
+            modal.style.display = 'flex';
+        });
+    });
+
+    closeModal.addEventListener('click', () => modal.style.display = 'none');
+    cancelDeleteBtn.addEventListener('click', () => modal.style.display = 'none');
+    window.addEventListener('click', (event) => {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    confirmDeleteBtn.addEventListener('click', function() {
+        if (!urlToDelete) return;
+
+        fetch(urlToDelete, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest' // To help Django view identify AJAX
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+              alert(data.message || 'Transacción eliminada exitosamente.');
+              window.location.href = "{% url 'record_list' %}";
+            } else {
+              alert(data.message || 'Error al eliminar la transacción.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ocurrió un error de red.');
+        })
+        .finally(() => {
+            modal.style.display = 'none';
+            urlToDelete = null;
+            rowToDelete = null;
+        });
+    });
+});
+</script>
+
 {% endblock %}

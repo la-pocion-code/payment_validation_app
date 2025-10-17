@@ -836,3 +836,17 @@ def create_bulk_receipts(request):
         'title': 'Nuevo Registro'
     }
     return render(request, 'records/create_bulk_receipts.html', context)
+
+def download_csv_template(request):
+    """
+    Genera y descarga una plantilla CSV para la carga masiva de registros financieros.
+    """
+    response  = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="csv_template.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'FECHA', 'HORA', '#COMPROBANTE', 'BANCO LLEGADA', 'VALOR'
+    ])
+
+    return response 
