@@ -7,9 +7,9 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 @admin.register(FinancialRecord)
 class FinancialRecordAdmin(admin.ModelAdmin):
-    list_display = ('fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'cliente', 'vendedor')
+    list_display = ('fecha', 'hora', 'comprobante', 'banco_llegada', 'valor')
     list_filter = ('banco_llegada', 'transaction__status', 'fecha')
-    search_fields = ('comprobante', 'cliente', 'vendedor', 'transaction__numero_factura')
+    search_fields = ('comprobante', 'transaction__cliente', 'transaction__vendedor', 'transaction__numero_factura')
     ordering = ('-fecha', '-hora')
 
 @admin.register(Bank)

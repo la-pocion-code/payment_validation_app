@@ -53,7 +53,7 @@ class FinancialRecordForm(forms.ModelForm):
 
     class Meta:
         model = FinancialRecord
-        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'cliente', 'vendedor']
+        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
@@ -139,8 +139,7 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
             self.fields['comprobante'].disabled = True
             self.fields['banco_llegada'].disabled = True
             self.fields['valor'].disabled = True
-            self.fields['cliente'].disabled = True
-            self.fields['vendedor'].disabled = True
+
 
             # if user.groups.filter(name='Facturador').exists():
             #     self.instance.facturador = user.username

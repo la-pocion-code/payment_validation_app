@@ -4,7 +4,6 @@ from django.contrib.auth.models import User
 from django import forms
 
 class FinancialRecordFilter(django_filters.FilterSet):
-    cliente = django_filters.CharFilter(lookup_expr='icontains', label='Cliente')
     creado__gte = django_filters.DateFilter(
         field_name='creado',
         lookup_expr='gte',
@@ -32,7 +31,8 @@ class FinancialRecordFilter(django_filters.FilterSet):
 
     class Meta:
         model = FinancialRecord
-        fields = ['transaction__status', 'banco_llegada', 'vendedor', 'transaction__facturador', 'cliente']
+        fields = ['transaction__status', 'banco_llegada', 'transaction__vendedor', 'transaction__facturador', 'transaction__cliente']
+
 
 class DuplicateRecordAttemptFilter(django_filters.FilterSet):
     timestamp__gte = django_filters.DateFilter(

@@ -734,8 +734,7 @@ def export_csv(request):
 
     writer = csv.writer(response)
     writer.writerow([
-        'FECHA', 'HORA', '#COMPROBANTE', 'BANCO LLEGADA', 'VALOR', 'CLIENTE',
-        'VENDEDOR', 'STATUS', '# DE FACTURA', 'FACTURADOR'
+        'FECHA', 'HORA', '#COMPROBANTE', 'BANCO LLEGADA', 'VALOR', 'STATUS', '# DE FACTURA', 'FACTURADOR'
     ])
 
     for record in filterset.qs:
@@ -745,8 +744,6 @@ def export_csv(request):
             record.comprobante,
             record.banco_llegada.name,
             record.valor,
-            record.cliente,
-            record.vendedor,
             record.status,
             record.numero_factura,
             record.facturador,

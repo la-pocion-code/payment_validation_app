@@ -82,8 +82,6 @@ class FinancialRecord(models.Model):
     comprobante = models.CharField(max_length=200, verbose_name="# Comprobante")
     banco_llegada = models.ForeignKey(Bank, on_delete=models.PROTECT, verbose_name="Banco Llegada")
     valor = models.DecimalField(max_digits=10, decimal_places=2)
-    cliente = models.CharField(max_length=200, blank=True, null=True)
-    vendedor = models.ForeignKey(Seller,on_delete=models.PROTECT, verbose_name="Vendedor")
     transaction = models.ForeignKey(
         'Transaction', 
         on_delete=models.SET_NULL, 
