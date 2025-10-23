@@ -5,6 +5,23 @@ from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import User
 from django.db.models import Sum
 
+
+
+class Seller(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args,  **kwargs):
+        self.name = self.name.upper()
+        super(Seller, self).save(*args, **kwargs)
+    
+    class Meta:
+        verbose_name = "Vendedor"
+        verbose_name_plural = "Vendedores"
+
+
 class AuthorizedUser(models.Model):
     email = models.EmailField(unique=True)
 
@@ -38,7 +55,7 @@ class Transaction(models.Model):
     ]
     date = models.DateField(default=timezone.now, verbose_name="Fecha de Transacción")
     cliente = models.CharField(max_length=200, blank=True, null=True)
-    vendedor = models.CharField(max_length=100, blank=True, null=True)    
+    vendedor = models.ForeignKey(Seller,on_delete=models.PROTECT, verbose_name="Vendedor")
     description = models.CharField(max_length=255, verbose_name="Descripción", blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pendiente', verbose_name="Estado de Transacción")
     numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
@@ -66,7 +83,7 @@ class FinancialRecord(models.Model):
     banco_llegada = models.ForeignKey(Bank, on_delete=models.PROTECT, verbose_name="Banco Llegada")
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     cliente = models.CharField(max_length=200, blank=True, null=True)
-    vendedor = models.CharField(max_length=100, blank=True, null=True)
+    vendedor = models.ForeignKey(Seller,on_delete=models.PROTECT, verbose_name="Vendedor")
     transaction = models.ForeignKey(
         'Transaction', 
         on_delete=models.SET_NULL, 
@@ -120,3 +137,7 @@ class AccessRequest(models.Model):
 
     def __str__(self):
         return f"Access request from {self.user.username}"
+
+
+
+

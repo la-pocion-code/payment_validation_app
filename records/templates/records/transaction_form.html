@@ -121,11 +121,11 @@
             <button type="submit" class="btn btn-primary d-flex align-items-center">
                 <img src="{% static 'images/floppy-disk-regular-full.svg' %}" alt="Guardar" width="20" height="20" class="me-2">Guardar Cambios
             </button>
-            {% if user.is_superuser %}
+            {% comment %} {% if user.is_superuser %}
             <button type="button" id="btn-delete-transaction" class="btn-delete-transaction btn-accion-icono">
                 <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20" class="me-2">
             </button>
-            {% endif %}
+            {% endif %} {% endcomment %}
             <a href="{% url 'record_list' %}" class="btn btn-secondary d-flex align-items-center">Atrás</a>
         </div>
     </form>

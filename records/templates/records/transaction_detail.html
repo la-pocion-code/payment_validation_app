@@ -118,7 +118,7 @@
     <a href="{% url 'transaction_update' transaction.pk %}" class="btn-accion-icono" title="Editar">
                     <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
     </a> |
-    {% if user.is_superuser %}
+    {% comment %} {% if user.is_superuser %}
         
         {# ELIMINAR #}
         {# Mantén 'btn-delete-transaction' para que tu JS lo capture y añade 'btn-accion-icono' para los estilos #}
@@ -126,7 +126,7 @@
             <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
         </button>
         |
-    {% endif %}
+    {% endif %} {% endcomment %}
         
     <a href="{% url 'record_list' %}">Atrás</a>
 

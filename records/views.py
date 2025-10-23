@@ -15,8 +15,8 @@ from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
-from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
@@ -243,6 +243,113 @@ class BankUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixi
         
         self.template_name = 'records/bank_form_standalone.html'
         return super().form_invalid(form)
+
+
+# Vista para crear Vendedores (maneja modales AJAX)
+class SellerCreateView(LoginRequiredMixin, CreateView):
+    model = Seller
+    form_class = SellerForm
+    template_name = 'records/seller_form.html'
+    success_url = reverse_lazy('seller_list')
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            form = self.get_form()
+            html_form = render_to_string('records/seller_form.html', {'form': form, 'title': 'Crear Nuevo Vendedor'}, request=request)
+            return HttpResponse(html_form)
+        self.template_name = 'records/seller_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            vendedor = form.save()
+            return JsonResponse({'success': True, 'id': vendedor.id, 'name': vendedor.name, 'message': '¡Vendedor creado exitosamente!'})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/seller_form.html', {'form': form, 'title': 'Crear Nuevo Vendedor'}, request=self.request)})
+        self.template_name = 'records/seller_form_standalone.html'
+        return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Nuevo Vendedor'
+        return context
+
+
+# Vista para actualizar Vendedores
+class SellerUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
+    model = Seller
+    form_class = SellerForm
+    template_name = 'records/seller_form.html'
+    success_url = reverse_lazy('seller_list')
+    success_message = "¡Vendedor actualizado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+    
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            form = self.get_form()
+            html_form = render_to_string('records/seller_form.html', {'form': form, 'title': 'Editar Vendedor'}, request=request)
+            return HttpResponse(html_form)
+        
+        self.template_name = 'records/seller_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Vendor'
+        return context
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            vendedor = form.save()
+            return JsonResponse({'success': True, 'id': vendedor.id, 'name': vendedor.name, 'message': self.success_message})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/seller_form.html', {'form': form, 'title': self.get_context_data()['title']}, request=self.request)})
+        
+        self.template_name = 'records/seller_form_standalone.html'
+        return super().form_invalid(form)
+
+# Vista para eliminar Vendedores
+class SellerDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = Seller
+    template_name = 'records/seller_confirm_delete.html'
+    success_url = reverse_lazy('seller_list')
+    success_message = "¡Vendedor eliminado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+    
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            context = self.get_context_data(object=self.object)
+            html_form = render_to_string(self.template_name, context, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            self.object.delete()
+            messages.success(self.request, self.success_message)
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().post(request, *args, **kwargs)
+
+class SellerListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Seller
+    template_name = 'records/seller_list.html'
+    context_object_name = 'Sellers'
+
+    def test_func(self):
+        return self.request.user.is_superuser
 
 @method_decorator(group_required('Admin', 'Digitador', 'Facturador'), name='dispatch')
 class TransactionListView(LoginRequiredMixin, FilterView): # Changed to FilterView

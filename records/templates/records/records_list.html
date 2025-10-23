@@ -95,13 +95,13 @@
                 {# HISTORIAL #}
                 <a href="{% url 'transaction_detail' transaction.pk %}" class="btn-accion-icono" title="Historial">
                     <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20"></a>
-                {% if user.is_superuser %}
+                {% comment %} {% if user.is_superuser %}
                     | {# ELIMINAR #}
                     {# Mantén 'btn-delete-transaction' para que tu JS lo capture y añade 'btn-accion-icono' para los estilos #}
                     <button type="button" class="btn-delete-transaction btn-accion-icono" title="Eliminar" data-url="{% url 'transaction_delete' transaction.pk %}">
                         <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
                     </button>
-                {% endif %}
+                {% endif %} {% endcomment %}
 
 
             </td>

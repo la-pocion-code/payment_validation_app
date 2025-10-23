@@ -2,7 +2,7 @@
 
 from django import forms
 from django.forms import modelformset_factory, BaseModelFormSet
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller
 import json
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserChangeForm
@@ -226,3 +226,15 @@ FinancialRecordFormSet = modelformset_factory(
     extra=0,
     can_delete=True
 )
+
+
+class SellerForm(forms.ModelForm):
+    class Meta:
+        model = Seller
+        fields =['name']
+        widgets = {
+            'name' : forms.TextInput(attrs={'class': 'form-control', 'placeholder':'Nombre del Vendedor'})
+        }
+        labels = {
+            'name' : 'Nombre del Vendedor'
+        }

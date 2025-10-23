@@ -1,8 +1,9 @@
 # records/admin.py
 from django.contrib import admin
-from .models import FinancialRecord, Bank, AccessRequest
+from .models import FinancialRecord, Bank, AccessRequest, Seller
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+
 
 @admin.register(FinancialRecord)
 class FinancialRecordAdmin(admin.ModelAdmin):
@@ -51,3 +52,10 @@ class UserAdmin(BaseUserAdmin):
     get_groups.short_description = 'Groups'
 
 admin.site.register(Group)
+
+@admin.register(Seller)
+class sellerAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+    ordering = ('name',)
+

@@ -1,0 +1,150 @@
+{% extends "records/base.html" %}
+{% load static %}
+
+{% block title %}Gestionar Vendedores{% endblock %}
+
+{% block content %}
+    <h2>Gestionar Vendedores</h2>
+
+    <a href="{% url 'seller_create' %}" id="open-seller-create-modal" class="btn-primary">Crear Nuevo Vendedor</a>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Nombre del Vendedor</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for seller in Sellers %}
+            <tr>
+                <td>{{ seller.name }}</td>
+                <td>
+                    <a href="{% url 'seller_update' seller.pk %}" class="open-seller-edit-modal btn-accion-icono" title="Editar" data-seller-id="{{ seller.pk }}">
+                        <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+                    </a> 
+                    <a href="{% url 'seller_delete' seller.pk %}" class="open-seller-delete-modal btn-accion-icono" title="Eliminar">
+                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2">No hay Vendedores registrados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {# Modal Structure #}
+    <div id="seller-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>     
+            <div id="seller-form-container">
+                {# seller form will be loaded here via AJAX #}
+            </div>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const sellerModal = document.getElementById('seller-modal');
+        const closeButton = sellerModal.querySelector('.close-button');
+        const sellerFormContainer = document.getElementById('seller-form-container');
+
+        // Function to open the modal and load the form
+        function opensellerModal(url) {
+            sellerModal.style.display = 'flex'; // Show the modal
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // Important for Django to detect AJAX
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                sellerFormContainer.innerHTML = html;
+                attachsellerFormSubmitHandler(); // Attach handler after form is loaded
+            })
+            .catch(error => console.error('Error loading seller form:', error));
+        }
+
+        // Function to close the modal
+        function closeModal() {
+            sellerModal.style.display = 'none';
+            sellerFormContainer.innerHTML = ''; // Clear form content
+        }
+
+        closeButton.addEventListener('click', closeModal);
+
+        // Close modal if clicked outside content
+        window.addEventListener('click', function(event) {
+            if (event.target == sellerModal) {
+                closeModal();
+            }
+        });
+
+        // Handle "Create New seller" button click
+        document.getElementById('open-seller-create-modal').addEventListener('click', function(e) {
+            e.preventDefault();
+            opensellerModal(this.href);
+        });
+
+        // Handle "Edit" button click
+        document.querySelectorAll('.open-seller-edit-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                opensellerModal(this.href);
+            });
+        });
+
+        // Handle "Delete" button click
+        document.querySelectorAll('.open-seller-delete-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                opensellerModal(this.href);
+            });
+        });
+
+        // Function to attach submit handler to the dynamically loaded form
+        function attachsellerFormSubmitHandler() {
+            const sellerForm = sellerFormContainer.querySelector('form');
+            if (sellerForm) {
+                sellerForm.addEventListener('submit', function(e) {
+                    e.preventDefault(); // Prevent default form submission
+
+                    const formData = new FormData(sellerForm);
+                    
+                    fetch(sellerForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message || 'Operación exitosa!');
+                            closeModal();
+                            location.reload(); // Reload the page to show updated list
+                        } else {
+                            // Display errors by re-rendering the form HTML
+                            sellerFormContainer.innerHTML = data.form_html;
+                            attachsellerFormSubmitHandler(); // Re-attach handler for the new form
+                        }
+                    })
+                    .catch(error => console.error('Error submitting seller form:', error));
+                });
+
+                // Add event listener for the new cancel button in the form
+                const cancelButton = sellerForm.querySelector('.btn-cancel');
+                if (cancelButton) {
+                    cancelButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        closeModal();
+                    });
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
