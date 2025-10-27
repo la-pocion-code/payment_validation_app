@@ -892,10 +892,18 @@ def create_bulk_receipts(request):
         if transaction_form.is_valid() and formset.is_valid():
             # Use a database transaction to ensure all or nothing is saved.
             with transaction.atomic():
-                # First, save the parent transaction so we get an ID.
-                new_transaction = transaction_form.save(commit=False)
-                new_transaction.status = 'Pendiente'
-                new_transaction.save()
+                # Crear la instancia de Transaction directamente desde los datos limpios del formulario
+                new_transaction = Transaction(
+                    date=transaction_form.cleaned_data['date'],
+                    cliente=transaction_form.cleaned_data['cliente'],
+                    vendedor=transaction_form.cleaned_data['vendedor'],
+                    description=transaction_form.cleaned_data['description'],
+                    status='Pendiente', # Siempre 'Pendiente' para nuevas transacciones
+                    numero_factura=transaction_form.cleaned_data['numero_factura'],
+                    facturador=transaction_form.cleaned_data['facturador'],
+                    created_by=request.user # Asignar created_by explícitamente aquí
+                )
+                new_transaction.save() # Esto llamará al método save del modelo
 
                 # Now, iterate through the forms in the formset.
                 for form in formset:

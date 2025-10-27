@@ -194,11 +194,12 @@ class TransactionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        # For new transactions, set status to 'Pendiente' and hide the field.
+        # Inicializa y oculta campos
         if not self.instance.pk:
             self.fields['status'].initial = 'Pendiente'
             self.fields['status'].widget = forms.HiddenInput()
             self.fields['date'].initial = timezone.now().date()
+            self.fields['created_by'].widget = forms.HiddenInput()
 
         if user and not user.is_superuser:
             if user.groups.filter(name='Facturador').exists():
@@ -212,7 +213,7 @@ class TransactionForm(forms.ModelForm):
 
     class Meta:
         model = Transaction
-        fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador']
+        fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador', 'created_by']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date', 'id': 'id_transaction_date', 'class': 'form-control'}),
         }

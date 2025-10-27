@@ -61,7 +61,31 @@ class Transaction(models.Model):
     numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
     facturador = models.CharField(max_length=100, blank=True, null=True, default=None)
     history = HistoricalRecords()
-       
+
+    unique_transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True, verbose_name="ID unico")
+    creat_at = models.DateTimeField(auto_now_add=True, null=True, blank=True, verbose_name="Fecha de Creación")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions_created", verbose_name="Creado por")
+    history = HistoricalRecords()
+
+    def save(self, *args, **kwargs):
+        # Guarda para obtener el ID si es una transaccion nueva
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        # Generamos el ID único solo si es una transacción nueva y bo tiene uno
+        if is_new and not self.unique_transaction_id:
+            date_part = self.creat_at.strftime('%b%d%y').upper()
+            
+            
+            user_part = 'na' # 'no asignado' por si no hay usuario
+            if self.created_by:
+                user_part = self.created_by.username[:2].upper()
+                user_part = user_part.upper()
+
+            sequence_part = str(self.id).zfill(6)
+
+            self.unique_transaction_id = f"{date_part}{user_part}{sequence_part}"
+            # Usamao .update() para guardar solo este campo y evitar un bucle
+            Transaction.objects.filter(id=self.id).update(unique_transaction_id=self.unique_transaction_id)
 
     @property
     def total_valor(self):

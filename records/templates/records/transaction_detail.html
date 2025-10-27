@@ -5,7 +5,7 @@
 
 {% block content %}
     {% csrf_token %}
-    <h2>Detalle de Transacción #{{ transaction.pk }}</h2>
+    <h2>Detalle de Transacción #{{ transaction.unique_transaction_id }}</h2>
 
     <table class="transaction-details-horizontal">
         <thead>
