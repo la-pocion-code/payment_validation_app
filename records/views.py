@@ -862,26 +862,89 @@ def export_csv(request):
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
 def export_transactions_csv(request):
+    """
+    Exporta un archivo CSV detallado a nivel de recibo (FinancialRecord),
+    incluyendo la información de la transacción padre.
+    """
     if not request.user.is_superuser:
         messages.error(request, 'No tienes permisos para realizar esta acción.')
         return redirect('record_list')
 
-    filterset = TransactionFilter(request.GET, queryset=Transaction.objects.all().order_by('-date'))
+    # 1. Filtrar las transacciones basado en los query params de la URL
+    transaction_filter = TransactionFilter(request.GET, queryset=Transaction.objects.all())
 
+    # 2. Obtener los IDs de las transacciones filtradas
+    filtered_transaction_ids = transaction_filter.qs.values_list('id', flat=True)
+
+    # 3. Obtener todos los recibos que pertenecen a esas transacciones.
+    #    Usamos select_related para optimizar la consulta y evitar N+1 queries,
+    #    cargando eficientemente los datos de modelos relacionados.
+    receipts_queryset = FinancialRecord.objects.filter(
+        transaction__id__in=filtered_transaction_ids
+    ).select_related(
+        'transaction', 
+        'transaction__vendedor', 
+        'banco_llegada', 
+        'origen_transaccion',
+        'uploaded_by',
+        'transaction__created_by'
+    ).order_by('-transaction__date', '-id')
+
+    # 4. Preparar la respuesta HTTP que devolverá el archivo CSV
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="transactions.csv"'
+    response['Content-Disposition'] = 'attachment; filename="reporte_detallado_recibos.csv"'
+    response.write(u'\ufeff'.encode('utf8')) # Añade BOM para compatibilidad con Excel
 
     writer = csv.writer(response)
+    
+    # 5. Escribir la fila de encabezados en el CSV
     writer.writerow([
-        'FECHA', 'DESCRIPCION', 'CLIENTE', 'VALOR_TOTAL'
+        # Campos de la Transacción
+        'ID Transaccion',
+        'Fecha Transaccion',
+        'Cliente',
+        'Vendedor',
+        'Descripcion Transaccion',
+        'Estado Transaccion',
+        '# Factura',
+        'Facturador',
+        'Creado por',
+        # Campos del Recibo (FinancialRecord)
+        'ID Recibo',
+        'Fecha Recibo',
+        'Hora Recibo',
+        '# Comprobante',
+        'Banco Llegada',
+        'Origen Transaccion',
+        'Valor Recibo',
+        'Estado Pago Recibo',
+        'Subido por',
     ])
 
-    for transaction_obj in filterset.qs:
+    # 6. Iterar sobre cada recibo y escribir sus datos en una fila del CSV
+    for receipt in receipts_queryset:
+        transaction = receipt.transaction
         writer.writerow([
-            transaction_obj.date.strftime('%d/%m/%Y'),
-            transaction_obj.description,
-            transaction_obj.cliente,
-            transaction_obj.total_valor,
+            # Datos de la Transacción (se repiten para cada recibo)
+            transaction.unique_transaction_id,
+            transaction.date.strftime('%d/%m/%Y'),
+            transaction.cliente,
+            transaction.vendedor.name if transaction.vendedor else '',
+            transaction.description,
+            transaction.status,
+            transaction.numero_factura,
+            transaction.facturador,
+            transaction.created_by.username if transaction.created_by else '',
+            # Datos del Recibo
+            receipt.id,
+            receipt.fecha.strftime('%d/%m/%Y'),
+            receipt.hora.strftime('%H:%M:%S'),
+            receipt.comprobante,
+            receipt.banco_llegada.name if receipt.banco_llegada else '',
+            receipt.origen_transaccion.name if receipt.origen_transaccion else '',
+            receipt.valor,
+            receipt.payment_status,
+            receipt.uploaded_by.username if receipt.uploaded_by else '',
         ])
 
     return response
