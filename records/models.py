@@ -47,6 +47,22 @@ class Bank(models.Model):
         self.name = self.name.upper()
         super(Bank, self).save(*args, **kwargs)
 
+class OrigenTransaccion(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    dias_efectivo = models.IntegerField(default=0, verbose_name="Días para ser efectivo")
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper()
+        super(OrigenTransaccion, self).save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Origen de Transacción"
+        verbose_name_plural = "Origenes de Transacción"
+
+
 class Transaction(models.Model):
     STATUS_CHOICES = [
         ('Pendiente', 'Pendiente'),
@@ -105,6 +121,7 @@ class FinancialRecord(models.Model):
     hora = models.TimeField()
     comprobante = models.CharField(max_length=200, verbose_name="# Comprobante")
     banco_llegada = models.ForeignKey(Bank, on_delete=models.PROTECT, verbose_name="Banco Llegada")
+    origen_transaccion = models.ForeignKey('OrigenTransaccion', on_delete=models.PROTECT, verbose_name="Origen de Transacción")
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     transaction = models.ForeignKey(
         'Transaction', 

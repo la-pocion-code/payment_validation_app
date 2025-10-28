@@ -2,7 +2,7 @@
 
 from django import forms
 from django.forms import modelformset_factory, BaseModelFormSet
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion
 import json
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserChangeForm
@@ -53,7 +53,7 @@ class FinancialRecordForm(forms.ModelForm):
 
     class Meta:
         model = FinancialRecord
-        fields = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor']
+        fields = ['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
@@ -153,6 +153,11 @@ class BankForm(forms.ModelForm):
         model = Bank
         fields = ['name']
 
+class OrigenTransaccionForm(forms.ModelForm):
+    class Meta:
+        model = OrigenTransaccion
+        fields = ['name', 'dias_efectivo']
+
 
 class CSVUploadForm(forms.Form):
     csv_file = forms.FileField(label="Seleccionar archivo CSV", max_length=5 * 1024 * 1024) # Added max_length for file size limit
@@ -222,7 +227,7 @@ FinancialRecordFormSet = modelformset_factory(
     FinancialRecord,
     form=FinancialRecordForm,
     formset=BaseFinancialRecordFormSet,
-    fields=['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor'],
+    fields=['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor'],
     extra=0,
     can_delete=True
 )

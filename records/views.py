@@ -15,8 +15,8 @@ from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
-from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
@@ -244,6 +244,143 @@ class BankUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixi
         self.template_name = 'records/bank_form_standalone.html'
         return super().form_invalid(form)
 
+class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = Bank
+    template_name = 'records/bank_confirm_delete.html'
+    success_url = reverse_lazy('bank_list')
+    success_message = "¡Banco eliminado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            context = self.get_context_data(object=self.object)
+            html_form = render_to_string(self.template_name, context, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            self.object.delete()
+            messages.success(self.request, self.success_message)
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().post(request, *args, **kwargs)
+
+class BankListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Bank
+    template_name = 'records/bank_list.html'
+    context_object_name = 'banks'
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+class OrigenTransaccionCreateView(LoginRequiredMixin, CreateView):
+    model = OrigenTransaccion
+    form_class = OrigenTransaccionForm
+    template_name = 'records/origen_transaccion_form.html'
+    success_url = reverse_lazy('origen_transaccion_list')
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            form = self.get_form()
+            html_form = render_to_string('records/origen_transaccion_form.html', {'form': form, 'title': 'Crear Nuevo Origen de Transacción'}, request=request)
+            return HttpResponse(html_form)
+        
+        self.template_name = 'records/origen_transaccion_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            origen_transaccion = form.save()
+            return JsonResponse({'success': True, 'id': origen_transaccion.id, 'name': origen_transaccion.name, 'message': '¡Origen de Transacción creado exitosamente!'})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/origen_transaccion_form.html', {'form': form, 'title': 'Crear Nuevo Origen de Transacción'}, request=self.request)})
+        
+        self.template_name = 'records/origen_transaccion_form_standalone.html'
+        return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Nuevo Origen de Transacción'
+        return context
+
+class OrigenTransaccionUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
+    model = OrigenTransaccion
+    form_class = OrigenTransaccionForm
+    template_name = 'records/origen_transaccion_form.html'
+    success_url = reverse_lazy('origen_transaccion_list')
+    success_message = "¡Origen de Transacción actualizado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            form = self.get_form()
+            html_form = render_to_string('records/origen_transaccion_form.html', {'form': form, 'title': 'Editar Origen de Transacción'}, request=request)
+            return HttpResponse(html_form)
+        
+        self.template_name = 'records/origen_transaccion_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Origen de Transacción'
+        return context
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            origen_transaccion = form.save()
+            return JsonResponse({'success': True, 'id': origen_transaccion.id, 'name': origen_transaccion.name, 'message': self.success_message})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/origen_transaccion_form.html', {'form': form, 'title': self.get_context_data()['title']}, request=self.request)})
+        
+        self.template_name = 'records/origen_transaccion_form_standalone.html'
+        return super().form_invalid(form)
+
+class OrigenTransaccionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = OrigenTransaccion
+    template_name = 'records/origen_transaccion_confirm_delete.html'
+    success_url = reverse_lazy('origen_transaccion_list')
+    success_message = "¡Origen de Transacción eliminado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            context = self.get_context_data(object=self.object)
+            html_form = render_to_string(self.template_name, context, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            self.object.delete()
+            messages.success(self.request, self.success_message)
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().post(request, *args, **kwargs)
+
+class OrigenTransaccionListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = OrigenTransaccion
+    template_name = 'records/origen_transaccion_list.html'
+    context_object_name = 'origen_transacciones'
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
 
 # Vista para crear Vendedores (maneja modales AJAX)
 class SellerCreateView(LoginRequiredMixin, CreateView):
@@ -452,38 +589,6 @@ class TransactionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
                 return JsonResponse({'success': False, 'message': str(e)}, status=500)
         return super().post(request, *args, **kwargs)
 
-class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
-    model = Bank
-    template_name = 'records/bank_confirm_delete.html'
-    success_url = reverse_lazy('bank_list')
-    success_message = "¡Banco eliminado exitosamente!"
-
-    def test_func(self):
-        return self.request.user.is_superuser
-
-    def get(self, request, *args, **kwargs):
-        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            self.object = self.get_object()
-            context = self.get_context_data(object=self.object)
-            html_form = render_to_string(self.template_name, context, request=request)
-            return HttpResponse(html_form)
-        return super().get(request, *args, **kwargs)
-
-    def post(self, request, *args, **kwargs):
-        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            self.object = self.get_object()
-            self.object.delete()
-            messages.success(self.request, self.success_message)
-            return JsonResponse({'success': True, 'message': self.success_message})
-        return super().post(request, *args, **kwargs)
-
-class BankListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
-    model = Bank
-    template_name = 'records/bank_list.html'
-    context_object_name = 'banks'
-
-    def test_func(self):
-        return self.request.user.is_superuser
 
 
 class AccessRequestApprovalView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
@@ -734,7 +839,7 @@ def export_csv(request):
 
     writer = csv.writer(response)
     writer.writerow([
-        'FECHA', 'HORA', '#COMPROBANTE', 'BANCO LLEGADA', 'VALOR', 'STATUS', '# DE FACTURA', 'FACTURADOR'
+        'FECHA', 'HORA', '#COMPROBANTE', 'BANCO LLEGADA', 'ORIGEN TRANSACCION', 'VALOR', 'STATUS', '# DE FACTURA', 'FACTURADOR'
     ])
 
     for record in filterset.qs:
@@ -743,6 +848,7 @@ def export_csv(request):
             record.hora.strftime('%H:%M:%S'),
             record.comprobante,
             record.banco_llegada.name,
+            record.origen_transaccion.name if record.origen_transaccion else '',
             record.valor,
             record.status,
             record.numero_factura,

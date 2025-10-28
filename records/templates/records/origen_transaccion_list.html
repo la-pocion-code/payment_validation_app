@@ -1,0 +1,152 @@
+{% extends "records/base.html" %}
+{% load static %}
+
+{% block title %}Gestionar Origenes de Transacción{% endblock %}
+
+{% block content %}
+    <h2>Gestionar Origenes de Transacción</h2>
+
+    <a href="{% url 'origen_transaccion_create' %}" id="open-OrigenTransaccion-create-modal" class="btn-primary">Crear Nuevo Origen de Transacción</a>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Nombre del Origen de Transacción</th>
+                <th>Días Efectivo</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for OrigenTransaccion in origen_transacciones %}
+            <tr>
+                <td>{{ OrigenTransaccion.name }}</td>
+                <td>{{ OrigenTransaccion.dias_efectivo }}</td>
+                <td>
+                    <a href="{% url 'origen_transaccion_update' OrigenTransaccion.pk %}" class="open-OrigenTransaccion-edit-modal btn-accion-icono" title="Editar" data-OrigenTransaccion-id="{{ OrigenTransaccion.pk }}">
+                        <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+                    </a> 
+                    <a href="{% url 'origen_transaccion_delete' OrigenTransaccion.pk %}" class="open-OrigenTransaccion-delete-modal btn-accion-icono" title="Eliminar">
+                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2">No hay origenes de transacción registrados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {# Modal Structure #}
+    <div id="OrigenTransaccion-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>     
+            <div id="OrigenTransaccion-form-container">
+                {# OrigenTransaccion form will be loaded here via AJAX #}
+            </div>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const OrigenTransaccionModal = document.getElementById('OrigenTransaccion-modal');
+        const closeButton = OrigenTransaccionModal.querySelector('.close-button');
+        const OrigenTransaccionFormContainer = document.getElementById('OrigenTransaccion-form-container');
+
+        // Function to open the modal and load the form
+        function openOrigenTransaccionModal(url) {
+            OrigenTransaccionModal.style.display = 'flex'; // Show the modal
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // Important for Django to detect AJAX
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                OrigenTransaccionFormContainer.innerHTML = html;
+                attachOrigenTransaccionFormSubmitHandler(); // Attach handler after form is loaded
+            })
+            .catch(error => console.error('Error loading OrigenTransaccion form:', error));
+        }
+
+        // Function to close the modal
+        function closeModal() {
+            OrigenTransaccionModal.style.display = 'none';
+            OrigenTransaccionFormContainer.innerHTML = ''; // Clear form content
+        }
+
+        closeButton.addEventListener('click', closeModal);
+
+        // Close modal if clicked outside content
+        window.addEventListener('click', function(event) {
+            if (event.target == OrigenTransaccionModal) {
+                closeModal();
+            }
+        });
+
+        // Handle "Create New OrigenTransaccion" button click
+        document.getElementById('open-OrigenTransaccion-create-modal').addEventListener('click', function(e) {
+            e.preventDefault();
+            openOrigenTransaccionModal(this.href);
+        });
+
+        // Handle "Edit" button click
+        document.querySelectorAll('.open-OrigenTransaccion-edit-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                openOrigenTransaccionModal(this.href);
+            });
+        });
+
+        // Handle "Delete" button click
+        document.querySelectorAll('.open-OrigenTransaccion-delete-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                openOrigenTransaccionModal(this.href);
+            });
+        });
+
+        // Function to attach submit handler to the dynamically loaded form
+        function attachOrigenTransaccionFormSubmitHandler() {
+            const OrigenTransaccionForm = OrigenTransaccionFormContainer.querySelector('form');
+            if (OrigenTransaccionForm) {
+                OrigenTransaccionForm.addEventListener('submit', function(e) {
+                    e.preventDefault(); // Prevent default form submission
+
+                    const formData = new FormData(OrigenTransaccionForm);
+                    
+                    fetch(OrigenTransaccionForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message || 'Operación exitosa!');
+                            closeModal();
+                            location.reload(); // Reload the page to show updated list
+                        } else {
+                            // Display errors by re-rendering the form HTML
+                            OrigenTransaccionFormContainer.innerHTML = data.form_html;
+                            attachOrigenTransaccionFormSubmitHandler(); // Re-attach handler for the new form
+                        }
+                    })
+                    .catch(error => console.error('Error submitting OrigenTransaccion form:', error));
+                });
+
+                // Add event listener for the new cancel button in the form
+                const cancelButton = OrigenTransaccionForm.querySelector('.btn-cancel');
+                if (cancelButton) {
+                    cancelButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        closeModal();
+                    });
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

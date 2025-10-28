@@ -1,6 +1,6 @@
 # records/admin.py
 from django.contrib import admin
-from .models import FinancialRecord, Bank, AccessRequest, Seller
+from .models import FinancialRecord, Bank, AccessRequest, Seller, OrigenTransaccion
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
@@ -11,6 +11,11 @@ class FinancialRecordAdmin(admin.ModelAdmin):
     list_filter = ('banco_llegada', 'transaction__status', 'fecha')
     search_fields = ('comprobante', 'transaction__cliente', 'transaction__vendedor', 'transaction__numero_factura')
     ordering = ('-fecha', '-hora')
+
+@admin.register(OrigenTransaccion)
+class OrigenTransaccionAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
 
 @admin.register(Bank)
 class BankAdmin(admin.ModelAdmin):
