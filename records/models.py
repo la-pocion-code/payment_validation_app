@@ -121,7 +121,7 @@ class FinancialRecord(models.Model):
     APROVED_CHOICES = [
         ('Pendiente', 'Pendiente'),
         ('Aprobado', 'Aprobado'),
-        ('Anulado', 'Anulado'),
+        ('Rechazado', 'Rechazado')
     ]
     fecha = models.DateField()
     hora = models.TimeField()

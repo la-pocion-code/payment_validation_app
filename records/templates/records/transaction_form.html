@@ -61,7 +61,7 @@
                 {% for form in formset %}
                     <div class="receipt-form-instance {% if form.errors %}has-errors{% endif %}" id="receipt-form-{{ forloop.counter0 }}">
                         {% if form.instance.pk %}
-                            <h5>Recibo existente #{{ form.instance.pk }}</h5>
+                            <h5>Recibo existente #{{ forloop.counter }}</h5>
                         {% else %}
                             <h5>Nuevo Recibo</h5>
                         {% endif %}
@@ -105,25 +105,25 @@
                                 </div> {% endcomment %}
                             {% else %}
                                 <div class="receipt-field">
-                                    {{ form.origen_transaccion.label }}: <input type="text" class="form-control" value="{{ form.origen_transaccion.value }}" readonly>
-                                <div class="receipt-field">
-                                    {{ form.fecha.label }}: <input type="text" class="form-control" value="{{ form.fecha.value }}" readonly>
+                                    {{ form.origen_transaccion.label_tag }}
+                                    {{ form.origen_transaccion }}
+
+                                    <!-- 1. Mensaje para recibos ya guardados (desde el modelo) -->
+                                    {% if form.instance.pk and form.instance.effective_date_message %}
+                                        <small style="color: #007bff; display: block;">{{ form.instance.effective_date_message }}</small>
+                                    {% endif %}
+
+                                    <!-- 2. Placeholder para el mensaje dinámico de JavaScript -->
+                                    <span id="effective-date-message-{{ form.prefix }}" style="color: #007bff; font-size: 0.9em; display: block;"></span>
+
+                                    {{ form.origen_transaccion.errors }}
                                 </div>
-                                <div class="receipt-field">
-                                    {{ form.hora.label }}: <input type="text" class="form-control" value="{{ form.hora.value }}" readonly>
-                                </div>
-                                <div class="receipt-field">
-                                    {{ form.comprobante.label }}: <input type="text" class="form-control" value="{{ form.comprobante.value }}" readonly>
-                                </div>
-                                <div class="receipt-field">
-                                    {{ form.banco_llegada.label }}: <input type="text" class="form-control" value="{{ form.banco_llegada.value }}" readonly>
-                                </div>
-                                <div class="receipt-field">
-                                    {{ form.valor.label }}: <input type="text" class="form-control" value="{{ form.valor.value }}" readonly>
-                                </div>
-                                <div class="receipt-field">
-                                    {{ form.payment_status.label }}: <input type="text" class="form-control" value="{{ form.payment_status.value }}" readonly>
-                                </div>
+                                <div class="receipt-field">{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
+                                <div class="receipt-field">{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
+                                <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
+                                <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
+                                <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
+                                <div class="receipt-field">{{ form.payment_status.label_tag }}{{ form.payment_status }}{{ form.payment_status.errors }}</div>
                             {% endif %}
                         </div>
                         {{ form.id }}

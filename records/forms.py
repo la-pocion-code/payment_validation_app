@@ -47,13 +47,36 @@ class FinancialRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super(FinancialRecordForm, self).__init__(*args, **kwargs)
+
+        # --- INICIO DE LA LÓGICA DE ROLES ---
+        user = self.request.user if self.request else None
+
+        # Aplicar restricciones solo si estamos editando un registro existente y el usuario no es superusuario
+        if user and self.instance.pk and not user.is_superuser:
+            # Por defecto, deshabilitar todos los campos
+            for field in self.fields.values():
+                field.disabled = True
+
+            # Habilitar campos específicos según el grupo del usuario
+            if user.groups.filter(name='Validador').exists():
+                # Si es Validador, solo puede editar el estado de pago
+                self.fields['payment_status'].disabled = False
+            
+            # Aquí puedes añadir más lógica para otros roles en el futuro
+            # Ejemplo: 
+            # if user.groups.filter(name='Facturador').exists():
+            #     self.fields['numero_factura'].disabled = False
+
+        # --- FIN DE LA LÓGICA DE ROLES ---
+
+        # Lógica original del formulario para valores por defecto y campos ocultos
         self.fields['payment_status'].required = False
         if not self.instance.pk:
             self.fields['payment_status'].initial = 'Pendiente'
-            self.fields['payment_status'].widget = forms.HiddenInput() 
-        # Atributo para guardar el registro similar encontrado
+            self.fields['payment_status'].widget = forms.HiddenInput()
+
+        # Atributo para la validación de duplicados
         self.existing_record = None
-        print(f"DEBUG: FinancialRecordForm __init__ - instance.pk: {self.instance.pk}, request: {self.request is not None}") # AÑADIR ESTO
 
     class Meta:
         model = FinancialRecord
@@ -123,44 +146,27 @@ class FinancialRecordForm(forms.ModelForm):
                     raise forms.ValidationError(
                         format_html('<div id="similar-duplicate-error">Posible registro duplicado: ya existe un registro con la misma Fecha, Hora, Banco y Valor. Por favor, revisa los registros existentes.</div>')
                     )
-                       # ... (código existente del método clean) ...
 
         # Para nuevos registros, si payment_status no se envía, establece el valor por defecto.
         if not self.instance.pk and not cleaned_data.get('payment_status'):
             cleaned_data['payment_status'] = 'Pendiente'
 
-
-
         return cleaned_data
 
 
+
+# records/forms.py
+
+# En records/forms.py
 
 class FinancialRecordUpdateForm(FinancialRecordForm):
     class Meta(FinancialRecordForm.Meta):
         exclude = ['uploaded_by']
 
-    def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-
-
-        if user and not user.is_superuser:
-            self.fields['fecha'].disabled = True
-            self.fields['hora'].disabled = True
-            self.fields['comprobante'].disabled = True
-            self.fields['banco_llegada'].disabled = True
-            self.fields['valor'].disabled = True
-            self.fields['payment_status'].disabled = True
-            self.fields['origen_transaccion'].disabled = True
-            
 
 
 
-            # if user.groups.filter(name='Facturador').exists():
-            #     self.instance.facturador = user.username
-            #     self.fields['facturador'].disabled = True
-            # else:
-            #     self.fields['facturador'].disabled = True
+
 
     
 class BankForm(forms.ModelForm):

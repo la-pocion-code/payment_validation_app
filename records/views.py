@@ -82,17 +82,15 @@ def delete_access_request(request, request_id):
 
 
 
-@method_decorator(group_required('Admin', 'Facturador'), name='dispatch')
+@method_decorator(group_required('Admin', 'Facturador', 'Validador'), name='dispatch')
 class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = FinancialRecord
     form_class = FinancialRecordUpdateForm
     template_name = 'records/records_form.html'
     success_url = reverse_lazy('record_list')
-    success_message = "¡Registro actualizado exitosamente!"
-
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
+        kwargs['request'] = self.request
         return kwargs
     
     def  form_valid(self, form):
@@ -490,7 +488,7 @@ class SellerListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     def test_func(self):
         return self.request.user.is_superuser
 
-@method_decorator(group_required('Admin', 'Digitador', 'Facturador'), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador', 'Facturador', 'Validador'), name='dispatch')
 class TransactionListView(LoginRequiredMixin, FilterView): # Changed to FilterView
     model = Transaction
     template_name = 'records/records_list.html'
@@ -975,7 +973,7 @@ def csv_upload_view(request):
             
             return redirect('record_list')
     else:
-        form = CSVUploadForm()
+        form = CSVUploadForm()  
 
     return render(request, 'records/csv_upload_form.html', {'form': form})
 
