@@ -76,19 +76,23 @@
 
                         <div class="receipt-form-fields">
                             {% if request.user.is_superuser or 'Digitador' in user_group_names %}
+                                <div class="receipt-field">{{ form.origen_transaccion.label_tag }}{{ form.origen_transaccion }}{{ form.origen_transaccion.errors }}</div>
                                 <div class="receipt-field">{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
                                 <div class="receipt-field">{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
                                 <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
                                 <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
                                 <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
-                                <div class="receipt-delete-wrapper">
+                                <div class="receipt-field">{{ form.payment_status.label_tag }}{{ form.payment_status }}{{ form.payment_status.errors }}</div>
+                                {% comment %} <div class="receipt-delete-wrapper">    
                                     {% if formset.can_delete %}
                                         <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
                                         <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
                                         <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
                                     {% endif %}
-                                </div>
+                                </div> {% endcomment %}
                             {% else %}
+                                <div class="receipt-field">
+                                    {{ form.origen_transaccion.label }}: <input type="text" class="form-control" value="{{ form.origen_transaccion.value }}" readonly>
                                 <div class="receipt-field">
                                     {{ form.fecha.label }}: <input type="text" class="form-control" value="{{ form.fecha.value }}" readonly>
                                 </div>
@@ -103,6 +107,9 @@
                                 </div>
                                 <div class="receipt-field">
                                     {{ form.valor.label }}: <input type="text" class="form-control" value="{{ form.valor.value }}" readonly>
+                                </div>
+                                <div class="receipt-field">
+                                    {{ form.payment_status.label }}: <input type="text" class="form-control" value="{{ form.payment_status.value }}" readonly>
                                 </div>
                             {% endif %}
                         </div>

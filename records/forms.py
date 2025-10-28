@@ -47,13 +47,17 @@ class FinancialRecordForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super(FinancialRecordForm, self).__init__(*args, **kwargs)
+        self.fields['payment_status'].required = False
+        if not self.instance.pk:
+            self.fields['payment_status'].initial = 'Pendiente'
+            self.fields['payment_status'].widget = forms.HiddenInput() 
         # Atributo para guardar el registro similar encontrado
         self.existing_record = None
         print(f"DEBUG: FinancialRecordForm __init__ - instance.pk: {self.instance.pk}, request: {self.request is not None}") # AÑADIR ESTO
 
     class Meta:
         model = FinancialRecord
-        fields = ['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor']
+        fields = ['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor', 'payment_status']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
@@ -119,6 +123,13 @@ class FinancialRecordForm(forms.ModelForm):
                     raise forms.ValidationError(
                         format_html('<div id="similar-duplicate-error">Posible registro duplicado: ya existe un registro con la misma Fecha, Hora, Banco y Valor. Por favor, revisa los registros existentes.</div>')
                     )
+                       # ... (código existente del método clean) ...
+
+        # Para nuevos registros, si payment_status no se envía, establece el valor por defecto.
+        if not self.instance.pk and not cleaned_data.get('payment_status'):
+            cleaned_data['payment_status'] = 'Pendiente'
+
+
 
         return cleaned_data
 
@@ -139,6 +150,10 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
             self.fields['comprobante'].disabled = True
             self.fields['banco_llegada'].disabled = True
             self.fields['valor'].disabled = True
+            self.fields['payment_status'].disabled = True
+            self.fields['origen_transaccion'].disabled = True
+            
+
 
 
             # if user.groups.filter(name='Facturador').exists():
@@ -227,8 +242,8 @@ FinancialRecordFormSet = modelformset_factory(
     FinancialRecord,
     form=FinancialRecordForm,
     formset=BaseFinancialRecordFormSet,
-    fields=['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor'],
-    extra=0,
+    fields=['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor', 'payment_status'],
+    extra=1,
     can_delete=True
 )
 

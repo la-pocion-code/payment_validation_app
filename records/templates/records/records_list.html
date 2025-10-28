@@ -114,21 +114,25 @@
                     <table class="receipts-table" border="1">
                         <thead>
                             <tr>
+                                <th>Origenes de Transacción</th>
                                 <th>Fecha</th>
                                 <th>Hora</th>
                                 <th>Comprobante</th>
                                 <th>Banco Llegada</th>
                                 <th>Valor</th>
+                                <th>Estado Pago</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for receipt in transaction.receipts.all %}
                             <tr>
+                                <td>{{ receipt.origen_transaccion.name }}</td>
                                 <td>{{ receipt.fecha|date:"d/m/Y" }}</td>
                                 <td>{{ receipt.hora|time:"H:i" }}</td>
                                 <td>{{ receipt.comprobante }}</td>
                                 <td>{{ receipt.banco_llegada.name }}</td>
                                 <td>{{ receipt.valor }}</td>
+                                <td>{{ receipt.payment_status    }}</td>  
                             </tr>
                             {% endfor %}
                         </tbody>

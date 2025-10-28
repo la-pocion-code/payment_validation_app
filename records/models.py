@@ -117,12 +117,18 @@ class Transaction(models.Model):
 
 
 class FinancialRecord(models.Model):
+    APROVED_CHOICES = [
+        ('Pendiente', 'Pendiente'),
+        ('Aprobado', 'Aprobado'),
+        ('Anulado', 'Anulado'),
+    ]
     fecha = models.DateField()
     hora = models.TimeField()
     comprobante = models.CharField(max_length=200, verbose_name="# Comprobante")
     banco_llegada = models.ForeignKey(Bank, on_delete=models.PROTECT, verbose_name="Banco Llegada")
     origen_transaccion = models.ForeignKey('OrigenTransaccion', on_delete=models.PROTECT, verbose_name="Origen de Transacción")
     valor = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_status = models.CharField(max_length=20, choices=APROVED_CHOICES, default='Pendiente', verbose_name="Estado de pago")
     transaction = models.ForeignKey(
         'Transaction', 
         on_delete=models.SET_NULL, 

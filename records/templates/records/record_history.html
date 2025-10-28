@@ -12,8 +12,9 @@
                 <th>Fecha</th>
                 <th>Usuario</th>
                 <th>Tipo</th>
-                <th>Cambios</th>
+                <th>Cambios</th>            
                 <th>Acciones</th>
+               
             </tr>
         </thead>
         <tbody>
@@ -22,7 +23,6 @@
                     <td>{{ h.history_date }}</td>
                     <td>{{ h.history_user }}</td>
                     <td>{{ h.get_history_type_display }}</td>
-                    <td>
                         {% if h.history_type == '~' and h.delta %}
                             <ul>
                                 {% for change in h.delta.changes %}
