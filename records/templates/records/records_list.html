@@ -126,7 +126,11 @@
                         <tbody>
                             {% for receipt in transaction.receipts.all %}
                             <tr>
-                                <td>{{ receipt.origen_transaccion.name }}</td>
+                                <td>{{ receipt.origen_transaccion.name }}
+                                    {% if receipt.effective_date_message %}
+                                        <small style="color: #007bff; display: block;">{{ receipt.effective_date_message }}</small>
+                                    {% endif %}
+                                </td>
                                 <td>{{ receipt.fecha|date:"d/m/Y" }}</td>
                                 <td>{{ receipt.hora|time:"H:i" }}</td>
                                 <td>{{ receipt.comprobante }}</td>

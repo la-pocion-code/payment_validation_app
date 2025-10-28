@@ -4,7 +4,8 @@ from django.utils import timezone
 from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import User
 from django.db.models import Sum
-
+from datetime import datetime
+from .utils import calculate_effective_date
 
 
 class Seller(models.Model):
@@ -142,6 +143,8 @@ class FinancialRecord(models.Model):
     modificado = models.DateTimeField(auto_now=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_financial_records')
 
+   
+
     class Meta:
         verbose_name = "Registro Financiero"
         verbose_name_plural = "Registros Financieros"
@@ -150,7 +153,29 @@ class FinancialRecord(models.Model):
     def __str__(self):
         return f"{self.fecha} - {self.comprobante} - {self.valor}"
 
-    # Puedes agregar validaciones adicionales aquí si es necesario
+    def effective_date_message(self):
+        """
+        Genera un mensaje sobre la fecha de pago efectiva si el recibo está
+        pendiente y tiene días de efectividad configurados.
+        """
+        # Condiciones: estado pendiente y un origen con días de efectividad > 1
+        if (self.payment_status == 'Pendiente' and 
+            self.origen_transaccion and 
+            self.origen_transaccion.dias_efectivo > 1):
+
+            dias = self.origen_transaccion.dias_efectivo
+            fecha_efectiva = calculate_effective_date(self.fecha, dias)
+            fecha_formateada = fecha_efectiva.strftime('%d/%m/%Y')
+
+            return (
+                f"Tomará {dias} días hábiles. "
+                f"Fecha efectiva esperada: {fecha_formateada}."
+            )
+
+        # Si no se cumplen las condiciones, no devolvemos nada
+        return None
+
+
     def clean(self):
         # Ejemplo de validación adicional si 'valor' no puede ser negativo
         if self.valor is not None and self.valor < 0:

@@ -76,7 +76,20 @@
 
                         <div class="receipt-form-fields">
                             {% if request.user.is_superuser or 'Digitador' in user_group_names %}
-                                <div class="receipt-field">{{ form.origen_transaccion.label_tag }}{{ form.origen_transaccion }}{{ form.origen_transaccion.errors }}</div>
+                                <div class="receipt-field">
+                                    {{ form.origen_transaccion.label_tag }}
+                                    {{ form.origen_transaccion }}
+
+                                    <!-- 1. Mensaje para recibos ya guardados (desde el modelo) -->
+                                    {% if form.instance.pk and form.instance.effective_date_message %}
+                                        <small style="color: #007bff; display: block;">{{ form.instance.effective_date_message }}</small>
+                                    {% endif %}
+
+                                    <!-- 2. Placeholder para el mensaje dinámico de JavaScript -->
+                                    <span id="effective-date-message-{{ form.prefix }}" style="color: #007bff; font-size: 0.9em; display: block;"></span>
+
+                                    {{ form.origen_transaccion.errors }}
+                                </div>
                                 <div class="receipt-field">{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
                                 <div class="receipt-field">{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
                                 <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
@@ -322,6 +335,42 @@
             formsetContainer.insertAdjacentHTML('beforeend', newFormHtml);
             totalForms.value = parseInt(formIndex) + 1;
         });
+
+        // --- CÓDIGO PARA CALCULAR FECHA EFECTIVA ---
+        const receiptFormsetContainer = document.getElementById('formset-container');
+        if (receiptFormsetContainer) {
+            receiptFormsetContainer.addEventListener('change', (e) => {
+                if (e.target.matches('select[name$="-origen_transaccion"]') || e.target.matches('input[name$="-fecha"]')) {
+                    const formPrefix = e.target.name.match(/(receipts-\d+)-/)?.[1] || e.target.name.match(/(form-\d+)-/)?.[1];
+                    if (!formPrefix) return;
+
+                    const formNum = formPrefix.split('-')[1];
+
+                    const origenSelect = document.querySelector(`#id_${formPrefix}-origen_transaccion`);
+                    const fechaInput = document.querySelector(`#id_${formPrefix}-fecha`);
+                    const messageSpan = document.querySelector(`#effective-date-message-${formPrefix}`);
+
+                    if (!origenSelect || !fechaInput || !messageSpan) return;
+
+                    const origenId = origenSelect.value;
+                    const fecha = fechaInput.value;
+
+                    if (origenId && fecha) {
+                        const url = `{% url 'get_effective_date' %}?origen_id=${origenId}&start_date=${fecha}`;
+                        fetch(url)
+                            .then(response => response.json())
+                            .then(data => {
+                                messageSpan.textContent = data.message || '';
+                            })
+                            .catch(error => console.error('Error:', error));
+                    } else {
+                        messageSpan.textContent = '';
+                    }
+                }
+            });
+        }
+
+
 
         // --- NUEVO: Lógica para el modal de eliminación de transacción ---
         const deleteTransactionModal = document.getElementById('delete-transaction-confirm-modal');

@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h1>{{ title }}</h1>
+    <h1>{{ title }}</h1>z
 
     {% if messages %}
         <div class="messages">
@@ -68,7 +68,6 @@
                     {% endfor %}
                 </div>
             {% endif %}
-
             <div id="receipt-forms-container">
                 {% for form in formset %}
                     <div class="receipt-form-instance mb-4 p-3 border rounded{% if form.errors %} has-errors{% endif %}">
@@ -94,16 +93,43 @@
                             </div>
                         {% endif %}
                         <div class="filter-fields">
-                            {% for field in form.visible_fields %}
-                                {% if field.name != 'DELETE' %}
-                                <div class="filter-field">
-                                    {{ field.label_tag }}
-                                    {{ field }}
-                                    {{ field.errors }}
-                                </div>
-                                {% endif %}
+                            <div class="filter-field">
+                                {{ form.origen_transaccion.label_tag }}
+                                {{ form.origen_transaccion }}
+                                <!-- Este es el placeholder para nuestro mensaje dinámico -->
+                                <span id="effective-date-message-{{ forloop.counter0 }}" style="color: #007bff; font-size: 0.9em; display: block;"></span>
+                                {{ form.origen_transaccion.errors }}
+                            </div>
+                            <div class="filter-field">
+                                {{ form.fecha.label_tag }}
+                                {{ form.fecha }}
+                                {{ form.fecha.errors }}
+                            </div>
+                            <div class="filter-field">
+                                {{ form.hora.label_tag }}
+                                {{ form.hora }}
+                                {{ form.hora.errors }}
+                            </div>
+                            <div class="filter-field">
+                                {{ form.comprobante.label_tag }}
+                                {{ form.comprobante }}
+                                {{ form.comprobante.errors }}
+                            </div>
+                            <div class="filter-field">
+                                {{ form.banco_llegada.label_tag }}
+                                {{ form.banco_llegada }}
+                                {{ form.banco_llegada.errors }}
+                            </div>
+                            <div class="filter-field">
+                                {{ form.valor.label_tag }}
+                                {{ form.valor }}
+                                {{ form.valor.errors }}
+                            </div>
+                            {% for field in form.hidden_fields %}
+                                {{ field }}
                             {% endfor %}
                         </div>
+                    
                     </div>
                 {% endfor %}
             </div>
@@ -122,19 +148,50 @@
                         </div>
                     </div>
                     <hr>
+                    <!-- INICIO DE LA MODIFICACIÓN -->
                     <div class="filter-fields">
-                        {% for field in formset.empty_form.visible_fields %}
-                            {% if field.name != 'DELETE' %}
-                            <div class="filter-field">
-                                {{ field.label_tag }}
-                                {{ field }}
-                                {{ field.errors }}
-                            </div>
-                            {% endif %}
+                        <div class="filter-field">
+                            {{ formset.empty_form.origen_transaccion.label_tag }}
+                            {{ formset.empty_form.origen_transaccion }}
+                            <!-- El placeholder para nuevos formularios. '__prefix__' será reemplazado por JS -->
+                            <span id="effective-date-message-__prefix__" style="color: #007bff; font-size: 0.9em; display: block;"></span>
+                            {{ formset.empty_form.origen_transaccion.errors }}
+                        </div>
+                        <div class="filter-field">
+                            {{ formset.empty_form.fecha.label_tag }}
+                            {{ formset.empty_form.fecha }}
+                            {{ formset.empty_form.fecha.errors }}
+                        </div>
+                        <div class="filter-field">
+                            {{ formset.empty_form.hora.label_tag }}
+                            {{ formset.empty_form.hora }}
+                            {{ formset.empty_form.hora.errors }}
+                        </div>
+                        <div class="filter-field">
+                            {{ formset.empty_form.comprobante.label_tag }}
+                            {{ formset.empty_form.comprobante }}
+                            {{ formset.empty_form.comprobante.errors }}
+                        </div>
+                        <div class="filter-field">
+                            {{ formset.empty_form.banco_llegada.label_tag }}
+                            {{ formset.empty_form.banco_llegada }}
+                            {{ formset.empty_form.banco_llegada.errors }}
+                        </div>
+                        <div class="filter-field">
+                            {{ formset.empty_form.valor.label_tag }}
+                            {{ formset.empty_form.valor }}
+                            {{ formset.empty_form.valor.errors }}
+                        </div>
+
+                        {# Renderizamos campos ocultos del formulario vacío #}
+                        {% for field in formset.empty_form.hidden_fields %}
+                            {{ field }}
                         {% endfor %}
                     </div>
+                    <!-- FIN DE LA MODIFICACIÓN -->
                 </div>
             </template>
+
 
             <button type="button" id="add-form" class="btn btn-secondary btn-sm">Añadir otro recibo</button>
         </fieldset>
@@ -275,6 +332,48 @@ document.addEventListener('DOMContentLoaded', function() {
             dateField.value = transactionDateField.value;
         }
     }
+     // --- CÓDIGO PARA CALCULAR FECHA EFECTIVA (INICIO) ---
+    container.addEventListener('change', (e) => {
+        // 1. Verificamos si el campo que cambió es un 'origen_transaccion' o una 'fecha'.
+        if (e.target.matches('select[name$="-origen_transaccion"]') || e.target.matches('input[name$="-fecha"]')) {
+            
+            // 2. Extraemos el número del formulario que cambió (ej: '0', '1', '2', etc.).
+            const formPrefixMatch = e.target.name.match(/form-(\d+)-/);
+            if (!formPrefixMatch) return; // Salimos si no encontramos el número
+            const formNum = formPrefixMatch[1];
+            
+            // 3. Usando el número, encontramos los otros campos y el span de mensaje de la misma fila.
+            const origenSelect = document.querySelector(`#id_form-${formNum}-origen_transaccion`);
+            const fechaInput = document.querySelector(`#id_form-${formNum}-fecha`);
+            const messageSpan = document.querySelector(`#effective-date-message-${formNum}`);
+
+            // 4. Nos aseguramos de que todos los elementos existan.
+            if (!origenSelect || !fechaInput || !messageSpan) return;
+
+            const origenId = origenSelect.value;
+            const fecha = fechaInput.value;
+
+            // 5. Si tenemos un origen y una fecha seleccionados...
+            if (origenId && fecha) {
+                // 6. ...construimos la URL y hacemos la llamada a nuestra vista de Django.
+                const url = `{% url 'get_effective_date' %}?origen_id=${origenId}&start_date=${fecha}`;
+                
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        // 7. Mostramos el mensaje que nos devolvió Django en nuestro span.
+                        messageSpan.textContent = data.message || '';
+                    })
+                    .catch(error => {
+                        console.error('Error al calcular fecha efectiva:', error);
+                        messageSpan.textContent = ''; // Limpiamos el mensaje si hay un error.
+                    });
+            } else {
+                // 8. Si falta la fecha o el origen, nos aseguramos de que el mensaje esté vacío.
+                messageSpan.textContent = '';
+            }
+        }
+    });
 
     // --- Inicialización --- //
     addFormBtn.addEventListener('click', addForm);

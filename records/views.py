@@ -24,6 +24,8 @@ from django.utils.decorators import method_decorator
 from .services import CSVProcessor # Importar la nueva clase de servicio
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm # New import
+from .utils import calculate_effective_date
+from datetime import datetime
 
 
 class CustomLoginView(LoginView):
@@ -1068,3 +1070,42 @@ def download_csv_template(request):
     ])
 
     return response 
+
+
+
+def get_effective_date_view(request):
+    origen_id = request.GET.get('origen_id')
+    start_date_str = request.GET.get('start_date')
+
+    if not origen_id or not start_date_str:
+        return JsonResponse({'error': 'Faltan parámetros'}, status=400)
+
+    try:
+        origen = OrigenTransaccion.objects.get(pk=origen_id)
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+
+        # Tu lógica: si dias_efectivo es mayor a 1
+        if origen.dias_efectivo > 1:
+            dias_efectivo = origen.dias_efectivo
+            effective_date = calculate_effective_date(start_date, dias_efectivo)
+
+            # Formateamos la fecha para mostrarla como DD/MM/YYYY
+            formatted_date = effective_date.strftime('%d/%m/%Y')
+
+            message = (
+                f"Esta transacción tomará {dias_efectivo} días hábiles en procesarse. "
+                f"Fecha efectiva esperada: {formatted_date}."
+            )
+            return JsonResponse({'message': message})
+        else:
+            # Si no cumple la condición, no devolvemos ningún mensaje
+            return JsonResponse({'message': ''})
+
+    except OrigenTransaccion.DoesNotExist:
+        return JsonResponse({'error': 'ID de Origen inválido'}, status=404)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Formato de fecha inválido'}, status=400)
+    
+
+
+
