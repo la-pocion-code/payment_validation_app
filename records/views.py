@@ -21,11 +21,12 @@ from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
 from django.utils.decorators import method_decorator
-from .services import CSVProcessor # Importar la nueva clase de servicio
+from .services import CSVProcessor 
 from django.template.loader import render_to_string
-from .forms import AccessRequestApprovalForm # New import
+from .forms import AccessRequestApprovalForm 
 from .utils import calculate_effective_date
 from datetime import datetime
+from django.utils import timezone
 
 
 class CustomLoginView(LoginView):
@@ -544,28 +545,89 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
         kwargs['user'] = self.request.user
         return kwargs
 
+class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = Transaction
+    form_class = TransactionForm
+    template_name = 'records/transaction_form.html'
+    success_url = reverse_lazy('record_list')
+    success_message = "¡Transacción actualizada exitosamente!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Transacción'
+        context['is_facturador'] = self.request.user.groups.filter(name='Facturador').exists()
+        if self.request.POST:
+            context['formset'] = FinancialRecordInlineFormSet(self.request.POST, instance=self.object, form_kwargs={'request': self.request})
+        else:
+            context['formset'] = FinancialRecordInlineFormSet(instance=self.object, form_kwargs={'request': self.request})
+        return context
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
     def form_valid(self, form):
         context = self.get_context_data()
         formset = context['formset']
         is_facturador = self.request.user.groups.filter(name='Facturador').exists()
         is_superuser = self.request.user.is_superuser
 
-        with transaction.atomic():
-            self.object = form.save()
+        # Variable para rastrear si hay advertencias de duplicados similares
+        has_similar_duplicate_warning = False
+        for fs_form in formset:
+            if 'confirm_duplicate' in fs_form.errors:
+                has_similar_duplicate_warning = True
+                break
 
-            if not is_facturador or is_superuser:
-                if formset.is_valid():
+        if formset.is_valid(): # This will trigger clean() on each form in the formset
+            # Si hay advertencias de duplicados similares Y el usuario NO ha marcado la casilla de confirmación
+            if has_similar_duplicate_warning:
+                messages.warning(self.request, 'Se detectaron posibles duplicados en los recibos. Por favor, revisa las advertencias y marca la casilla de confirmación si deseas guardar de todos modos.')
+                return self.render_to_response(self.get_context_data(form=form, formset=formset, show_confirm_duplicate=True))
+
+            with transaction.atomic():
+                self.object = form.save()
+
+                if not is_facturador or is_superuser:
                     formset.instance = self.object
                     formset.save()
-                else:
-                    return self.form_invalid(form)
 
-        messages.success(self.request, self.success_message)
-        return redirect(self.get_success_url())
+                    # Log user override for similar duplicates
+                    for fs_form in formset:
+                        if fs_form.cleaned_data.get('confirm_duplicate') and not fs_form.instance.pk: # Only for new records
+                            serializable_data = {k: str(v) for k, v in fs_form.cleaned_data.items()}
+                            DuplicateRecordAttempt.objects.create(
+                                user=self.request.user,
+                                data=serializable_data,
+                                attempt_type='SIMILAR',
+                                is_resolved=True,
+                                resolved_by=self.request.user,
+                                resolved_at=timezone.now()
+                            )
+
+            messages.success(self.request, self.success_message)
+            return redirect(self.get_success_url())
+        else:
+            messages.error(self.request, 'Por favor, corrija los errores en el formulario.')
+            return self.render_to_response(self.get_context_data(form=form, formset=formset))
 
     def form_invalid(self, form):
-        messages.error(self.request, 'Por favor, corrija los errores en el formulario.')
-        return self.render_to_response(self.get_context_data(form=form))
+        messages.error(self.request, 'Por favor, corrija los errores en el formulario de la transacción.')
+        context = self.get_context_data(form=form)
+        formset = context['formset']
+
+        has_similar_duplicate_warning = False
+        for fs_form in formset:
+            if 'confirm_duplicate' in fs_form.errors:
+                has_similar_duplicate_warning = True
+                break
+        
+        if has_similar_duplicate_warning:
+            messages.warning(self.request, 'Se detectaron posibles duplicados en los recibos. Por favor, revisa las advertencias y marca la casilla de confirmación si deseas guardar de todos modos.')
+            context['show_confirm_duplicate'] = True
+
+        return self.render_to_response(context)
 
 class TransactionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Transaction
@@ -1056,48 +1118,71 @@ def export_duplicate_attempts_csv(request):
 @login_required
 @group_required('Admin', 'Digitador')
 def create_bulk_receipts(request):
-    # The FinancialRecordForm needs the request object for its duplicate check logic.
-    # We can pass it to the formset constructor with form_kwargs.
     form_kwargs = {'request': request}
 
     if request.method == 'POST':
         transaction_form = TransactionForm(request.POST)
         formset = FinancialRecordFormSet(request.POST, form_kwargs=form_kwargs)
 
+        # Variable para rastrear si hay advertencias de duplicados similares
+        has_similar_duplicate_warning = False
+        for form in formset:
+            if 'confirm_duplicate' in form.errors:
+                has_similar_duplicate_warning = True
+                break
+
+        # Validar ambos formularios
         if transaction_form.is_valid() and formset.is_valid():
-            # Use a database transaction to ensure all or nothing is saved.
+            # Si hay advertencias de duplicados similares Y el usuario NO ha marcado la casilla de confirmación
+            if has_similar_duplicate_warning:
+                messages.warning(request, 'Se detectaron posibles duplicados. Por favor, revisa las advertencias y marca la casilla de confirmación si deseas guardar de todos modos.')
+                context = {
+                    'transaction_form': transaction_form,
+                    'formset': formset,
+                    'title': 'Nuevo Registro',
+                    'show_confirm_duplicate': True # Flag para mostrar el checkbox en la plantilla
+                }
+                return render(request, 'records/create_bulk_receipts.html', context)
+
+            # Si no hay errores o si los duplicados similares fueron confirmados, proceder a guardar
             with transaction.atomic():
-                # Crear la instancia de Transaction directamente desde los datos limpios del formulario
                 new_transaction = Transaction(
                     date=transaction_form.cleaned_data['date'],
                     cliente=transaction_form.cleaned_data['cliente'],
                     vendedor=transaction_form.cleaned_data['vendedor'],
                     description=transaction_form.cleaned_data['description'],
-                    status='Pendiente', # Siempre 'Pendiente' para nuevas transacciones
+                    status='Pendiente',
                     numero_factura=transaction_form.cleaned_data['numero_factura'],
                     facturador=transaction_form.cleaned_data['facturador'],
-                    created_by=request.user # Asignar created_by explícitamente aquí
+                    created_by=request.user
                 )
-                new_transaction.save() # Esto llamará al método save del modelo
+                new_transaction.save()
 
-                # Now, iterate through the forms in the formset.
                 for form in formset:
-                    # Check if the form has changed and has data
                     if form.has_changed() and form.cleaned_data:
-                        # Check if the user marked this form for deletion
                         if form.cleaned_data.get('DELETE'):
-                            # If the instance exists in the DB, delete it.
                             if form.instance.pk:
                                 form.instance.delete()
                         else:
-                            # This is a form with data to be saved.
                             receipt = form.save(commit=False)
                             receipt.transaction = new_transaction
                             receipt.uploaded_by = request.user
                             receipt.save()
-            
+
+                            # Si un duplicado similar fue confirmado por el usuario, registrarlo como resuelto
+                            if form.cleaned_data.get('confirm_duplicate'):
+                                serializable_data = {k: str(v) for k, v in form.cleaned_data.items()}
+                                DuplicateRecordAttempt.objects.create(
+                                    user=request.user,
+                                    data=serializable_data,
+                                    attempt_type='SIMILAR',
+                                    is_resolved=True, # Marcar como resuelto porque el usuario confirmó
+                                    resolved_by=request.user,
+                                    resolved_at=timezone.now()
+                                )
+
             messages.success(request, 'Transacción y recibos guardados exitosamente.')
-            return redirect('record_list') # Redirect to a relevant page
+            return redirect('record_list')
         else:
             messages.error(request, 'Por favor, corrija los errores en el formulario.')
             print(f"DEBUG: Transaction Form Errors: {transaction_form.errors}")
@@ -1105,7 +1190,7 @@ def create_bulk_receipts(request):
             for i, form in enumerate(formset):
                 if form.errors:
                     print(f"DEBUG: Form {i} Errors: {form.errors}")
-            
+
             context = {
                 'transaction_form': transaction_form,
                 'formset': formset,

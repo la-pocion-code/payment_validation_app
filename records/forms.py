@@ -44,9 +44,18 @@ class AccessRequestApprovalForm(forms.ModelForm):
 
 
 class FinancialRecordForm(forms.ModelForm):
+    # Campo para confirmar duplicados
+    confirm_duplicate = forms.BooleanField(
+        required=False,
+        widget=forms.HiddenInput(), # Inicialmente oculto
+        label="Entiendo que este registro es similar a uno existente y deseo guardarlo de todos modos."
+    )
+
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super(FinancialRecordForm, self).__init__(*args, **kwargs)
+        self.similar_records = None
+
 
         # --- INICIO DE LA LÓGICA DE ROLES ---
         user = self.request.user if self.request else None
@@ -61,13 +70,7 @@ class FinancialRecordForm(forms.ModelForm):
             if user.groups.filter(name='Validador').exists():
                 # Si es Validador, solo puede editar el estado de pago
                 self.fields['payment_status'].disabled = False
-            
-            # Aquí puedes añadir más lógica para otros roles en el futuro
-            # Ejemplo: 
-            # if user.groups.filter(name='Facturador').exists():
-            #     self.fields['numero_factura'].disabled = False
-
-        # --- FIN DE LA LÓGICA DE ROLES ---
+  
 
         # Lógica original del formulario para valores por defecto y campos ocultos
         self.fields['payment_status'].required = False
@@ -96,6 +99,9 @@ class FinancialRecordForm(forms.ModelForm):
         hora = cleaned_data.get('hora')
         banco_llegada = cleaned_data.get('banco_llegada')
         valor = cleaned_data.get('valor')
+
+        # Obtener el valor de confirm_duplicate
+        confirm_duplicate = cleaned_data.get('confirm_duplicate')
 
         # Solo realizamos estas verificaciones para nuevos registros
         if not self.instance.pk:
@@ -130,22 +136,29 @@ class FinancialRecordForm(forms.ModelForm):
                     banco_llegada=banco_llegada,
                     valor=valor
                 )
-
+                
                 # Excluimos el duplicado exacto si el comprobante también está presente.
                 if comprobante:
                     similar_qs = similar_qs.exclude(comprobante=comprobante)
 
-                if similar_qs.exists():
-                    if self.request:
-                        serializable_data = {k: str(v) for k, v in cleaned_data.items()}
-                        DuplicateRecordAttempt.objects.create(
-                            user=self.request.user,
-                            data=serializable_data,
-                            attempt_type='SIMILAR'
-                        )
-                    raise forms.ValidationError(
-                        format_html('<div id="similar-duplicate-error">Posible registro duplicado: ya existe un registro con la misma Fecha, Hora, Banco y Valor. Por favor, revisa los registros existentes.</div>')
+                if similar_qs.exists() and not confirm_duplicate:
+                    self.add_error(
+                        'confirm_duplicate', # Adjuntar el error al nuevo campo
+                        format_html('<div id=\"similar-duplicate-warning\">ADVERTENCIA: Posible registro duplicado. Ya existe un registro con la misma Fecha, Hora, Banco y Valor. Si estás seguro de que no es un duplicado, marca la casilla de confirmación.</div>')
                     )
+                    # Almacenar los registros similares para mostrarlos en la plantilla
+                    self.similar_records = similar_qs
+
+                    # if self.request:
+                    #     serializable_data = {k: str(v) for k, v in cleaned_data.items()}
+                    #     DuplicateRecordAttempt.objects.create(
+                    #         user=self.request.user,
+                    #         data=serializable_data,
+                    #         attempt_type='SIMILAR'
+                    #     )
+                    # raise forms.ValidationError(
+                    #     format_html('<div id="similar-duplicate-error">Posible registro duplicado: ya existe un registro con la misma Fecha, Hora, Banco y Valor. Por favor, revisa los registros existentes.</div>')
+                    # )
 
         # Para nuevos registros, si payment_status no se envía, establece el valor por defecto.
         if not self.instance.pk and not cleaned_data.get('payment_status'):
@@ -155,18 +168,9 @@ class FinancialRecordForm(forms.ModelForm):
 
 
 
-# records/forms.py
-
-# En records/forms.py
-
 class FinancialRecordUpdateForm(FinancialRecordForm):
     class Meta(FinancialRecordForm.Meta):
         exclude = ['uploaded_by']
-
-
-
-
-
 
     
 class BankForm(forms.ModelForm):

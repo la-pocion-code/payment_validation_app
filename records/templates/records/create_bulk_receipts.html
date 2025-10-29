@@ -128,8 +128,29 @@
                             {% for field in form.hidden_fields %}
                                 {{ field }}
                             {% endfor %}
+                            </div>
+                            {# Mostrar la advertencia y el checkbox de confirmación si hay un error en confirm_duplicate #}
+                            {% if form.confirm_duplicate.errors %}
+                                <div class="alert alert-warning mt-2" role="alert">
+                                    {{ form.confirm_duplicate.errors }}
+                                    <div class="form-check mt-2">
+                                        <input type="checkbox" class="form-check-input" id="{{ form.confirm_duplicate.id_for_label }}" name="{{ form.confirm_duplicate.html_name }}">
+                                        <label class="form-check-label" for="{{ form.confirm_duplicate.id_for_label }}">
+                                            {{ form.confirm_duplicate.label }}
+                                        </label>
+                                    </div>
+                                    {# Opcional: Mostrar detalles de los registros similares si los almacenaste en form.similar_records #}
+                                    {% if form.similar_records %}
+                                        <p>Registros similares encontrados:</p>
+                                        <ul>
+                                            {% for similar_record in form.similar_records %}
+                                                <li>{{ similar_record.fecha }} - {{ similar_record.hora }} - {{ similar_record.comprobante }} - {{ similar_record.banco_llegada.name }} - {{ similar_record.valor }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
                         </div>
-                    
                     </div>
                 {% endfor %}
             </div>
