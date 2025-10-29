@@ -893,7 +893,7 @@ def export_transactions_csv(request):
     response['Content-Disposition'] = 'attachment; filename="reporte_detallado_recibos.csv"'
     response.write(u'\ufeff'.encode('utf8')) # Añade BOM para compatibilidad con Excel
 
-    writer = csv.writer(response)
+    writer = csv.writer(response, delimiter=';')
     
     # 5. Escribir la fila de encabezados en el CSV
     writer.writerow([
@@ -966,8 +966,14 @@ def csv_upload_view(request):
                 messages.success(request, 'Proceso de carga masiva finalizado.')
                 for msg_type, text in result.get_messages():
                     getattr(messages, msg_type)(request, text)
+                
+                # DEBUG: Verificar el número total de registros financieros después de la carga
+                total_records = FinancialRecord.objects.count()
+                print(f"DEBUG: Total FinancialRecords in DB after upload: {total_records}")
 
             except Exception as e:
+                # Capturamos cualquier error inesperado durante el procesamiento
+                messages.error(request, f'Ocurrió un error inesperado: {e}')
                 # Capturamos cualquier error inesperado durante el procesamiento
                 messages.error(request, f'Ocurrió un error inesperado: {e}')
             
@@ -1125,13 +1131,12 @@ def download_csv_template(request):
     response  = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="csv_template.csv"'
 
-    writer = csv.writer(response)
+    writer = csv.writer(response, delimiter=';')
     writer.writerow([
         'FECHA', 'HORA', '#COMPROBANTE', 'BANCO LLEGADA', 'VALOR'
     ])
 
     return response 
-
 
 
 def get_effective_date_view(request):

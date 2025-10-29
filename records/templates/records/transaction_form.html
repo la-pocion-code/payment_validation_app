@@ -95,7 +95,13 @@
                                 <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
                                 <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
                                 <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
-                                <div class="receipt-field">{{ form.payment_status.label_tag }}{{ form.payment_status }}{{ form.payment_status.errors }}</div>
+                                <div class="receipt-field 
+                                    {% if form.instance.payment_status == 'Aprobado' %}bg-aprobado
+                                    {% elif form.instance.payment_status == 'Rechazado' %}bg-rechazado
+                                    {% elif form.instance.payment_status == 'Pendiente' %}bg-pendiente
+                                    {% endif %}">
+                                    {{ form.payment_status.label_tag }}{{ form.payment_status }}{{ form.payment_status.errors }}
+                                </div>
                                 {% comment %} <div class="receipt-delete-wrapper">    
                                     {% if formset.can_delete %}
                                         <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
@@ -123,7 +129,13 @@
                                 <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
                                 <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
                                 <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
-                                <div class="receipt-field">{{ form.payment_status.label_tag }}{{ form.payment_status }}{{ form.payment_status.errors }}</div>
+                                <div class="receipt-field 
+                                    {% if form.instance.payment_status == 'Aprobado' %}bg-aprobado
+                                    {% elif form.instance.payment_status == 'Rechazado' %}bg-rechazado
+                                    {% elif form.instance.payment_status == 'Pendiente' %}bg-pendiente
+                                    {% endif %}">
+                                    {{ form.payment_status.label_tag }}{{ form.payment_status }}{{ form.payment_status.errors }}
+                                </div>
                             {% endif %}
                         </div>
                         {{ form.id }}

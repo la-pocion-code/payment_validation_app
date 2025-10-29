@@ -409,3 +409,87 @@ label {
     border: 2px solid #dc3545; /* Red border */
     background-color: #f8d7da; /* Light red background */
 }
+
+/* --- Estilos para el Estado de Pago --- */
+
+.status-badge {
+
+    padding: 0.3em 0.6em;
+
+    border-radius: 10px;
+
+    color: #fff;
+
+    font-weight: bold;
+
+    text-align: center;
+
+    display: inline-block;
+
+    min-width: 80px;
+
+}
+
+
+
+.status-aprobado {
+
+    background-color: #28a745; /* Verde */
+
+}
+
+
+
+.status-rechazado {
+
+    background-color: #dc3545; /* Rojo */
+
+}
+
+
+
+.status-pendiente {
+
+    background-color: #ffc107; /* Amarillo */
+
+    color: #212529;
+
+}
+
+
+
+/* --- Estilos para el FONDO de la celda del formulario --- */
+
+.receipt-field.bg-aprobado {
+
+    background-color: #d4edda;
+
+    border-radius: 8px;
+
+    padding: 10px;
+
+}
+
+
+
+.receipt-field.bg-rechazado {
+
+    background-color: #f8d7da;
+
+    border-radius: 8px;
+
+    padding: 10px;
+
+}
+
+
+
+.receipt-field.bg-pendiente {
+
+    background-color: #fff3cd;
+
+    border-radius: 8px;
+
+    padding: 10px;
+
+}

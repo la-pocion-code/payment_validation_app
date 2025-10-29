@@ -11,7 +11,7 @@
             </div>
             <h1 class="login-title">Cargar Archivo CSV</h1>
             <a href="{% url 'download_csv_template' %}" class="download-template-link">Descargar Plantilla CSV</a>
-            <p class="login-description">Sube un archivo CSV con los registros financieros.</p>
+            <p class="login-description">Sube un  CSV separado por ;</p>
             
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}

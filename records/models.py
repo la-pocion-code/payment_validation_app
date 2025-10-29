@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.db.models import Sum
 from datetime import datetime
 from .utils import calculate_effective_date
-
+import secrets
 
 class Seller(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -99,8 +99,10 @@ class Transaction(models.Model):
                 user_part = user_part.upper()
 
             sequence_part = str(self.id).zfill(6)
+            randon_part = secrets.token_hex(2).upper()
 
-            self.unique_transaction_id = f"{date_part}{user_part}{sequence_part}"
+
+            self.unique_transaction_id = f"{date_part}{user_part}{sequence_part}{randon_part}"
             # Usamao .update() para guardar solo este campo y evitar un bucle
             Transaction.objects.filter(id=self.id).update(unique_transaction_id=self.unique_transaction_id)
 

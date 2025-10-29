@@ -136,7 +136,15 @@
                                 <td>{{ receipt.comprobante }}</td>
                                 <td>{{ receipt.banco_llegada.name }}</td>
                                 <td>{{ receipt.valor }}</td>
-                                <td>{{ receipt.payment_status    }}</td>  
+                                <td>
+                                    <span class="status-badge 
+                                        {% if receipt.payment_status == 'Aprobado' %}status-aprobado
+                                        {% elif receipt.payment_status == 'Rechazado' %}status-rechazado
+                                        {% elif receipt.payment_status == 'Pendiente' %}status-pendiente
+                                        {% endif %}">
+                                        {{ receipt.get_payment_status_display }}
+                                    </span>
+                                </td>  
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -1,10 +1,9 @@
-# records/services.py
-
 import csv
 from io import TextIOWrapper
 from datetime import datetime
 from django.db import transaction, IntegrityError
-from .models import FinancialRecord, Bank
+from .models import FinancialRecord, Bank, OrigenTransaccion
+
 
 class CSVProcessor:
     """
@@ -13,13 +12,22 @@ class CSVProcessor:
     def __init__(self, csv_file):
         self.csv_file = csv_file
         self.column_mapping = {
-            'FECHA': 'fecha', 'HORA': 'hora', '#COMPROBANTE': 'comprobante',
-            'BANCO LLEGADA': 'banco_llegada', 'VALOR': 'valor',
+            'FECHA': 'fecha',
+            'HORA': 'hora',
+            '#COMPROBANTE': 'comprobante',
+            'BANCO LLEGADA': 'banco_llegada',
+            'VALOR': 'valor',
+            # 'ORIGEN TRANSACCION' ya no es obligatorio en el archivo
         }
         self.results = {
-            "processed": 0, "created": 0, "duplicates": 0,
+            "processed": 0,
+            "created": 0,
+            "duplicates": 0,
             "line_errors": []
         }
+
+        # Origen por defecto si la columna no existe
+        self.default_origen, _ = OrigenTransaccion.objects.get_or_create(name="IMPORTADO MASIVO")
 
     def _get_reader(self):
         """Prepara y devuelve un lector de CSV."""
@@ -33,7 +41,7 @@ class CSVProcessor:
             return csv.reader(decoded_file, delimiter=';')
 
     def _validate_header(self, header):
-        """Valida que el header del CSV contenga las columnas requeridas."""
+        """Valida que el header del CSV contenga las columnas requeridas (excepto origen_transaccion)."""
         missing_columns = [col for col in self.column_mapping.keys() if col not in header]
         if missing_columns:
             raise ValueError(f'Faltan las siguientes columnas en el CSV: {", ".join(missing_columns)}')
@@ -54,41 +62,100 @@ class CSVProcessor:
                 row_data[field_name] = bank
             else:
                 row_data[field_name] = value
+
+        # Asignar el origen de transacción
+        if 'ORIGEN TRANSACCION' in header_map:
+            origen_valor = row[header_map['ORIGEN TRANSACCION']].strip()
+            origen, _ = OrigenTransaccion.objects.get_or_create(name=origen_valor.upper())
+            row_data['origen_transaccion'] = origen
+        else:
+            # Si la columna no existe, usar el valor por defecto
+            row_data['origen_transaccion'] = self.default_origen
+
         return row_data
 
     def process(self):
-        """
-        Orquesta el proceso completo de lectura, validación e inserción.
-        """
+        """Orquesta el proceso completo de lectura, validación e inserción."""
         reader = self._get_reader()
         header = next(reader, None)
         if not header:
             raise ValueError("El archivo CSV está vacío.")
-        
+
         self._validate_header(header)
         header_map = {col: i for i, col in enumerate(header)}
-        
-        records_to_create = []
-        for i, row in enumerate(reader, start=2): # Empezar en 2 para contar la cabecera
+
+        records_to_process = []
+        for i, row in enumerate(reader, start=2):  # Empezar en 2 para contar la cabecera
             self.results['processed'] += 1
             if not row:
                 continue
             try:
                 row_data = self._parse_row(row, header_map)
-                records_to_create.append(FinancialRecord(**row_data))
-            except (ValueError, IndexError) as e:
-                original_value = row[header_map.get(e.args[0], 'N/A')] if isinstance(e, KeyError) else 'N/A'
-                self.results['line_errors'].append(f"Línea {i}: {e}. Dato original: '{original_value}'")
+                records_to_process.append(row_data)
+            except (ValueError, IndexError, KeyError) as e:
+                self.results['line_errors'].append(f"Línea {i}: {e}")
 
-        if records_to_create:
+        if records_to_process:
+            print(f"DEBUG: Intentando procesar {len(records_to_process)} registros.")
             try:
                 with transaction.atomic():
-                    # Usar ignore_conflicts para evitar fallos por duplicados
-                    created_objects = FinancialRecord.objects.bulk_create(records_to_create, ignore_conflicts=True)
-                    self.results['created'] = len(created_objects)
-                    self.results['duplicates'] = len(records_to_create) - self.results['created']
-            except IntegrityError as e:
-                raise Exception(f"Error de integridad masivo: {e}")
+                    # 1. Crear un conjunto de tuplas de identificación para los registros del CSV
+                    csv_record_keys = set()
+                    for data in records_to_process:
+                        key = (
+                            data['fecha'],
+                            data['hora'],
+                            data['comprobante'],
+                            data['banco_llegada'].id,
+                            data['valor']
+                        )
+                        csv_record_keys.add(key)
+
+                    # 2. Consultar la base de datos para encontrar qué registros ya existen
+                    existing_records = FinancialRecord.objects.filter(
+                        fecha__in=[data['fecha'] for data in records_to_process],
+                        comprobante__in=[data['comprobante'] for data in records_to_process]
+                    ).values_list('fecha', 'hora', 'comprobante', 'banco_llegada_id', 'valor')
+
+                    existing_record_keys = set()
+                    for record in existing_records:
+                        # Asegurarse de que la hora se maneje correctamente si es None
+                        hora = record[1] if record[1] else None
+                        key = (
+                            record[0],
+                            hora,
+                            record[2],
+                            record[3],
+                            float(record[4])
+                        )
+                        existing_record_keys.add(key)
+
+                    # 3. Filtrar los registros que no existen en la base de datos
+                    records_to_create = []
+                    for data in records_to_process:
+                        key = (
+                            data['fecha'],
+                            data['hora'],
+                            data['comprobante'],
+                            data['banco_llegada'].id,
+                            data['valor']
+                        )
+                        if key not in existing_record_keys:
+                            records_to_create.append(FinancialRecord(**data))
+
+                    # 4. Creación masiva de los nuevos registros
+                    if records_to_create:
+                        created_objects = FinancialRecord.objects.bulk_create(records_to_create)
+                        self.results['created'] = len(created_objects)
+                    else:
+                        self.results['created'] = 0
+                    
+                    self.results['duplicates'] = len(records_to_process) - self.results['created']
+
+                    print(f"DEBUG: Creados {self.results['created']} | Duplicados {self.results['duplicates']}")
+
+            except Exception as e:
+                raise Exception(f"Error durante la creación masiva de registros: {e}")
         
         return self
 
@@ -99,15 +166,14 @@ class CSVProcessor:
             messages.append(('warning', 'No se encontraron registros válidos para cargar en el archivo CSV.'))
             return messages
 
-        messages.append(('info', f"Registros procesados: {self.results['processed']}."))
-        messages.append(('info', f"Registros creados exitosamente: {self.results['created']}."))
+        messages.append(('info', f"Registros procesados: {self.results['processed']}"))
+        messages.append(('info', f"Registros creados exitosamente: {self.results['created']}"))
         if self.results['duplicates'] > 0:
-            messages.append(('info', f"Registros rechazados por duplicidad: {self.results['duplicates']}."))
+            messages.append(('info', f"Registros rechazados por duplicidad: {self.results['duplicates']}"))
         
         num_line_errors = len(self.results['line_errors'])
         if num_line_errors > 0:
             messages.append(('warning', f'{num_line_errors} registros tuvieron errores de formato o validación:'))
-            # Limitar la cantidad de errores mostrados para no saturar la UI
             for err in self.results['line_errors'][:10]:
                 messages.append(('warning', err))
             if num_line_errors > 10:
