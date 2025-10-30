@@ -508,11 +508,27 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        history = self.object.history.all()
-        for h in history:
+        
+        # History for the Transaction itself
+        transaction_history = self.object.history.all()
+        for h in transaction_history:
             if h.prev_record:
                 h.delta = h.diff_against(h.prev_record)
-        context['history'] = history
+        context['transaction_history'] = transaction_history
+
+        # History for each associated FinancialRecord
+        receipts_with_history = []
+        for receipt in self.object.receipts.all():
+            receipt_history = receipt.history.all()
+            for h in receipt_history:
+                if h.prev_record:
+                    h.delta = h.diff_against(h.prev_record)
+            receipts_with_history.append({
+                'receipt': receipt,
+                'history': receipt_history
+            })
+        context['receipts_with_history'] = receipts_with_history
+        
         return context
 
 FinancialRecordInlineFormSet = inlineformset_factory(

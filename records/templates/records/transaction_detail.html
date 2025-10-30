@@ -68,8 +68,8 @@
         <p>No hay recibos asociados a esta transacción.</p>
     {% endif %}
 
-    <h3>Historial de Cambios:</h3>
-    {% if history %}
+    <h3>Historial de Cambios de la Transacción:</h3>
+    {% if transaction_history %}
         <table class="history-table" border="1">
             <thead>
                 <tr>
@@ -80,7 +80,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for record in history %}
+                {% for record in transaction_history %}
                     <tr>
                         <td>{{ record.history_date|date:"d/m/Y H:i" }}</td>
                         <td>{{ record.history_user|default:"Sistema" }}</td>
@@ -108,6 +108,73 @@
     {% else %}
         <p>No hay historial de cambios para esta transacción.</p>
     {% endif %}
+
+    <h3>Historial de Cambios de los Recibos Asociados:</h3>
+    {% if receipts_with_history %}
+        {% for receipt_data in receipts_with_history %}
+            <div class="receipt-history-container">
+                <h4>Recibo ID: {{ receipt_data.receipt.id }} - Comprobante: {{ receipt_data.receipt.comprobante }}
+                    <button class="toggle-receipt-history-btn" data-receipt-id="{{ receipt_data.receipt.id }}">+</button>
+                </h4>
+                <div id="receipt-history-{{ receipt_data.receipt.id }}" style="display:none;">
+                    {% if receipt_data.history %}
+                        <table class="history-table" border="1">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Usuario</th>
+                                    <th>Tipo</th>
+                                    <th>Cambios</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in receipt_data.history %}
+                                    <tr>
+                                        <td>{{ record.history_date|date:"d/m/Y H:i" }}</td>
+                                        <td>{{ record.history_user|default:"Sistema" }}</td>
+                                        <td>{{ record.get_history_type_display }}</td>
+                                        <td>
+                                            {% if record.history_type == '~' and record.delta %}
+                                                <ul>
+                                                {% for change in record.delta.changes %}
+                                                    <li>
+                                                        <strong>{{ change.field|capfirst }}:</strong>
+                                                        de <em>{{ change.old }}</em> a <em>{{ change.new }}</em>
+                                                    </li>
+                                                {% endfor %}
+                                                </ul>
+                                            {% elif record.history_type == '+' %}
+                                                Creado
+                                            {% elif record.history_type == '-' %}
+                                                Eliminado
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No hay historial de cambios para este recibo.</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No hay recibos asociados con historial de cambios.</p>
+    {% endif %}
+
+    {# Modal para confirmar eliminación #}
+    <div id="delete-confirm-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Confirmar Eliminación</h2>
+            <p>¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer.</p>
+            <div class="modal-buttons">
+                <button id="modal-confirm-delete" class="btn btn-danger">Eliminar</button>
+                <button id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
     {# Modal para confirmar eliminación #}
     <div id="delete-confirm-modal" class="modal" style="display:none;">
@@ -157,16 +224,15 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- Toggle Receipts --- //
-    document.querySelectorAll('.toggle-receipts-btn').forEach(button => {
+    document.querySelectorAll('.toggle-receipt-history-btn').forEach(button => {
         button.addEventListener('click', function() {
-            const transactionId = this.dataset.transactionId;
-            const receiptsRow = document.getElementById(`receipts-${transactionId}`);
-            if (receiptsRow.style.display === 'none') {
-                receiptsRow.style.display = 'table-row';
+            const receiptId = this.dataset.receiptId;
+            const historyDiv = document.getElementById(`receipt-history-${receiptId}`);
+            if (historyDiv.style.display === 'none') {
+                historyDiv.style.display = 'block';
                 this.textContent = '-';
             } else {
-                receiptsRow.style.display = 'none';
+                historyDiv.style.display = 'none';
                 this.textContent = '+';
             }
         });

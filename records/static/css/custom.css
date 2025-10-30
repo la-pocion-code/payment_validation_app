@@ -361,7 +361,10 @@ label {
     }
 }
 
-/* Basic Modal Styles */
+.add-receipt-button-container {
+    text-align: center;
+    margin-top: 15px; /* Add some space above the button */
+}
 .modal {
     position: fixed;
     z-index: 1000; /* Sit on top */

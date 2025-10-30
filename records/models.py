@@ -130,7 +130,7 @@ class FinancialRecord(models.Model):
     comprobante = models.CharField(max_length=200, verbose_name="# Comprobante")
     banco_llegada = models.ForeignKey(Bank, on_delete=models.PROTECT, verbose_name="Banco Llegada")
     origen_transaccion = models.ForeignKey('OrigenTransaccion', on_delete=models.PROTECT, verbose_name="Origen de Transacción")
-    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    valor = models.DecimalField(max_digits=12, decimal_places=2)
     payment_status = models.CharField(max_length=20, choices=APROVED_CHOICES, default='Pendiente', verbose_name="Estado de pago")
     transaction = models.ForeignKey(
         'Transaction', 

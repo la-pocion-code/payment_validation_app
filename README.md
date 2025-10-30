@@ -13,6 +13,7 @@ Financial Tracker es una aplicación web desarrollada con Django para gestionar 
 *   **Carga Masiva de CSV:** Los administradores pueden cargar registros financieros de forma masiva utilizando un archivo CSV. El sistema valida los datos y evita entradas duplicadas.
 *   **Filtros Avanzados:** Busca y filtra registros fácilmente por fecha, estado, cliente y más.
 *   **Pista de Auditoría:** Se utiliza `django-simple-history` para rastrear todos los cambios realizados en los registros financieros, proporcionando un historial completo para fines de auditoría.
+*   **Historial Detallado de Transacciones y Recibos:** Se utiliza `django-simple-history` para rastrear todos los cambios realizados en las transacciones y sus recibos asociados (`FinancialRecord`). Ahora, al ver el detalle de una transacción, se puede acceder al historial de cambios de cada recibo individualmente, proporcionando una trazabilidad completa.
 *   **Exportar Datos:** Exporta los registros financieros filtrados a un archivo CSV.
 *   **Prevención de Duplicados:** El sistema identifica y marca los intentos de crear registros duplicados.
 *   **Sistema de Solicitud de Acceso:** Los nuevos usuarios son puestos en una cola de espera hasta que un administrador apruebe su acceso.
