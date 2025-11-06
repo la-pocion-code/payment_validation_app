@@ -5,6 +5,7 @@ from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import User
 from django.db.models import Sum
 from datetime import datetime
+from decimal import Decimal
 from .utils import calculate_effective_date
 import secrets
 
@@ -70,13 +71,14 @@ class Transaction(models.Model):
         ('Facturado', 'Facturado'),
         ('Anulado', 'Anulado'),
     ]
-    date = models.DateField(default=timezone.now, verbose_name="Fecha de Transacción")
+    date = models.DateField(default=timezone.now, verbose_name="Fecha Venta")
     cliente = models.CharField(max_length=200, blank=True, null=True)
     vendedor = models.ForeignKey(Seller,on_delete=models.PROTECT, verbose_name="Vendedor")
-    description = models.CharField(max_length=255, verbose_name="Descripción", blank=True, null=True)
+    description = models.CharField(max_length=255, verbose_name="Observación", blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pendiente', verbose_name="Estado de Transacción")
     numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
     facturador = models.CharField(max_length=100, blank=True, null=True, default=None)
+    expected_amount = models.DecimalField(max_digits=12, decimal_places=2,  verbose_name="Valor Venta")
     history = HistoricalRecords()
 
     unique_transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True, verbose_name="ID unico")
@@ -106,9 +108,25 @@ class Transaction(models.Model):
             # Usamao .update() para guardar solo este campo y evitar un bucle
             Transaction.objects.filter(id=self.id).update(unique_transaction_id=self.unique_transaction_id)
 
+    # @property
+    # def total_valor(self):
+    #     return self.receipts.aggregate(total=Sum('valor'))['total'] or 0
     @property
-    def total_valor(self):
-        return self.receipts.aggregate(total=Sum('valor'))['total'] or 0
+    def receipts_total(self):
+        """
+        Suma el valor de todos los recibos (FinancialRecord) asociados.
+        Devuelve un objeto Decimal.
+        """
+        total = self.receipts.aggregate(valor_total=Sum('valor'))['valor_total']
+        return total or Decimal('0.00')
+
+    @property
+    def difference(self):
+        """
+        Calcula la diferencia entre el monto esperado y el total de recibos.
+        Devuelve un objeto Decimal.
+        """
+        return self.expected_amount - self.receipts_total
 
 
     class Meta:

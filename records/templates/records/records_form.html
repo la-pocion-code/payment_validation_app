@@ -1,4 +1,5 @@
 {% extends "records/base.html" %}
+{% load humanize %}
 {% load static %}
 
 {% block title %}{{ title }}{% endblock %}
@@ -12,7 +13,7 @@
             <p><strong>Fecha:</strong> {{ existing_record.fecha|date:"d/m/Y" }}</p>
             <p><strong>Hora:</strong> {{ existing_record.hora|time:"H:i:s" }}</p>
             <p><strong>Banco:</strong> {{ existing_record.banco_llegada }}</p>
-            <p><strong>Valor:</strong> {{ existing_record.valor }}</p>
+            <p><strong>Valor:</strong> {{ existing_record.valor|intcomma }}</p>
             <p><strong># Comprobante:</strong> {{ existing_record.comprobante }}</p>
             <hr>
             <p class="mb-0"><strong>¿Estás seguro de que quieres crear un nuevo registro con los datos que acabas de introducir?</strong></p>

@@ -1,11 +1,19 @@
 {% extends "records/base.html" %}
+{% load humanize %}
 {% load static %}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1>{{ title }}</h1>z
+<div class="d-flex justify-content-between align-items-center flex-wrap">
+  <h1 class="mb-0">{{ title }}</h1>
+  <div class="d-flex align-items-end gap-2">
+    <label for="id_actual_amount" class="form-label">Monto Actual</label>
+    <input type="text" id="id_actual_amount" class="form-control" placeholder="Monto Actual" readonly disabled style="width:140px;">
+    <label for="id_difference_amount" class="form-label">Diferencia</label>
+    <input type="text" id="id_difference_amount" class="form-control" placeholder="Diferencia" readonly disabled style="width:140px;">
+  </div>
+</div>
 
     {% if messages %}
         <div class="messages">
@@ -32,11 +40,7 @@
                 </div>
             {% endif %}
             <div class="filter-fields">
-                <div class="filter-field">
-                    {{ transaction_form.description.label_tag }}
-                    {{ transaction_form.description }}
-                    {{ transaction_form.description.errors }}
-                </div>
+            
                 <div class="filter-field">
                     {{ transaction_form.date.label_tag }}
                     {{ transaction_form.date }}
@@ -52,6 +56,16 @@
                     {{ transaction_form.vendedor }}
                     {{ transaction_form.vendedor.errors }}
                 </div>  
+                <div class="filter-field">
+                    {{ transaction_form.expected_amount.label_tag }}
+                    {{ transaction_form.expected_amount }}
+                    {{ transaction_form.expected_amount.errors }}
+                </div> 
+                <div class="filter-field">
+                    {{ transaction_form.description.label_tag }}
+                    {{ transaction_form.description }}
+                    {{ transaction_form.description.errors }}
+                </div>
             </div>
         </fieldset>
         
@@ -229,185 +243,286 @@
 </div>
 
 <script>
-
 document.addEventListener('DOMContentLoaded', function() {
-    const addFormBtn = document.getElementById('add-form');
-    const container = document.getElementById('receipt-forms-container');
-    const emptyFormTemplateEl = document.getElementById('empty-form-template');
-    const totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
-    const transactionDateField = document.getElementById('id_transaction_date');
+    // --- Selectores del Formset (Existentes) ---
+    const addFormBtn = document.getElementById('add-form');
+    const container = document.getElementById('receipt-forms-container');
+    const emptyFormTemplateEl = document.getElementById('empty-form-template');
+    const totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+    const transactionDateField = document.getElementById('id_transaction_date');
 
-    if (!addFormBtn || !container || !emptyFormTemplateEl || !totalFormsInput) {
-        console.error('One or more critical script elements for the formset were not found.');
-        return;
+    // --- Selectores para Cálculo de Totales (Nuevos) ---
+    const expectedAmountInput = document.getElementById('id_expected_amount');
+    const actualAmountOutput = document.getElementById('id_actual_amount');
+    const differenceOutput = document.getElementById('id_difference_amount');
+
+    if (!addFormBtn || !container || !emptyFormTemplateEl || !totalFormsInput) {
+        console.error('One or more critical script elements for the formset were not found.');
+        return;
+    }
+
+    if (!expectedAmountInput || !actualAmountOutput || !differenceOutput) {
+        console.error('Elementos para el cálculo de totales no encontrados. Verifica los IDs.');
     }
 
-    const emptyFormTemplate = emptyFormTemplateEl.innerHTML;
+    const emptyFormTemplate = emptyFormTemplateEl.innerHTML;
 
-    function getNextAvailableReceiptNumber() {
-        const usedNumbers = Array.from(container.querySelectorAll('.receipt-form-instance'))
-            .filter(form => 
-                form.style.display !== 'none' &&
-                !form.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked
-            )
-            .map(el => {
-                const h5 = el.querySelector('h5');
-                if (!h5) return null;
-                const match = h5.textContent.match(/Recibo #(\d+)/);
-                return match ? parseInt(match[1], 10) : null;
-            })
-            .filter(n => n !== null)
-            .sort((a, b) => a - b);
+    // ==========================================================
+    // --- LÓGICA DE CÁLCULO DE TOTALES (NUEVA) ---
+    // ==========================================================
 
-        let nextNumber = 1;
-        for (const num of usedNumbers) {
-            if (num === nextNumber) {
-                nextNumber++;
-            } else if (num < nextNumber) {
-                continue;
-            } else {
-                break;
+    function updateTotals() {
+        if (!expectedAmountInput || !actualAmountOutput || !differenceOutput) return;
+
+        // Convertir número en formato estándar (1,234.56) a float
+        const parseCustomFloat = (str) => {
+            if (!str) return 0;
+            const cleaned = str.toString().replace(/,/g, '');
+            return parseFloat(cleaned) || 0;
+        };
+
+        let totalReceipts = 0;
+        const valorInputs = container.querySelectorAll('input[name$="-valor"]');
+
+        valorInputs.forEach(input => {
+            const formInstance = input.closest('.receipt-form-instance');
+            if (!formInstance) return;
+
+            const isDeleted = formInstance.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked;
+            const isHidden = formInstance.style.display === 'none';
+
+            if (!isDeleted && !isHidden) {
+                const value = parseCustomFloat(input.value);
+                totalReceipts += value;
             }
-        }
-        return nextNumber;
-    }
+        });
 
-    function renumberReceipts() {
-        const activeForms = Array.from(container.querySelectorAll('.receipt-form-instance'))
-            .filter(form =>
-                form.style.display !== 'none' &&
-                !form.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked
-            );
+        const expected = parseCustomFloat(expectedAmountInput.value);
+        const difference = expected - totalReceipts;
 
-        let counter = 1;
-        for (let i = 0; i < activeForms.length; i++) {
-            const form = activeForms[i];
-            const titleEl = form.querySelector('h5');
-            if (titleEl) {
-                titleEl.textContent = 'Recibo #' + counter;
-                counter++;
-            }
-        }
-    }
+        const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+        actualAmountOutput.value = totalReceipts.toLocaleString('en-US', numberFormatOptions);
+        differenceOutput.value = difference.toLocaleString('en-US', numberFormatOptions);
 
-    function addForm() {
-        const index = parseInt(totalFormsInput.value, 10);
-        const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, index);
-        
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = newFormHtml;
-        const newForm = tempDiv.firstElementChild;
+        // COLORES SEGÚN DIFERENCIA
+        differenceOutput.classList.remove('is-valid', 'is-invalid', 'bg-success', 'bg-danger', 'bg-warning', 'text-white', 'text-dark');
 
-        if (newForm) {
-            const titleEl = newForm.querySelector('h5');
-            if (titleEl) {
-                const nextNumber = getNextAvailableReceiptNumber();
-                titleEl.textContent = 'Recibo #' + nextNumber;
-            }
-
-            const lastForm = container.querySelector('.receipt-form-instance:last-child');
-            if (lastForm) {
-                lastForm.insertAdjacentElement('afterend', newForm);
-            }
-            else {
-                container.appendChild(newForm);
-            }
-            
-            if(transactionDateField) syncReceiptDate(newForm);
-            totalFormsInput.value = index + 1;
+        if (difference < -0.001) { // Excedente
+            differenceOutput.classList.add('bg-warning', 'text-dark');
+        } else if (difference > 0.001) { // Faltante
+            differenceOutput.classList.add('bg-danger', 'text-white');
+        } else { // Correcto
+            differenceOutput.classList.add('bg-success', 'text-white');
         }
     }
 
-    function handleContainerClick(e) {
-        if (e.target && e.target.classList.contains('remove-form-btn')) {
-            const visibleForms = container.querySelectorAll('.receipt-form-instance:not([style*="display: none"])').length;
-            if (visibleForms < 1) {
-                alert('Debe haber al menos un recibo.');
+    // ==========================================================
+    // --- LÓGICA DE FORMSET (EXISTENTE CON MODIFICACIONES) ---
+    // ==========================================================
+
+    function getNextAvailableReceiptNumber() {
+        // ... (Tu código existente - sin cambios)
+        const usedNumbers = Array.from(container.querySelectorAll('.receipt-form-instance'))
+            .filter(form => 
+                form.style.display !== 'none' &&
+                !form.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked
+            )
+            .map(el => {
+                const h5 = el.querySelector('h5');
+                if (!h5) return null;
+                const match = h5.textContent.match(/Recibo #(\d+)/);
+                return match ? parseInt(match[1], 10) : null;
+            })
+            .filter(n => n !== null)
+            .sort((a, b) => a - b);
+        let nextNumber = 1;
+        for (const num of usedNumbers) {
+            if (num === nextNumber) nextNumber++;
+            else if (num < nextNumber) continue;
+            else break;
+        }
+        return nextNumber;
+    }
+
+    function renumberReceipts() {
+        // ... (Tu código existente - sin cambios)
+        const activeForms = Array.from(container.querySelectorAll('.receipt-form-instance'))
+            .filter(form =>
+                form.style.display !== 'none' &&
+                !form.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked
+            );
+        let counter = 1;
+        for (let i = 0; i < activeForms.length; i++) {
+            const form = activeForms[i];
+            const titleEl = form.querySelector('h5');
+            if (titleEl) {
+                titleEl.textContent = 'Recibo #' + counter;
+                counter++;
+            }
+        }
+    }
+
+    function addForm() {
+     
+        const index = parseInt(totalFormsInput.value, 10);
+        const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, index);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newFormHtml;
+        const newForm = tempDiv.firstElementChild;
+        if (newForm) {
+            const titleEl = newForm.querySelector('h5');
+            if (titleEl) {
+                const nextNumber = getNextAvailableReceiptNumber();
+                titleEl.textContent = 'Recibo #' + nextNumber;
+            }
+            const lastForm = container.querySelector('.receipt-form-instance:last-child');
+            if (lastForm) lastForm.insertAdjacentElement('afterend', newForm);
+            else container.appendChild(newForm);
+            if(transactionDateField) syncReceiptDate(newForm);
+            totalFormsInput.value = index + 1;
+            // NOTA: No llamamos a updateTotals() aquí, 
+            // se llamará cuando el usuario escriba en el nuevo campo de 'valor'.
+        }
+    }
+
+    function handleContainerClick(e) {
+        if (e.target && e.target.classList.contains('remove-form-btn')) {
+            const visibleForms = container.querySelectorAll('.receipt-form-instance:not([style*="display: none"])').length;
+            if (visibleForms < 1) {
+                alert('Debe haber al menos un recibo.');
+                return;
+            }
+            const formInstance = e.target.closest('.receipt-form-instance');
+            if (formInstance) {
+                const deleteInput = formInstance.querySelector('input[type="checkbox"][name$="-DELETE"]');
+                if (deleteInput) {
+                    deleteInput.checked = true;
+                }
+                formInstance.style.display = 'none';
+                renumberReceipts();
+                
+                // --- ¡MODIFICACIÓN! ---
+                // Recalculamos los totales cuando un formulario se elimina.
+                updateTotals(); 
+            }
+        }
+    }
+
+    function syncAllDates() {
+        // ... (Tu código existente - sin cambios)
+        const newDate = this.value;
+        container.querySelectorAll('.receipt-form-instance').forEach(function(form) {
+            const dateField = form.querySelector('input[type="date"]');
+            if (dateField) dateField.value = newDate;
+        });
+    }
+
+    function syncReceiptDate(receiptForm) {
+        // ... (Tu código existente - sin cambios)
+        const dateField = receiptForm.querySelector('input[type="date"]');
+        if (dateField && !dateField.value && transactionDateField) {
+            dateField.value = transactionDateField.value;
+        }
+    }
+
+    // --- CÓDIGO PARA CALCULAR FECHA EFECTIVA (Existente) ---
+    container.addEventListener('change', (e) => {
+        if (e.target.matches('select[name$="-origen_transaccion"]') || e.target.matches('input[name$="-fecha"]')) {
+            const formPrefixMatch = e.target.name.match(/form-(\d+)-/);
+            if (!formPrefixMatch) return;
+            const formNum = formPrefixMatch[1];
+            const origenSelect = document.querySelector(`#id_form-${formNum}-origen_transaccion`);
+            const fechaInput = document.querySelector(`#id_form-${formNum}-fecha`);
+            const messageSpan = document.querySelector(`#effective-date-message-${formNum}`);
+            if (!origenSelect || !fechaInput || !messageSpan) return;
+            const origenId = origenSelect.value;
+            const fecha = fechaInput.value;
+            if (origenId && fecha) {
+                const url = `{% url 'get_effective_date' %}?origen_id=${origenId}&start_date=${fecha}`;
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        messageSpan.textContent = data.message || '';
+                    })
+      _             .catch(error => {
+                        console.error('Error al calcular fecha efectiva:', error);
+                        messageSpan.textContent = '';
+                    });
+            } else {
+                messageSpan.textContent = '';
+            }
+        }
+    });
+
+    // ==========================================================
+    // --- INICIALIZACIÓN Y EVENT LISTENERS ---
+    // ==========================================================
+    
+    // Listeners del Formset (Existentes)
+    addFormBtn.addEventListener('click', addForm);
+    container.addEventListener('click', handleContainerClick);
+    if(transactionDateField) transactionDateField.addEventListener('change', syncAllDates);
+
+    // --- Listeners para Cálculo de Totales y Formateo de Números (Nuevos) ---
+    function formatNumberInput(input) {
+            if (!input || !input.value) {
+                updateTotals();
                 return;
             }
 
-            const formInstance = e.target.closest('.receipt-form-instance');
-            if (formInstance) {
-                const deleteInput = formInstance.querySelector('input[type="checkbox"][name$="-DELETE"]');
-                if (deleteInput) {
-                    deleteInput.checked = true;
-                }
-                formInstance.style.display = 'none';
-
-                renumberReceipts();
-            }
-        }
-    }
-
-    function syncAllDates() {
-        const newDate = this.value;
-        container.querySelectorAll('.receipt-form-instance').forEach(function(form) {
-            const dateField = form.querySelector('input[type="date"]');
-            if (dateField) {
-                dateField.value = newDate;
-            }
-        });
-    }
-
-    function syncReceiptDate(receiptForm) {
-        const dateField = receiptForm.querySelector('input[type="date"]');
-        if (dateField && !dateField.value && transactionDateField) {
-            dateField.value = transactionDateField.value;
-        }
-    }
-     // --- CÓDIGO PARA CALCULAR FECHA EFECTIVA (INICIO) ---
-    container.addEventListener('change', (e) => {
-        // 1. Verificamos si el campo que cambió es un 'origen_transaccion' o una 'fecha'.
-        if (e.target.matches('select[name$="-origen_transaccion"]') || e.target.matches('input[name$="-fecha"]')) {
+            // Tomamos el valor del input y quitamos las comas para parsear
+            let value = input.value.trim();
+            const numericValue = parseFloat(value.replace(/,/g, ''));
             
-            // 2. Extraemos el número del formulario que cambió (ej: '0', '1', '2', etc.).
-            const formPrefixMatch = e.target.name.match(/form-(\d+)-/);
-            if (!formPrefixMatch) return; // Salimos si no encontramos el número
-            const formNum = formPrefixMatch[1];
-            
-            // 3. Usando el número, encontramos los otros campos y el span de mensaje de la misma fila.
-            const origenSelect = document.querySelector(`#id_form-${formNum}-origen_transaccion`);
-            const fechaInput = document.querySelector(`#id_form-${formNum}-fecha`);
-            const messageSpan = document.querySelector(`#effective-date-message-${formNum}`);
-
-            // 4. Nos aseguramos de que todos los elementos existan.
-            if (!origenSelect || !fechaInput || !messageSpan) return;
-
-            const origenId = origenSelect.value;
-            const fecha = fechaInput.value;
-
-            // 5. Si tenemos un origen y una fecha seleccionados...
-            if (origenId && fecha) {
-                // 6. ...construimos la URL y hacemos la llamada a nuestra vista de Django.
-                const url = `{% url 'get_effective_date' %}?origen_id=${origenId}&start_date=${fecha}`;
-                
-                fetch(url)
-                    .then(response => response.json())
-                    .then(data => {
-                        // 7. Mostramos el mensaje que nos devolvió Django en nuestro span.
-                        messageSpan.textContent = data.message || '';
-                    })
-                    .catch(error => {
-                        console.error('Error al calcular fecha efectiva:', error);
-                        messageSpan.textContent = ''; // Limpiamos el mensaje si hay un error.
-                    });
-            } else {
-                // 8. Si falta la fecha o el origen, nos aseguramos de que el mensaje esté vacío.
-                messageSpan.textContent = '';
+            if (isNaN(numericValue)) {
+                updateTotals();
+                return; // no cambiamos nada si no es un número válido
             }
+
+            // Formateamos con separador de miles (coma) y decimales (punto): 1,000.50
+            // Esto solo se aplica cuando el usuario SALE del campo (evento blur)
+            const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+            input.value = numericValue.toLocaleString('en-US', numberFormatOptions);
+            
+            updateTotals();
         }
-    });
+        
 
-    // --- Inicialización --- //
-    addFormBtn.addEventListener('click', addForm);
-    container.addEventListener('click', handleContainerClick);
-    if(transactionDateField) transactionDateField.addEventListener('change', syncAllDates);
+    function handleTotalsUpdate(e) {
+        const target = e.target;
+        if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
+            // En cada tecleo, solo actualizamos los totales para feedback en tiempo real.
+            updateTotals();
+        }
+    }
 
-    // Sincronizar fecha en formularios existentes
-    document.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);
+    function handleFormatting(e) {
+        const target = e.target;
+        if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
+            // Al salir del campo (evento 'blur'), le damos un formato bonito al número.
+            formatNumberInput(target);
+        }
+    }
 
-    // *** AGREGAR UN RECIBO ADICIONAL POR DEFECTO AL CARGAR LA PÁGINA ***
-    // addForm(); // Se comenta para evitar la adición automática de un formulario al cargar.
+    // 1. Escuchar cambios en el "Monto Esperado"
+    if (expectedAmountInput) {
+        expectedAmountInput.addEventListener('input', handleTotalsUpdate); // Actualiza totales al teclear
+        expectedAmountInput.addEventListener('blur', handleFormatting);  // Formatea el número al salir
+    }
+
+    // 2. Escuchar cambios en CUALQUIER campo de "valor" (delegación de eventos)
+    container.addEventListener('input', handleTotalsUpdate); // Actualiza totales al teclear
+
+    // El evento 'blur' no "burbujea" como otros, así que lo escuchamos en la fase de "captura" (tercer argumento `true`).
+    // Esto nos permite poner un solo listener en el contenedor para todos los campos de "valor",
+    // incluso para los que se añaden dinámicamente con "Añadir otro recibo".
+    container.addEventListener('blur', handleFormatting, true);
+
+    // --- Inicialización al cargar la página ---
+    document.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);
+
+    // 3. Calcular los totales una vez al cargar la página (para formularios existentes)
+    updateTotals(); 
 });
 </script>
 

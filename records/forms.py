@@ -87,6 +87,7 @@ class FinancialRecordForm(forms.ModelForm):
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
+            'valor': forms.TextInput(),
         }
 
     def clean(self):
@@ -243,9 +244,10 @@ class TransactionForm(forms.ModelForm):
 
     class Meta:
         model = Transaction
-        fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador', 'created_by']
+        fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador', 'created_by', 'expected_amount']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date', 'id': 'id_transaction_date', 'class': 'form-control'}),
+            'expected_amount': forms.TextInput(),
         }
 
 FinancialRecordFormSet = modelformset_factory(

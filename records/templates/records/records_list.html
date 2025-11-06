@@ -1,4 +1,5 @@
 {% extends 'records/base.html' %}
+{% load humanize %}
 {% load static %}
 
 {% block title %}Registros Financieros{% endblock %}
@@ -83,7 +84,7 @@
             <td>{{ transaction.vendedor }}</td>
             <td>{{ transaction.facturador }}</td>
             <td>{{ transaction.numero_factura }}</td>
-            <td>{{ transaction.total_valor }}</td>
+            <td>{{ transaction.receipts_total|intcomma }}</td>
             <td>{{ transaction.status }}</td>
             <td>
                 {# EDITAR #}
@@ -135,7 +136,7 @@
                                 <td>{{ receipt.hora|time:"H:i" }}</td>
                                 <td>{{ receipt.comprobante }}</td>
                                 <td>{{ receipt.banco_llegada.name }}</td>
-                                <td>{{ receipt.valor }}</td>
+                                <td>{{ receipt.valor|intcomma }}</td>
                                 <td>
                                     <span class="status-badge 
                                         {% if receipt.payment_status == 'Aprobado' %}status-aprobado
