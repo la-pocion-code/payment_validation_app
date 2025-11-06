@@ -223,8 +223,14 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
                 
 class TransactionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
+        user = kwargs.get('user', None) # Get user, but don't pop yet
+        
+        # Create a new kwargs dictionary for super().__init__
+        # This ensures 'user' is not passed to the parent constructor
+        super_kwargs = {k: v for k, v in kwargs.items() if k != 'user'}
+        
+        super().__init__(*args, **super_kwargs)
+
         # Inicializa y oculta campos
         if not self.instance.pk:
             self.fields['status'].initial = 'Pendiente'
@@ -242,6 +248,9 @@ class TransactionForm(forms.ModelForm):
                 for field in self.fields.values():
                     field.disabled = True
 
+        if self.instance.pk:  # If it's an existing instance (update)
+            del self.fields['expected_amount']
+
     class Meta:
         model = Transaction
         fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador', 'created_by', 'expected_amount']
@@ -249,6 +258,7 @@ class TransactionForm(forms.ModelForm):
             'date': forms.DateInput(attrs={'type': 'date', 'id': 'id_transaction_date', 'class': 'form-control'}),
             'expected_amount': forms.TextInput(),
         }
+
 
 FinancialRecordFormSet = modelformset_factory(
     FinancialRecord,

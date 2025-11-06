@@ -561,57 +561,44 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
         kwargs['user'] = self.request.user
         return kwargs
 
-class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
-    model = Transaction
-    form_class = TransactionForm
-    template_name = 'records/transaction_form.html'
-    success_url = reverse_lazy('record_list')
-    success_message = "¡Transacción actualizada exitosamente!"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Editar Transacción'
-        context['is_facturador'] = self.request.user.groups.filter(name='Facturador').exists()
-        if self.request.POST:
-            context['formset'] = FinancialRecordInlineFormSet(self.request.POST, instance=self.object, form_kwargs={'request': self.request})
-        else:
-            context['formset'] = FinancialRecordInlineFormSet(instance=self.object, form_kwargs={'request': self.request})
-        return context
-    
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
-        return kwargs
-
     def form_valid(self, form):
         context = self.get_context_data()
         formset = context['formset']
         is_facturador = self.request.user.groups.filter(name='Facturador').exists()
         is_superuser = self.request.user.is_superuser
 
-        # Variable para rastrear si hay advertencias de duplicados similares
-        has_similar_duplicate_warning = False
-        for fs_form in formset:
-            if 'confirm_duplicate' in fs_form.errors:
-                has_similar_duplicate_warning = True
-                break
+        has_similar_duplicate_warning = any('confirm_duplicate' in fs_form.errors for fs_form in formset)
 
-        if formset.is_valid(): # This will trigger clean() on each form in the formset
-            # Si hay advertencias de duplicados similares Y el usuario NO ha marcado la casilla de confirmación
+        if formset.is_valid():
             if has_similar_duplicate_warning:
-                messages.warning(self.request, 'Se detectaron posibles duplicados en los recibos. Por favor, revisa las advertencias y marca la casilla de confirmación si deseas guardar de todos modos.')
-                return self.render_to_response(self.get_context_data(form=form, formset=formset, show_confirm_duplicate=True))
+                messages.warning(
+                    self.request,
+                    'Se detectaron posibles duplicados en los recibos. Por favor, revisa las advertencias.'
+                )
+                return self.render_to_response(
+                    self.get_context_data(form=form, formset=formset, show_confirm_duplicate=True)
+                )
 
             with transaction.atomic():
-                self.object = form.save()
+                self.object = form.save(commit=False)
 
+                # 🔹 Asegurar que facturador siempre sea texto válido
+                if not self.object.facturador:  
+                    # Si el campo viene vacío, lo llenamos con el username del usuario actual
+                    self.object.facturador = self.request.user.username
+                elif hasattr(self.object.facturador, 'username'):
+                    # Si por alguna razón facturador es un objeto User
+                    self.object.facturador = self.object.facturador.username
+
+                self.object.save()
+
+                # 🔹 Solo guardamos formset si NO es facturador o si es superuser
                 if not is_facturador or is_superuser:
                     formset.instance = self.object
                     formset.save()
 
-                    # Log user override for similar duplicates
                     for fs_form in formset:
-                        if fs_form.cleaned_data.get('confirm_duplicate') and not fs_form.instance.pk: # Only for new records
+                        if fs_form.cleaned_data.get('confirm_duplicate') and not fs_form.instance.pk:
                             serializable_data = {k: str(v) for k, v in fs_form.cleaned_data.items()}
                             DuplicateRecordAttempt.objects.create(
                                 user=self.request.user,
@@ -624,10 +611,12 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
 
             messages.success(self.request, self.success_message)
             return redirect(self.get_success_url())
+
         else:
             messages.error(self.request, 'Por favor, corrija los errores en el formulario.')
             return self.render_to_response(self.get_context_data(form=form, formset=formset))
 
+    
     def form_invalid(self, form):
         messages.error(self.request, 'Por favor, corrija los errores en el formulario de la transacción.')
         context = self.get_context_data(form=form)
@@ -644,7 +633,7 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
             context['show_confirm_duplicate'] = True
 
         return self.render_to_response(context)
-
+    
 class TransactionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Transaction
     template_name = 'records/transaction_confirm_delete.html'
