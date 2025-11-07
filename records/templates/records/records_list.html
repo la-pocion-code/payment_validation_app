@@ -88,8 +88,26 @@
             <td>{{ transaction.numero_factura }}</td>
             <td>{{ transaction.receipts_total|intcomma }}</td>
             <td>{{ transaction.expected_amount|intcomma }}</td>
-            <td>{{ transaction.difference|intcomma }}</td>
-            <td>{{ transaction.status }}</td>
+            
+            <!-- Celda Diferencia con color condicional -->
+            <td>
+                <span class="status-badge-generic
+                    {% if transaction.difference == 0 %}bg-verde
+                    {% elif transaction.difference > 0 %}bg-rojo
+                    {% elif transaction.difference < 0 %}bg-amarillo
+                    {% endif %}">
+                    {{ transaction.difference|intcomma }}
+                </span>
+            </td>
+
+            <!-- Celda Status con color condicional -->
+            <td>
+                <span class="status-badge-generic
+                    {% if transaction.status == 'Facturado' %}bg-verde
+                    {% elif transaction.status == 'Anulado' %}bg-rojo
+                    {% elif transaction.status == 'Pendiente' %}bg-amarillo
+                    {% endif %}">{{ transaction.status }}</span>
+            </td>
             <td>
                 {# EDITAR #}
                {% if user.is_superuser or 'Facturador' in user_groups or 'Validador' in user_groups   or 'Digitador' in user_groups%}
@@ -205,6 +223,29 @@
     .modal-content { position: relative; background-color: #fefefe; padding: 20px; border: 1px solid #888; width: auto; max-width: 500px; border-radius: 8px; text-align: center; }
     .modal-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
     .close-button { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
+
+    /* --- INICIO: Estilos para badges de estado y diferencia --- */
+    .status-badge-generic {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: .85em; /* Ligeramente más grande para la tabla principal */
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.375rem; /* Bordes redondeados */
+    }
+    .bg-verde {
+        background-color: #28a745; color: white;
+    }
+    .bg-rojo {
+        background-color: #dc3545; color: white;
+    }
+    .bg-amarillo {
+        background-color: #ffc107; color: black;
+    }
+    /* --- FIN: Estilos para badges --- */
 </style>
 
 <script>

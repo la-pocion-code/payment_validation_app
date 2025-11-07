@@ -58,10 +58,18 @@
                             <input type="text" id="id_total_receipts_amount" class="form-control text-end"
                                 value="{{ total_receipts_amount|default:0|floatformat:2|intcomma }}" readonly>
                         </td>
-                        <td>
+                        
+                        <!-- Celda Diferencia con color condicional -->
+                        <td class="
+                            {% if difference == 0 %}bg-verde
+                            {% elif difference > 0 %}bg-rojo
+                            {% elif difference < 0 %}bg-amarillo
+                            {% endif %}
+                        ">
                             <input type="text" id="id_difference" class="form-control text-end"
                                 value="{{ difference|default:0|floatformat:2|intcomma }}" readonly>
                         </td>
+
 
                         <td>{{ form.description }} {{ form.description.errors }}</td>
 
@@ -80,10 +88,18 @@
                             <input type="text" id="id_total_receipts_amount" class="form-control text-end"
                                 value="{{ total_receipts_amount|default:0|floatformat:2|intcomma }}" readonly>
                         </td>
-                        <td>
+
+                        <!-- Celda Diferencia con color condicional (solo lectura) -->
+                        <td class="
+                            {% if difference == 0 %}bg-verde
+                            {% elif difference > 0 %}bg-rojo
+                            {% elif difference < 0 %}bg-amarillo
+                            {% endif %}
+                        ">
                             <input type="text" id="id_difference" class="form-control text-end"
                                 value="{{ difference|default:0|floatformat:2|intcomma }}" readonly>
                         </td>
+
 
                         <td><input type="text" class="form-control" value="{{ form.description.value }}" readonly></td>
                     {% endif %}
@@ -100,7 +116,15 @@
                         </td>
 
                         <td>{{ form.numero_factura }} {{ form.numero_factura.errors }}</td>
-                        <td>{{ form.status }} {{ form.status.errors }}</td>
+
+                        <!-- Celda Estado Transacción con color condicional -->
+                        <td class="
+                            {% if form.instance.status == 'Facturado' %}bg-verde
+                            {% elif form.instance.status == 'Anulado' %}bg-rojo
+                            {% elif form.instance.status == 'Pendiente' %}bg-amarillo
+                            {% endif %}
+                        ">{{ form.status }} {{ form.status.errors }}</td>
+
                     </tr>
                 </tbody>
             </table>
@@ -321,6 +345,23 @@
         .modal-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
         .close-button { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
     </style>
+
+    {# --- INICIO: NUEVAS CLASES CSS PARA COLORES --- #}
+    <style>
+        .bg-verde {
+            background-color: #28a745 !important; /* Verde éxito */
+            color: white;
+        }
+        .bg-rojo {
+            background-color: #dc3545 !important; /* Rojo peligro */
+            color: white;
+        }
+        .bg-amarillo {
+            background-color: #ffc107 !important; /* Amarillo advertencia */
+            color: black;
+        }
+    </style>
+    {# --- FIN: NUEVAS CLASES CSS PARA COLORES --- #}
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {

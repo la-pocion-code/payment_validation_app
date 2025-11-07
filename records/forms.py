@@ -142,24 +142,23 @@ class FinancialRecordForm(forms.ModelForm):
                 if comprobante:
                     similar_qs = similar_qs.exclude(comprobante=comprobante)
 
-                if similar_qs.exists() and not confirm_duplicate:
-                    self.add_error(
-                        'confirm_duplicate', # Adjuntar el error al nuevo campo
-                        format_html('<div id=\"similar-duplicate-warning\">ADVERTENCIA: Posible registro duplicado. Ya existe un registro con la misma Fecha, Hora, Banco y Valor. Si estás seguro de que no es un duplicado, marca la casilla de confirmación.</div>')
-                    )
-                    # Almacenar los registros similares para mostrarlos en la plantilla
-                    self.similar_records = similar_qs
-
-                    # if self.request:
-                    #     serializable_data = {k: str(v) for k, v in cleaned_data.items()}
-                    #     DuplicateRecordAttempt.objects.create(
-                    #         user=self.request.user,
-                    #         data=serializable_data,
-                    #         attempt_type='SIMILAR'
-                    #     )
-                    # raise forms.ValidationError(
-                    #     format_html('<div id="similar-duplicate-error">Posible registro duplicado: ya existe un registro con la misma Fecha, Hora, Banco y Valor. Por favor, revisa los registros existentes.</div>')
-                    # )
+                if similar_qs.exists():
+                    if not confirm_duplicate:
+                        # Si hay un duplicado similar y el usuario NO ha confirmado, mostramos la advertencia.
+                        self.add_error(
+                            'confirm_duplicate',
+                            format_html('<div id=\"similar-duplicate-warning\">ADVERTENCIA: Posible registro duplicado. Ya existe un registro con la misma Fecha, Hora, Banco y Valor. Si estás seguro de que no es un duplicado, marca la casilla de confirmación.</div>')
+                        )
+                        self.similar_records = similar_qs
+                    else:
+                        # Si el usuario SÍ ha confirmado, creamos la alerta para el administrador.
+                        if self.request:
+                            serializable_data = {k: str(v) for k, v in cleaned_data.items()}
+                            DuplicateRecordAttempt.objects.create(
+                                user=self.request.user,
+                                data=serializable_data,
+                                attempt_type='SIMILAR'
+                            )
 
         # Para nuevos registros, si payment_status no se envía, establece el valor por defecto.
         if not self.instance.pk and not cleaned_data.get('payment_status'):
