@@ -30,14 +30,14 @@
                     </thead>
                     <tbody>
                     <tr>
-                    {% if request.user.is_superuser or 'Digitador' in user_group_names %}
+                    {% if request.user.is_superuser or 'Digitador' in user_groups %}
                         <td>{{ form.date }} {{ form.date.errors }}</td>
                         <td>{{ form.cliente }} {{ form.cliente.errors }}</td>
                         <td>{{ form.vendedor }} {{ form.vendedor.errors }}</td>
 
                         <!-- Campo Valor Venta con validación -->
                         <td>
-                            {% if request.user.is_superuser or 'Digitador' in user_group_names %}
+                            {% if request.user.is_superuser or 'Digitador' in user_groups %}
                                 <input type="text"
                                     id="id_expected_amount"
                                     class="form-control text-end"
@@ -90,7 +90,7 @@
 
                         <!-- Facturador -->
                         <td>
-                            {% if request.user.is_superuser or 'Digitador' not in user_group_names %}
+                            {% if request.user.is_superuser or 'Digitador' not in user_groups %}
                                 {{ form.facturador }}
                             {% else %}
                                 <input type="text" value="{{ request.user.username }}" readonly class="form-control">
@@ -128,7 +128,7 @@
                         {% endif %}
 
                         <div class="receipt-form-fields">
-                            {% if request.user.is_superuser or 'Digitador' in user_group_names %}
+                            {% if request.user.is_superuser or 'Digitador' in user_groups %}
                                 <div class="receipt-field">
                                     {{ form.origen_transaccion.label_tag }}
                                     {{ form.origen_transaccion }}
@@ -195,10 +195,10 @@
                     </div>
                 {% endfor %}
             </div>
-
-            {% if request.user.is_superuser or 'Digitador' in user_group_names %}
+           
+            {% if request.user.is_superuser or 'Digitador' in user_groups %}
                 <button type="button" id="add-receipt-btn">Añadir Recibo</button>
-            {% endif %}
+            {% endif %} 
         </fieldset>
 
 
@@ -245,6 +245,7 @@
         <div class="receipt-form-instance" id="receipt-form-__prefix__">
             <h5>Nuevo Recibo</h5>
             <div class="receipt-form-fields">
+                <div class="receipt-field">{{ formset.empty_form.origen_transaccion.label_tag }}{{ formset.empty_form.origen_transaccion }}</div>
                 <div class="receipt-field">{{ formset.empty_form.fecha.label_tag }}{{ formset.empty_form.fecha }}</div>
                 <div class="receipt-field">{{ formset.empty_form.hora.label_tag }}{{ formset.empty_form.hora }}</div>
                 <div class="receipt-field">{{ formset.empty_form.comprobante.label_tag }}{{ formset.empty_form.comprobante }}</div>
@@ -514,7 +515,7 @@
 
         function formatNumberInput(input) {
             if (!input || !input.value) {
-                updateTotals();
+                updateTotals();0
                 return;
             }
             let value = input.value.trim();
@@ -528,17 +529,23 @@
             updateTotals();
         }
 
-        function handleTotalsUpdate(e) {
-            const target = e.target;
-            if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
-                const currentValue = target.value;
-                const sanitizedValue = currentValue.replace(/[^0-9.,]/g, '');
-                if (currentValue !== sanitizedValue) {
-                    target.value = sanitizedValue;
-                }
-                updateTotals();
+    function handleTotalsUpdate(e) {
+        const target = e.target;
+        if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
+            let currentValue = target.value;
+
+            // Permitir signo negativo solo al inicio y dígitos, puntos o comas
+            const sanitizedValue = currentValue
+                .replace(/(?!^)-/g, '')  // elimina guiones que no estén al inicio
+                .replace(/[^0-9.,-]/g, ''); // permite números, punto, coma y el guion inicial
+
+            if (currentValue !== sanitizedValue) {
+                target.value = sanitizedValue;
             }
+
+            updateTotals();
         }
+    }
 
         function handleFormatting(e) {
             const target = e.target;

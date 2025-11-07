@@ -310,6 +310,7 @@ class OrigenTransaccionCreateView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Crear Nuevo Origen de Transacción'
         return context
+    
 
 class OrigenTransaccionUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = OrigenTransaccion
@@ -550,6 +551,7 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Transacción'
         context['is_facturador'] = self.request.user.groups.filter(name='facturador').exists()
+        context['user_groups'] = list(self.request.user.groups.values_list('name', flat=True))
         
         transaction = self.get_object()
         total_receipts_amount = sum(receipt.valor for receipt in transaction.receipts.all() if receipt.valor)
@@ -605,19 +607,32 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                 # 🔹 Solo guardamos formset si NO es facturador o si es superuser
                 if not is_facturador or is_superuser:
                     formset.instance = self.object
-                    formset.save()
+                    
+                    for receipt_form in formset:
+                        if receipt_form.has_changed() and receipt_form.cleaned_data:
+                            if receipt_form.cleaned_data.get('DELETE'):
+                                if receipt_form.instance.pk:
+                                    receipt_form.instance.delete()
+                            else:
+                                receipt = receipt_form.save(commit=False)
+                                is_new = not receipt.pk
+                                
+                                if is_new:
+                                    receipt.uploaded_by = self.request.user
+                                
+                                receipt.transaction = self.object
+                                receipt.save()
 
-                    for fs_form in formset:
-                        if fs_form.cleaned_data.get('confirm_duplicate') and not fs_form.instance.pk:
-                            serializable_data = {k: str(v) for k, v in fs_form.cleaned_data.items()}
-                            DuplicateRecordAttempt.objects.create(
-                                user=self.request.user,
-                                data=serializable_data,
-                                attempt_type='SIMILAR',
-                                is_resolved=True,
-                                resolved_by=self.request.user,
-                                resolved_at=timezone.now()
-                            )
+                                if receipt_form.cleaned_data.get('confirm_duplicate') and is_new:
+                                    serializable_data = {k: str(v) for k, v in receipt_form.cleaned_data.items()}
+                                    DuplicateRecordAttempt.objects.create(
+                                        user=self.request.user,
+                                        data=serializable_data,
+                                        attempt_type='SIMILAR',
+                                        is_resolved=True,
+                                        resolved_by=self.request.user,
+                                        resolved_at=timezone.now()
+                                    )
 
             messages.success(self.request, self.success_message)
             return redirect(self.get_success_url())

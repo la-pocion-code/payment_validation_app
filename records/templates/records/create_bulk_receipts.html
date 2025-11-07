@@ -491,16 +491,17 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleTotalsUpdate(e) {
         const target = e.target;
         if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
-            // --- ¡NUEVA VALIDACIÓN! ---
-            // Limpiamos cualquier caracter que no sea un número, coma o punto.
-            const currentValue = target.value;
-            const sanitizedValue = currentValue.replace(/[^0-9.,]/g, '');
+            let currentValue = target.value;
+
+            // Permitir signo negativo solo al inicio y dígitos, puntos o comas
+            const sanitizedValue = currentValue
+                .replace(/(?!^)-/g, '')  // elimina guiones que no estén al inicio
+                .replace(/[^0-9.,-]/g, ''); // permite números, punto, coma y el guion inicial
 
             if (currentValue !== sanitizedValue) {
                 target.value = sanitizedValue;
             }
-            
-            // En cada tecleo, solo actualizamos los totales para feedback en tiempo real.
+
             updateTotals();
         }
     }

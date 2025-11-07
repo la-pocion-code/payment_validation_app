@@ -252,14 +252,11 @@ class TransactionForm(forms.ModelForm):
 
     def clean_expected_amount(self):
         expected_amount = self.cleaned_data.get('expected_amount')
-        if expected_amount:
-            # Remove thousands separators and then replace comma with a dot for decimal conversion
-            cleaned_value = str(expected_amount).replace('.', '').replace(',', '.')
-            # Remove non-numeric characters except the decimal point
-            import re
-            cleaned_value = re.sub(r'[^0-9.]', '', cleaned_value)
+        if expected_amount is not None:
+            # El valor ya viene sin comas desde el JavaScript.
+            # Simplemente lo convertimos a float.
             try:
-                return float(cleaned_value)
+                return float(expected_amount)
             except (ValueError, TypeError):
                 raise forms.ValidationError("Ingrese un número válido.")
         return expected_amount
