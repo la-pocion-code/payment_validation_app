@@ -491,6 +491,15 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleTotalsUpdate(e) {
         const target = e.target;
         if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
+            // --- ¡NUEVA VALIDACIÓN! ---
+            // Limpiamos cualquier caracter que no sea un número, coma o punto.
+            const currentValue = target.value;
+            const sanitizedValue = currentValue.replace(/[^0-9.,]/g, '');
+
+            if (currentValue !== sanitizedValue) {
+                target.value = sanitizedValue;
+            }
+            
             // En cada tecleo, solo actualizamos los totales para feedback en tiempo real.
             updateTotals();
         }
@@ -517,6 +526,25 @@ document.addEventListener('DOMContentLoaded', function() {
     // Esto nos permite poner un solo listener en el contenedor para todos los campos de "valor",
     // incluso para los que se añaden dinámicamente con "Añadir otro recibo".
     container.addEventListener('blur', handleFormatting, true);
+
+    // --- LIMPIEZA ANTES DE ENVIAR EL FORMULARIO ---
+    const mainForm = document.querySelector('form.filter-form');
+    if (mainForm) {
+        mainForm.addEventListener('submit', function() {
+            // Desformatear el campo 'expected_amount'
+            if (expectedAmountInput && expectedAmountInput.value) {
+                expectedAmountInput.value = expectedAmountInput.value.replace(/,/g, '');
+            }
+
+            // Desformatear todos los campos 'valor'
+            const valorInputs = container.querySelectorAll('input[name$="-valor"]');
+            valorInputs.forEach(function(input) {
+                if (input.value) {
+                    input.value = input.value.replace(/,/g, '');
+                }
+            });
+        });
+    }
 
     // --- Inicialización al cargar la página ---
     document.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);

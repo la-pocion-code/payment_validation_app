@@ -550,6 +550,16 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Transacción'
         context['is_facturador'] = self.request.user.groups.filter(name='facturador').exists()
+        
+        transaction = self.get_object()
+        total_receipts_amount = sum(receipt.valor for receipt in transaction.receipts.all() if receipt.valor)
+        
+        expected_amount = transaction.expected_amount or 0
+        difference = expected_amount - total_receipts_amount
+        
+        context['total_receipts_amount'] = total_receipts_amount
+        context['difference'] = difference
+
         if self.request.POST:
             context['formset'] = FinancialRecordInlineFormSet(self.request.POST, instance=self.object, form_kwargs={'request': self.request})
         else:
@@ -1155,6 +1165,7 @@ def create_bulk_receipts(request):
                     date=transaction_form.cleaned_data['date'],
                     cliente=transaction_form.cleaned_data['cliente'],
                     vendedor=transaction_form.cleaned_data['vendedor'],
+                    expected_amount = transaction_form.cleaned_data['expected_amount'],
                     description=transaction_form.cleaned_data['description'],
                     status='Pendiente',
                     numero_factura=transaction_form.cleaned_data['numero_factura'],

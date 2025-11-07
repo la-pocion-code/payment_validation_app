@@ -248,8 +248,21 @@ class TransactionForm(forms.ModelForm):
                 for field in self.fields.values():
                     field.disabled = True
 
-        if self.instance.pk:  # If it's an existing instance (update)
-            del self.fields['expected_amount']
+
+
+    def clean_expected_amount(self):
+        expected_amount = self.cleaned_data.get('expected_amount')
+        if expected_amount:
+            # Remove thousands separators and then replace comma with a dot for decimal conversion
+            cleaned_value = str(expected_amount).replace('.', '').replace(',', '.')
+            # Remove non-numeric characters except the decimal point
+            import re
+            cleaned_value = re.sub(r'[^0-9.]', '', cleaned_value)
+            try:
+                return float(cleaned_value)
+            except (ValueError, TypeError):
+                raise forms.ValidationError("Ingrese un número válido.")
+        return expected_amount
 
     class Meta:
         model = Transaction

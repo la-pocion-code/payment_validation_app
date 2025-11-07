@@ -69,7 +69,9 @@
             <th>Vendedor</th>
             <th>Facturador</th>
             <th># de factura</th>
-            <th>Valor Total</th>
+            <th>Valor Recibos</th>
+            <th>Valor Venta</th>
+            <th>Diferencia</th>
             <th>Status</th>
             <th>Acciones</th>
         </tr>
@@ -85,6 +87,8 @@
             <td>{{ transaction.facturador }}</td>
             <td>{{ transaction.numero_factura }}</td>
             <td>{{ transaction.receipts_total|intcomma }}</td>
+            <td>{{ transaction.expected_amount|intcomma }}</td>
+            <td>{{ transaction.difference|intcomma }}</td>
             <td>{{ transaction.status }}</td>
             <td>
                 {# EDITAR #}

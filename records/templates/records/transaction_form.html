@@ -1,4 +1,5 @@
 {% extends 'records/base.html' %}
+{% load humanize %}
 {% load static %}
 
 {% block title %}{{ title }}{% endblock %}
@@ -10,33 +11,84 @@
         
         {# Transaction Form #}
         <fieldset>
-            <legend>Detalles de la Transacción</legend>
+            <legend>Detalles de la Transacción # {{ transaction.unique_transaction_id }}</legend>
             <table class="transaction-details-horizontal">
-                <thead>
+               
+                <tbody>
                     <tr>
                         <th>Fecha Transaccón</th>
                         <th>Cliente</th>
                         <th>Vendedor</th>
+                        <th>Valor Venta</th>
+                        <th>Valor Recibos</th>
+                        <th>Diferencia</th>
                         <th>Descripción</th>
                         <th>Facturador</th>
                         <th># de Factura</th>
                         <th>Estado Transacción</th>
-                        
                     </tr>
-                </thead>
-                <tbody>
+                    </thead>
+                    <tbody>
                     <tr>
                     {% if request.user.is_superuser or 'Digitador' in user_group_names %}
                         <td>{{ form.date }} {{ form.date.errors }}</td>
                         <td>{{ form.cliente }} {{ form.cliente.errors }}</td>
                         <td>{{ form.vendedor }} {{ form.vendedor.errors }}</td>
+
+                        <!-- Campo Valor Venta con validación -->
+                        <td>
+                            {% if request.user.is_superuser or 'Digitador' in user_group_names %}
+                                <input type="text"
+                                    id="id_expected_amount"
+                                    class="form-control text-end"
+                                    name="expected_amount"
+                                    value="{{ form.expected_amount.value|floatformat:2|intcomma }}">
+                            {% else %}
+                                <input type="text"
+                                    id="id_expected_amount"
+                                    class="form-control text-end"
+                                    name="expected_amount"
+                                    value="{{ form.expected_amount.value|floatformat:2|intcomma }}" readonly>
+                            {% endif %}
+                            {{ form.expected_amount.errors }}
+                        </td>
+
+                        <!-- Recibos y diferencia -->
+                        <td>
+                            <input type="text" id="id_total_receipts_amount" class="form-control text-end"
+                                value="{{ total_receipts_amount|default:0|floatformat:2|intcomma }}" readonly>
+                        </td>
+                        <td>
+                            <input type="text" id="id_difference" class="form-control text-end"
+                                value="{{ difference|default:0|floatformat:2|intcomma }}" readonly>
+                        </td>
+
                         <td>{{ form.description }} {{ form.description.errors }}</td>
+
                     {% else %}
                         <td><input type="text" class="form-control" value="{{ form.date.value }}" readonly></td>
                         <td><input type="text" class="form-control" value="{{ form.cliente.value }}" readonly></td>
                         <td><input type="text" class="form-control" value="{{ form.vendedor.value }}" readonly></td>
+
+                        <!-- Campo Valor Venta solo lectura -->
+                        <td>
+                            <input type="text" id="id_expected_amount" class="form-control text-end"
+                                value="{{ form.expected_amount.value|default_if_none:0|floatformat:2|intcomma }}" readonly>
+                        </td>
+
+                        <td>
+                            <input type="text" id="id_total_receipts_amount" class="form-control text-end"
+                                value="{{ total_receipts_amount|default:0|floatformat:2|intcomma }}" readonly>
+                        </td>
+                        <td>
+                            <input type="text" id="id_difference" class="form-control text-end"
+                                value="{{ difference|default:0|floatformat:2|intcomma }}" readonly>
+                        </td>
+
                         <td><input type="text" class="form-control" value="{{ form.description.value }}" readonly></td>
                     {% endif %}
+
+                        <!-- Facturador -->
                         <td>
                             {% if request.user.is_superuser or 'Digitador' not in user_group_names %}
                                 {{ form.facturador }}
@@ -46,6 +98,7 @@
                             {% endif %}
                             {{ form.facturador.errors }}
                         </td>
+
                         <td>{{ form.numero_factura }} {{ form.numero_factura.errors }}</td>
                         <td>{{ form.status }} {{ form.status.errors }}</td>
                     </tr>
@@ -341,12 +394,14 @@
         });
 
         // Add new form
-        addReceiptBtn.addEventListener('click', function() {
-            const formIndex = totalForms.value;
-            const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIndex);
-            formsetContainer.insertAdjacentHTML('beforeend', newFormHtml);
-            totalForms.value = parseInt(formIndex) + 1;
-        });
+        if(addReceiptBtn) {
+            addReceiptBtn.addEventListener('click', function() {
+                const formIndex = totalForms.value;
+                const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIndex);
+                formsetContainer.insertAdjacentHTML('beforeend', newFormHtml);
+                totalForms.value = parseInt(formIndex) + 1;
+            });
+        }
 
         // --- CÓDIGO PARA CALCULAR FECHA EFECTIVA ---
         const receiptFormsetContainer = document.getElementById('formset-container');
@@ -390,20 +445,132 @@
         const closeDeleteTransactionModalBtn = deleteTransactionModal.querySelector('.close-button');
         const cancelDeleteTransactionModalBtn = document.getElementById('modal-cancel-delete-transaction');
 
-        openDeleteTransactionModalBtn.addEventListener('click', function() {
-            deleteTransactionModal.style.display = 'flex';
-        });
+        if(openDeleteTransactionModalBtn) {
+            openDeleteTransactionModalBtn.addEventListener('click', function() {
+                deleteTransactionModal.style.display = 'flex';
+            });
+        }
 
         const closeTxModal = () => deleteTransactionModal.style.display = 'none';
 
-        closeDeleteTransactionModalBtn.addEventListener('click', closeTxModal);
-        cancelDeleteTransactionModalBtn.addEventListener('click', closeTxModal);
+        if(closeDeleteTransactionModalBtn) {
+            closeDeleteTransactionModalBtn.addEventListener('click', closeTxModal);
+        }
+        if(cancelDeleteTransactionModalBtn) {
+            cancelDeleteTransactionModalBtn.addEventListener('click', closeTxModal);
+        }
 
         window.addEventListener('click', function(event) {
             if (event.target == deleteTransactionModal) {
                 closeTxModal();
             }
         });
+
+        // --- LÓGICA DE CÁLCULO DE TOTALES ---
+        const expectedAmountInput = document.getElementById('id_expected_amount');
+        const totalReceiptsAmountOutput = document.getElementById('id_total_receipts_amount');
+        const differenceOutput = document.getElementById('id_difference');
+
+        function updateTotals() {
+            const parseCustomFloat = (str) => {
+                if (!str) return 0;
+                const cleaned = str.toString().replace(/,/g, '');
+                return parseFloat(cleaned) || 0;
+            };
+
+            let totalReceipts = 0;
+            const valorInputs = formsetContainer.querySelectorAll('input[name$="-valor"]');
+
+            valorInputs.forEach(input => {
+                const formInstance = input.closest('.receipt-form-instance');
+                if (!formInstance) return;
+
+                const isDeleted = formInstance.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked;
+                const isHidden = formInstance.style.display === 'none';
+
+                if (!isDeleted && !isHidden) {
+                    const value = parseCustomFloat(input.value);
+                    totalReceipts += value;
+                }
+            });
+
+            const expected = parseCustomFloat(expectedAmountInput.value);
+            const difference = expected - totalReceipts;
+
+            const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+            totalReceiptsAmountOutput.value = totalReceipts.toLocaleString('en-US', numberFormatOptions);
+            differenceOutput.value = difference.toLocaleString('en-US', numberFormatOptions);
+
+            differenceOutput.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'text-white', 'text-dark');
+
+            if (difference < -0.001) {
+                differenceOutput.classList.add('bg-warning', 'text-dark');
+            } else if (difference > 0.001) {
+                differenceOutput.classList.add('bg-danger', 'text-white');
+            } else {
+                differenceOutput.classList.add('bg-success', 'text-white');
+            }
+        }
+
+        function formatNumberInput(input) {
+            if (!input || !input.value) {
+                updateTotals();
+                return;
+            }
+            let value = input.value.trim();
+            const numericValue = parseFloat(value.replace(/,/g, ''));
+            if (isNaN(numericValue)) {
+                updateTotals();
+                return;
+            }
+            const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+            input.value = numericValue.toLocaleString('en-US', numberFormatOptions);
+            updateTotals();
+        }
+
+        function handleTotalsUpdate(e) {
+            const target = e.target;
+            if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
+                const currentValue = target.value;
+                const sanitizedValue = currentValue.replace(/[^0-9.,]/g, '');
+                if (currentValue !== sanitizedValue) {
+                    target.value = sanitizedValue;
+                }
+                updateTotals();
+            }
+        }
+
+        function handleFormatting(e) {
+            const target = e.target;
+            if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
+                formatNumberInput(target);
+            }
+        }
+
+        if (expectedAmountInput) {
+            expectedAmountInput.addEventListener('input', handleTotalsUpdate);
+            expectedAmountInput.addEventListener('blur', handleFormatting);
+        }
+
+        formsetContainer.addEventListener('input', handleTotalsUpdate);
+        formsetContainer.addEventListener('blur', handleFormatting, true);
+
+        const mainForm = document.getElementById('transaction-form');
+        if (mainForm) {
+            mainForm.addEventListener('submit', function() {
+                if (expectedAmountInput && expectedAmountInput.value) {
+                    expectedAmountInput.value = expectedAmountInput.value.replace(/,/g, '');
+                }
+                const valorInputs = formsetContainer.querySelectorAll('input[name$="-valor"]');
+                valorInputs.forEach(function(input) {
+                    if (input.value) {
+                        input.value = input.value.replace(/,/g, '');
+                    }
+                });
+            });
+        }
+
+        updateTotals();
     });
     </script>
 {% endblock %}
