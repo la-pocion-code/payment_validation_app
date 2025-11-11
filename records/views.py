@@ -1,5 +1,6 @@
 import csv
 from io import TextIOWrapper
+from django.db.models import Q, Count, F
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -501,40 +502,30 @@ class TransactionListView(LoginRequiredMixin, FilterView):
     paginate_by = 50
 
     def get_queryset(self):
-        # 1. Obtenemos el queryset base (Transaction.objects.all())
-        queryset = super().get_queryset() 
-        
+        """
+        Modifica el queryset para optimizar la vista por defecto.
+        - Por defecto: Muestra solo transacciones 'Pendientes' O con recibos no aprobados.
+        - Para Facturadores: Aplica la lógica de mostrar solo transacciones listas para facturar.
+        """
+        queryset = super().get_queryset()
         user = self.request.user
-        
-        
-        # 2. Definimos quién es un "Facturador" (y no otro rol que deba ver todo)
-        #    Asumimos que Admin, Digitador y Validador SÍ deben ver transacciones con recibos pendientes.
-        is_facturador_only = (
-            user.groups.filter(name='Facturador').exists() and 
-            not user.is_superuser and
-            not user.groups.filter(name__in=['Admin', 'Digitador', 'Validador']).exists()
-        )
 
-        # 3. Si el usuario es *solamente* un Facturador, filtramos su lista
-        if is_facturador_only:
-            
-            # Excluimos cualquier transacción que tenga AL MENOS UN recibo
-            # con estado 'Pendiente' O 'Rechazado'.
-            queryset = queryset.exclude(
-                receipts__payment_status__in=['Pendiente', 'Rechazado']
-            )
-            
-            # También nos aseguramos de que la transacción TENGA recibos.
-            # (Una transacción con 0 recibos no sería excluida arriba, pero no está "lista")
-            queryset = queryset.filter(receipts__isnull=False)
-            
-            # Como usamos filtros en modelos relacionados (receipts), usamos distinct()
-            # para evitar que una transacción aparezca duplicada si tiene múltiples recibos.
-            queryset = queryset.distinct()
+        # Lógica específica para el rol 'Facturador'
+        if user.groups.filter(name='Facturador').exists() and not user.is_superuser:
+            queryset = queryset.annotate(
+                num_receipts=Count('receipts'),
+                num_approved_receipts=Count('receipts', filter=Q(receipts__payment_status='Aprobado'))
+            ).filter(num_receipts__gt=0, num_receipts=F('num_approved_receipts'))
 
-        # --- FIN DE LA NUEVA LÓGICA ---
+        # Lógica de filtrado por defecto si no se están usando los filtros
+        # `self.request.GET` contendrá los parámetros de filtro si el usuario los usa.
+        elif not self.request.GET:
+            queryset = queryset.filter(
+                Q(status='Pendiente') | 
+                Q(receipts__payment_status__in=['Pendiente', 'Rechazado'])
+            ).distinct()
 
-        # 4. Devolvemos el queryset (modificado o no) y mantenemos la optimización y el orden
+        # Devolvemos el queryset con optimización y orden
         return queryset.prefetch_related('receipts').order_by('-id')
 
 
@@ -1303,7 +1294,7 @@ def get_effective_date_view(request):
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
 
         # Tu lógica: si dias_efectivo es mayor a 1
-        if origen.dias_efectivo > 1:
+        if origen.dias_efectivo >= 1:
             dias_efectivo = origen.dias_efectivo
             effective_date = calculate_effective_date(start_date, dias_efectivo)
 
@@ -1324,6 +1315,3 @@ def get_effective_date_view(request):
     except (ValueError, TypeError):
         return JsonResponse({'error': 'Formato de fecha inválido'}, status=400)
     
-
-
-
