@@ -29,6 +29,7 @@ from datetime import datetime
 from django.utils import timezone
 
 
+
 class CustomLoginView(LoginView):
     template_name = 'records/login.html'
 
@@ -490,16 +491,51 @@ class SellerListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     def test_func(self):
         return self.request.user.is_superuser
 
+
 @method_decorator(group_required('Admin', 'Digitador', 'Facturador', 'Validador'), name='dispatch')
-class TransactionListView(LoginRequiredMixin, FilterView): # Changed to FilterView
+class TransactionListView(LoginRequiredMixin, FilterView):
     model = Transaction
     template_name = 'records/records_list.html'
     context_object_name = 'object_list'
-    filterset_class = TransactionFilter # Added filterset_class
+    filterset_class = TransactionFilter
     paginate_by = 50
 
     def get_queryset(self):
-        return super().get_queryset().prefetch_related('receipts').order_by('-id') # Use super().get_queryset() for filtering
+        # 1. Obtenemos el queryset base (Transaction.objects.all())
+        queryset = super().get_queryset() 
+        
+        user = self.request.user
+        
+        
+        # 2. Definimos quién es un "Facturador" (y no otro rol que deba ver todo)
+        #    Asumimos que Admin, Digitador y Validador SÍ deben ver transacciones con recibos pendientes.
+        is_facturador_only = (
+            user.groups.filter(name='Facturador').exists() and 
+            not user.is_superuser and
+            not user.groups.filter(name__in=['Admin', 'Digitador', 'Validador']).exists()
+        )
+
+        # 3. Si el usuario es *solamente* un Facturador, filtramos su lista
+        if is_facturador_only:
+            
+            # Excluimos cualquier transacción que tenga AL MENOS UN recibo
+            # con estado 'Pendiente' O 'Rechazado'.
+            queryset = queryset.exclude(
+                receipts__payment_status__in=['Pendiente', 'Rechazado']
+            )
+            
+            # También nos aseguramos de que la transacción TENGA recibos.
+            # (Una transacción con 0 recibos no sería excluida arriba, pero no está "lista")
+            queryset = queryset.filter(receipts__isnull=False)
+            
+            # Como usamos filtros en modelos relacionados (receipts), usamos distinct()
+            # para evitar que una transacción aparezca duplicada si tiene múltiples recibos.
+            queryset = queryset.distinct()
+
+        # --- FIN DE LA NUEVA LÓGICA ---
+
+        # 4. Devolvemos el queryset (modificado o no) y mantenemos la optimización y el orden
+        return queryset.prefetch_related('receipts').order_by('-id')
 
 
 class TransactionDetailView(LoginRequiredMixin, DetailView):
