@@ -92,9 +92,12 @@
             <!-- Celda Diferencia con color condicional -->
             <td>
                 <span class="status-badge-generic
-                    {% if transaction.difference == 0 %}bg-verde
-                    {% elif transaction.difference > 0 %}bg-rojo
-                    {% elif transaction.difference < 0 %}bg-amarillo
+                    {% if transaction.difference >= -1000 and transaction.difference <= 1000 %}
+                        bg-verde
+                    {% elif transaction.difference > 1000 %}
+                        bg-rojo
+                    {% else %}
+                        bg-amarillo
                     {% endif %}">
                     {{ transaction.difference|intcomma }}
                 </span>
