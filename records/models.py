@@ -196,10 +196,10 @@ class FinancialRecord(models.Model):
         return None
 
 
-    def clean(self):
-        # Ejemplo de validación adicional si 'valor' no puede ser negativo
-        if self.valor is not None and self.valor < 0:
-            raise ValidationError({'valor': 'El valor no puede ser negativo.'})
+    # def clean(self):
+    #     # Ejemplo de validación adicional si 'valor' no puede ser negativo
+    #     if self.valor is not None and self.valor < 0:
+    #         raise ValidationError({'valor': 'El valor no puede ser negativo.'})
 
 
 
