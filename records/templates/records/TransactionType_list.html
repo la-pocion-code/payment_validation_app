@@ -1,0 +1,150 @@
+{% extends "records/base.html" %}
+{% load static %}
+
+{% block title %}Gestionar Tipo Transacción{% endblock %}
+
+{% block content %}
+    <h2>Gestionar Tipo Transacción</h2>
+
+    <a href="{% url 'TransactionType_create' %}" id="open-TransactionType-create-modal" class="btn-primary">Crear Nuevo Tipo Transacción</a>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Nombre del Tipo Transacción</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for TransactionType in TransactionTypes %}
+            <tr>
+                <td>{{ TransactionType.name }}</td>
+                <td>
+                    <a href="{% url 'TransactionType_update' TransactionType.pk %}" class="open-TransactionType-edit-modal btn-accion-icono" title="Editar" data-TransactionType-id="{{ TransactionType.pk }}">
+                        <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+                    </a> 
+                    <a href="{% url 'TransactionType_delete' TransactionType.pk %}" class="open-TransactionType-delete-modal btn-accion-icono" title="Eliminar">
+                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2">No hay Tipo Transacción registrados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {# Modal Structure #}
+    <div id="TransactionType-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>     
+            <div id="TransactionType-form-container">
+                {# TransactionType form will be loaded here via AJAX #}
+            </div>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const TransactionTypeModal = document.getElementById('TransactionType-modal');
+        const closeButton = TransactionTypeModal.querySelector('.close-button');
+        const TransactionTypeFormContainer = document.getElementById('TransactionType-form-container');
+
+        // Function to open the modal and load the form
+        function openTransactionTypeModal(url) {
+            TransactionTypeModal.style.display = 'flex'; // Show the modal
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // Important for Django to detect AJAX
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                TransactionTypeFormContainer.innerHTML = html;
+                attachTransactionTypeFormSubmitHandler(); // Attach handler after form is loaded
+            })
+            .catch(error => console.error('Error loading TransactionType form:', error));
+        }
+
+        // Function to close the modal
+        function closeModal() {
+            TransactionTypeModal.style.display = 'none';
+            TransactionTypeFormContainer.innerHTML = ''; // Clear form content
+        }
+
+        closeButton.addEventListener('click', closeModal);
+
+        // Close modal if clicked outside content
+        window.addEventListener('click', function(event) {
+            if (event.target == TransactionTypeModal) {
+                closeModal();
+            }
+        });
+
+        // Handle "Create New TransactionType" button click
+        document.getElementById('open-TransactionType-create-modal').addEventListener('click', function(e) {
+            e.preventDefault();
+            openTransactionTypeModal(this.href);
+        });
+
+        // Handle "Edit" button click
+        document.querySelectorAll('.open-TransactionType-edit-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                openTransactionTypeModal(this.href);
+            });
+        });
+
+        // Handle "Delete" button click
+        document.querySelectorAll('.open-TransactionType-delete-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                openTransactionTypeModal(this.href);
+            });
+        });
+
+        // Function to attach submit handler to the dynamically loaded form
+        function attachTransactionTypeFormSubmitHandler() {
+            const TransactionTypeForm = TransactionTypeFormContainer.querySelector('form');
+            if (TransactionTypeForm) {
+                TransactionTypeForm.addEventListener('submit', function(e) {
+                    e.preventDefault(); // Prevent default form submission
+
+                    const formData = new FormData(TransactionTypeForm);
+                    
+                    fetch(TransactionTypeForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message || 'Operación exitosa!');
+                            closeModal();
+                            location.reload(); // Reload the page to show updated list
+                        } else {
+                            // Display errors by re-rendering the form HTML
+                            TransactionTypeFormContainer.innerHTML = data.form_html;
+                            attachTransactionTypeFormSubmitHandler(); // Re-attach handler for the new form
+                        }
+                    })
+                    .catch(error => console.error('Error submitting TransactionType form:', error));
+                });
+
+                // Add event listener for the new cancel button in the form
+                const cancelButton = TransactionTypeForm.querySelector('.btn-cancel');
+                if (cancelButton) {
+                    cancelButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        closeModal();
+                    });
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

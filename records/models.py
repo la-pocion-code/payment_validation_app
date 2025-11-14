@@ -9,19 +9,6 @@ from decimal import Decimal
 from .utils import calculate_effective_date
 import secrets
 
-class Seller(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-
-    def __str__(self):
-        return self.name
-    
-    def save(self, *args,  **kwargs):
-        self.name = self.name.upper()
-        super(Seller, self).save(*args, **kwargs)
-    
-    class Meta:
-        verbose_name = "Vendedor"
-        verbose_name_plural = "Vendedores"
 
 
 class AuthorizedUser(models.Model):
@@ -38,6 +25,34 @@ class AuthorizedUser(models.Model):
         self.email = self.email.lower()
         super(AuthorizedUser, self).save(*args, **kwargs)
 
+class TransactionType(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper()
+        super(TransactionType, self).save(*args, **kwargs)
+    
+    class Meta:
+        verbose_name = "Tipo de Transacción"
+        verbose_name_plural = "Tipos de Transacción"
+
+
+class Seller(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args,  **kwargs):
+        self.name = self.name.upper()
+        super(Seller, self).save(*args, **kwargs)
+    
+    class Meta:
+        verbose_name = "Vendedor"
+        verbose_name_plural = "Vendedores"
 
 class Bank(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -74,13 +89,12 @@ class Transaction(models.Model):
     date = models.DateField(default=timezone.now, verbose_name="Fecha Venta")
     cliente = models.CharField(max_length=200, blank=True, null=True)
     vendedor = models.ForeignKey(Seller,on_delete=models.PROTECT, verbose_name="Vendedor")
+    transaction_type = models.ForeignKey(TransactionType, on_delete=models.PROTECT, verbose_name="Tipo de Transacción")
     description = models.CharField(max_length=255, verbose_name="Observación", blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pendiente', verbose_name="Estado de Transacción")
     numero_factura = models.CharField(max_length=100, blank=True, null=True, verbose_name="# de Factura", default=None)
     facturador = models.CharField(max_length=100, blank=True, null=True, default=None)
     expected_amount = models.DecimalField(max_digits=12, decimal_places=2,  verbose_name="Valor Venta")
-    history = HistoricalRecords()
-
     unique_transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True, verbose_name="ID unico")
     creat_at = models.DateTimeField(auto_now_add=True, null=True, blank=True, verbose_name="Fecha de Creación")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions_created", verbose_name="Creado por")

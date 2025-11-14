@@ -8,7 +8,7 @@
 <div class="d-flex justify-content-between align-items-center flex-wrap">
   <h1 class="mb-0">{{ title }}</h1>
   <div class="d-flex align-items-end gap-2">
-    <label for="id_actual_amount" class="form-label">Monto Actual</label>
+    <label for="id_actual_amount" class="form-label">Total Recibos</label>
     <input type="text" id="id_actual_amount" class="form-control" placeholder="Monto Actual" readonly disabled style="width:140px;">
     <label for="id_difference_amount" class="form-label">Diferencia</label>
     <input type="text" id="id_difference_amount" class="form-control" placeholder="Diferencia" readonly disabled style="width:140px;">
@@ -61,6 +61,11 @@
                     {{ transaction_form.expected_amount }}
                     {{ transaction_form.expected_amount.errors }}
                 </div> 
+                <div class="filter-field">
+                    {{ transaction_form.transaction_type.label_tag }}
+                    {{ transaction_form.transaction_type }}
+                    {{ transaction_form.transaction_type.errors }}
+                </div>
                 <div class="filter-field">
                     {{ transaction_form.description.label_tag }}
                     {{ transaction_form.description }}

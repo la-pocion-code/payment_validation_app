@@ -11,20 +11,26 @@
     <table class="transaction-details-horizontal">
         <thead>
             <tr>
+                <th>Tipo Transacción</th>
                 <th>Fecha</th>
                 <th>Cliente</th>
                 <th>Vendedor</th>
-                <th>Valor Total</th>
+                <th>Valor Recibos</th>
+                <th>Valor Venta</th>
+                <th>Diferencia</th>
                 <th>Descripción</th>
                 <th>Status</th>
             </tr>
         </thead>
         <tbody>
             <tr>
+                <td>{{ transaction.transaction_type }}</td>
                 <td>{{ transaction.date|date:"d/m/Y" }}</td>
                 <td>{{ transaction.cliente }}</td>
                 <td>{{ transaction.vendedor }}</td>
-                <td>{{ transaction.total_valor|intcomma }}</td>
+                <td>{{ transaction.receipts_total|intcomma }}</td>
+                <td>{{ transaction.expected_amount|intcomma }}</td>
+                <td>{{ transaction.difference|intcomma }}</td>
                 <td>{{ transaction.description }}</td>
                 <td>{{ transaction.status }}</td>
             </tr>
@@ -60,7 +66,7 @@
                         <td>{{ receipt.comprobante }}</td>
                         <td>{{ receipt.banco_llegada.name }}</td>
                         <td>{{ receipt.valor|intcomma }}</td>
-                        <td>{{ receipt.estado_pago }}</td>
+                        <td>{{ receipt.payment_status }}</td>
                     </tr>
                 {% endfor %}
             </tbody>

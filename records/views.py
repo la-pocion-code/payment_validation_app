@@ -16,8 +16,8 @@ from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
-from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
@@ -442,7 +442,7 @@ class SellerUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMi
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Editar Vendor'
+        context['title'] = 'Editar Vendedor'
         return context
 
     def form_valid(self, form):
@@ -491,6 +491,114 @@ class SellerListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def test_func(self):
         return self.request.user.is_superuser
+
+
+# Vista para crear Vendedores (maneja modales AJAX)
+class TransactionTypeCreateView(LoginRequiredMixin, CreateView):
+    model = TransactionType
+    form_class = TransactionTypeForm
+    template_name = 'records/TransactionType_form.html'
+    success_url = reverse_lazy('TransactionType_list')
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            form = self.get_form()
+            html_form = render_to_string('records/TransactionType_form.html', {'form': form, 'title': 'Crear Tipo de Transacción'}, request=request)
+            return HttpResponse(html_form)
+        self.template_name = 'records/TransactionType_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            vendedor = form.save()
+            return JsonResponse({'success': True, 'id': vendedor.id, 'name': vendedor.name, 'message': '¡Tipo de Transacción creado exitosamente!'})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/TransactionType_form.html', {'form': form, 'title': 'Crear Tipo de Transacción'}, request=self.request)})
+        self.template_name = 'records/TransactionType_form_standalone.html'
+        return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Tipo de Transacción'
+        return context
+
+
+# Vista para actualizar Vendedores
+class TransactionTypeUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
+    model = TransactionType
+    form_class = TransactionTypeForm
+    template_name = 'records/TransactionType_form.html'
+    success_url = reverse_lazy('TransactionType_list')
+    success_message = "¡Tipo Transacción actualizado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+    
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            form = self.get_form()
+            html_form = render_to_string('records/TransactionType_form.html', {'form': form, 'title': 'Editar Tipo Transacción'}, request=request)
+            return HttpResponse(html_form)
+        
+        self.template_name = 'records/TransactionType_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Tipo Transacción'
+        return context
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            vendedor = form.save()
+            return JsonResponse({'success': True, 'id': vendedor.id, 'name': vendedor.name, 'message': self.success_message})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/TransactionType_form.html', {'form': form, 'title': self.get_context_data()['title']}, request=self.request)})
+        
+        self.template_name = 'records/TransactionType_form_standalone.html'
+        return super().form_invalid(form)
+
+# Vista para eliminar Vendedores
+class TransactionTypeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = TransactionType
+    template_name = 'records/TransactionType_confirm_delete.html'
+    success_url = reverse_lazy('TransactionType_list')
+    success_message = "¡Tipo Transacción eliminado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+    
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            context = self.get_context_data(object=self.object)
+            html_form = render_to_string(self.template_name, context, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            self.object.delete()
+            messages.success(self.request, self.success_message)
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().post(request, *args, **kwargs)
+
+class TransactionTypeListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = TransactionType
+    template_name = 'records/TransactionType_list.html'
+    context_object_name = 'TransactionTypes'
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
 
 
 @method_decorator(group_required('Admin', 'Digitador', 'Facturador', 'Validador'), name='dispatch')
@@ -1207,6 +1315,7 @@ def create_bulk_receipts(request):
                     date=transaction_form.cleaned_data['date'],
                     cliente=transaction_form.cleaned_data['cliente'],
                     vendedor=transaction_form.cleaned_data['vendedor'],
+                    transaction_type=transaction_form.cleaned_data['transaction_type'],
                     expected_amount = transaction_form.cleaned_data['expected_amount'],
                     description=transaction_form.cleaned_data['description'],
                     status='Pendiente',

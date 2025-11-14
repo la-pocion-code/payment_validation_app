@@ -2,7 +2,7 @@
 
 from django import forms
 from django.forms import modelformset_factory, BaseModelFormSet
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType
 import json
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserChangeForm
@@ -262,7 +262,7 @@ class TransactionForm(forms.ModelForm):
 
     class Meta:
         model = Transaction
-        fields = ['date', 'cliente', 'vendedor','description', 'status', 'numero_factura', 'facturador', 'created_by', 'expected_amount']
+        fields = ['date', 'cliente', 'vendedor', 'transaction_type', 'description', 'status', 'numero_factura', 'facturador', 'created_by', 'expected_amount']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date', 'id': 'id_transaction_date', 'class': 'form-control'}),
             'expected_amount': forms.TextInput(),
@@ -288,4 +288,16 @@ class SellerForm(forms.ModelForm):
         }
         labels = {
             'name' : 'Nombre del Vendedor'
+        }
+
+class TransactionTypeForm(forms.ModelForm):
+    class Meta:
+        model = TransactionType
+        fields =['name']
+        widgets = {
+            'name' : forms.TextInput(attrs={'class': 'form-control', 'placeholder':'Tipo de Transacción'})
+        }
+        labels = {
+            'name' : 'Tipo de Transacción'
+        
         }

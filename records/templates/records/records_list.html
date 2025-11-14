@@ -6,7 +6,7 @@
 
 {% block content %}
 <h2>Transacciones</h2>
-
+{# Filtros#}
 <div class="filter-container">
     <form method="get" action="" class="filter-form">
         {% csrf_token %}
@@ -43,6 +43,10 @@
                 {{ filter.form.status.label_tag }}
                 {{ filter.form.status }}
             </div>
+            <div class="filter-field">
+                {{ filter.form.transaction_type.label_tag }}
+                {{ filter.form.transaction_type }}
+            </div>
         </div>
         <div class="filter-actions">
             <button type="submit" class="btn btn-primary">Filtrar</button>
@@ -58,7 +62,7 @@
 
     </form>
 </div>
-
+{# Transacciones #}
 <table border="1" class="transaction-table">
     <thead>
         <tr>
