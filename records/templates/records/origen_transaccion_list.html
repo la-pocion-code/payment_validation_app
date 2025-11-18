@@ -6,7 +6,7 @@
 {% block content %}
     <h2>Gestionar Origenes de Transacción</h2>
 
-    <a href="{% url 'origen_transaccion_create' %}" id="open-OrigenTransaccion-create-modal" class="btn-primary">Crear Nuevo Origen de Transacción</a>
+    <a href="{% url 'origen_transaccion_create' %}" id="open-OrigenTransaccion-create-modal" class="btn btn-success">Nuevo Origen</a>
 
     <table border="1">
         <thead>
@@ -37,7 +37,7 @@
     </table>
 
     {# Modal Structure #}
-    <div id="OrigenTransaccion-modal" class="modal" style="display: none;">
+    <div id="OrigenTransaccion-modal" class="custom-modal" style="display: none;">
         <div class="modal-content">
             <span class="close-button">&times;</span>     
             <div id="OrigenTransaccion-form-container">
@@ -78,7 +78,7 @@
 
         // Close modal if clicked outside content
         window.addEventListener('click', function(event) {
-            if (event.target == OrigenTransaccionModal) {
+            if (event.target.classList.contains('custom-modal')) {
                 closeModal();
             }
         });

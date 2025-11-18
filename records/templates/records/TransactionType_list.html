@@ -6,7 +6,7 @@
 {% block content %}
     <h2>Gestionar Tipo Transacción</h2>
 
-    <a href="{% url 'TransactionType_create' %}" id="open-TransactionType-create-modal" class="btn-primary">Crear Nuevo Tipo Transacción</a>
+    <a href="{% url 'TransactionType_create' %}" id="open-TransactionType-create-modal" class="btn btn-success">Nuevo Tipo Transacción</a>
 
     <table border="1">
         <thead>
@@ -35,7 +35,7 @@
     </table>
 
     {# Modal Structure #}
-    <div id="TransactionType-modal" class="modal" style="display: none;">
+    <div id="TransactionType-modal" class="custom-modal" style="display: none;">
         <div class="modal-content">
             <span class="close-button">&times;</span>     
             <div id="TransactionType-form-container">
@@ -76,7 +76,7 @@
 
         // Close modal if clicked outside content
         window.addEventListener('click', function(event) {
-            if (event.target == TransactionTypeModal) {
+            if (event.target.classList.contains('custom-modal')) {
                 closeModal();
             }
         });

@@ -16,8 +16,8 @@ from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
-from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm, ClientForm, CreditForm
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType, Client
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
@@ -26,6 +26,7 @@ from .services import CSVProcessor
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm 
 from .utils import calculate_effective_date
+from .forms import BulkClientUploadForm
 from datetime import datetime
 from django.utils import timezone
 
@@ -82,7 +83,42 @@ def delete_access_request(request, request_id):
     messages.success(request, f'Solicitud de acceso para {username} eliminada exitosamente.')
     return redirect('access_request_list')
 
+class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = FinancialRecord
+    form_class = FinancialRecordForm
+    template_name = 'records/records_form.html'
+    success_url = reverse_lazy('record_list')
+    success_message = "¡Registro financiero guardado exitosamente!"
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Registro'
+        context['vendedores'] = FinancialRecord.objects.values_list('vendedor', flat=True).distinct()
+        context['clientes'] = FinancialRecord.objects.values_list('cliente', flat=True).distinct()
+        return context
+
+
+class FinancialRecordDetailView(LoginRequiredMixin, DetailView):
+    model = FinancialRecord
+    template_name = 'records/record_detail.html' # Usaremos este nuevo template
+    context_object_name = 'record'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f'Detalle del Recibo #{self.object.id}'
+        
+        # Obtenemos el historial de cambios para este recibo
+        history = self.object.history.all()
+        for h in history:
+            if h.prev_record:
+                h.delta = h.diff_against(h.prev_record)
+        context['history'] = history
+        return context
 
 
 @method_decorator(group_required('Admin', 'Facturador', 'Validador'), name='dispatch')
@@ -106,8 +142,6 @@ class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
      
         return super().form_valid(form)
     
-
-
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -174,6 +208,43 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         # Para solicitudes POST no-AJAX, o si no es AJAX, se usa el comportamiento por defecto de DeleteView
         # que eliminará el objeto y redirigirá a success_url.
         return super().post(request, *args, **kwargs)
+
+
+
+class CreditCreateView(LoginRequiredMixin, CreateView):
+    model = FinancialRecord
+    form_class = CreditForm
+    template_name = 'records/credit_form.html'
+    success_url = reverse_lazy('credit_list') # O a donde quieras redirigir
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Registrar Nuevo Abono'
+        return context
+
+    def form_valid(self, form):
+        # Asignamos el usuario que está creando el abono
+        form.instance.uploaded_by = self.request.user
+        # El estado inicial de un abono debe ser 'Pendiente' de aprobación
+        form.instance.payment_status = 'Pendiente'
+        messages.success(self.request, 'Abono registrado exitosamente. Queda pendiente de aprobación.')
+        return super().form_valid(form)
+
+class CreditListView(LoginRequiredMixin, ListView):
+    model = FinancialRecord
+    template_name = 'records/credit_list.html' # Un nuevo template para la lista
+    context_object_name = 'credits'
+    paginate_by = 50
+
+    def get_queryset(self):
+        # La lógica clave: obtenemos solo los registros que NO están ligados a una transacción.
+        # Los ordenamos por fecha de creación descendente para ver los más nuevos primero.
+        return FinancialRecord.objects.filter(transaction__isnull=True).order_by('-creado')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Listado de Abonos'
+        return context
 
 
 class BankCreateView(LoginRequiredMixin, CreateView):
@@ -279,6 +350,174 @@ class BankListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def test_func(self):
         return self.request.user.is_superuser
+    
+    
+
+class ClientUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
+    model = Client
+    form_class = ClientForm
+    template_name = 'records/Client_form.html'
+    success_url = reverse_lazy('Client_list')
+    success_message = "¡Cliente actualizado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            form = self.get_form()
+            html_form = render_to_string('records/Client_form.html', {'form': form, 'title': 'Editar Cliente'}, request=request)
+            return HttpResponse(html_form)
+        
+        self.template_name = 'records/Client_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Cliente'
+        return context
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            Client = form.save()
+            return JsonResponse({'success': True, 'id': Client.id, 'name': Client.name, 'message': self.success_message})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/Client_form.html', {'form': form, 'title': self.get_context_data()['title']}, request=self.request)})
+        
+        self.template_name = 'records/Client_form_standalone.html'
+        return super().form_invalid(form)
+
+class ClientDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = Client
+    template_name = 'records/Client_confirm_delete.html'
+    success_url = reverse_lazy('Client_list')
+    success_message = "¡Cliente eliminado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            context = self.get_context_data(object=self.object)
+            html_form = render_to_string(self.template_name, context, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            self.object.delete()
+            messages.success(self.request, self.success_message)
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().post(request, *args, **kwargs)
+
+class ClientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Client
+    template_name = 'records/Client_list.html'
+    context_object_name = 'Clientes'
+
+
+    def test_func(self):
+        return self.request.user.is_superuser
+    
+
+@user_passes_test(lambda u: u.is_superuser)
+def bulk_client_upload(request):
+    if request.method == 'POST':
+        form = BulkClientUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            file = request.FILES['file']
+            import pandas as pd
+
+            try:
+                df = pd.read_excel(file)  # Intenta leer como Excel primero
+            except Exception as e:
+                try:
+                    df = pd.read_csv(file)  # Si falla, intenta leer como CSV
+                except Exception as e2:
+                    messages.error(request, f"Error al leer el archivo: {e}. Error adicional al intentar leer como CSV: {e2}")
+                    return redirect('Client_list')
+
+            # Validar que las columnas 'name' y 'dni' existan
+            if 'name' not in df.columns or 'dni' not in df.columns:
+                messages.error(request, "El archivo debe contener las columnas 'name' y 'dni'.")
+                return redirect('Client_list')
+
+            # Iterar sobre las filas del DataFrame y crear los clientes
+            created_count = 0
+            duplicates_count = 0
+            for index, row in df.iterrows():
+                name = row['name']
+                dni = row['dni']
+
+                # Verificar si ya existe un cliente con el mismo DNI
+                existing_client = Client.objects.filter(dni=dni).first()
+
+                if existing_client:
+                    duplicates_count += 1
+                else:
+                    try:
+                        Client.objects.create(name=name, dni=dni)
+                        created_count += 1
+                    except Exception as e:
+                        messages.error(request, f"Error al crear el cliente {name} (DNI: {dni}): {e}")
+                        continue
+            message_parts = []
+            if created_count > 0:
+                # messages.success(request, f"Se crearon {created_count} clientes exitosamente.")
+                message_parts.append(f"Se crearon {created_count} clientes exitosamente.")
+            if duplicates_count > 0:
+                # messages.warning(request, f"Se omitieron {duplicates_count} clientes duplicados (mismo DNI).")
+                message_parts.append(f'Se omitieron {duplicates_count} clientes duplicados (mismo DNI).')
+            messages.success(request, " ".join(message_parts))
+            return redirect('Client_list')
+    else:
+        form = BulkClientUploadForm()
+
+    # return render(request, 'records/bulk_client_upload_modal.html', {'form': form})
+    return render(request, 'records/client_bulk_upload_page.html', {'form': form})
+
+
+
+
+class ClientCreateView(LoginRequiredMixin, CreateView):
+    model = Client
+    form_class = ClientForm
+    template_name = 'records/Client_form.html'
+    success_url = reverse_lazy('Client_list')
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            form = self.get_form()
+            html_form = render_to_string('records/Client_form.html', {'form': form, 'title': 'Crear Nuevo Cliente'}, request=request)
+            return HttpResponse(html_form)
+        
+        self.template_name = 'records/Client_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            Client = form.save()
+            return JsonResponse({'success': True, 'id': Client.id, 'name': Client.name, 'message': '¡Cliente creado exitosamente!'})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/Client_form.html', {'form': form, 'title': 'Crear Nuevo Cliente'}, request=self.request)})
+        
+        self.template_name = 'records/Client_form_standalone.html'
+        return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Nuevo Cliente'
+        return context
+    
 
 class OrigenTransaccionCreateView(LoginRequiredMixin, CreateView):
     model = OrigenTransaccion
@@ -312,7 +551,7 @@ class OrigenTransaccionCreateView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Crear Nuevo Origen de Transacción'
         return context
-    
+
 
 class OrigenTransaccionUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = OrigenTransaccion
@@ -697,6 +936,17 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
         context['total_receipts_amount'] = total_receipts_amount
         context['difference'] = difference
 
+        # Obtener abonos/créditos disponibles para este cliente
+        available_credits = []
+        if transaction.cliente:
+            available_credits = FinancialRecord.objects.filter(
+                cliente=transaction.cliente,
+                payment_status='Aprobado',
+                transaction__isnull=True
+            )
+        context['available_credits'] = available_credits
+
+
         if self.request.POST:
             context['formset'] = FinancialRecordInlineFormSet(self.request.POST, instance=self.object, form_kwargs={'request': self.request})
         else:
@@ -738,6 +988,16 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                     self.object.facturador = self.object.facturador.username
 
                 self.object.save()
+
+                # 🔹 Aplicar abonos seleccionados a esta transacción
+                credit_ids_to_apply = self.request.POST.getlist('apply_credit')
+                if credit_ids_to_apply:
+                    credits = FinancialRecord.objects.filter(pk__in=credit_ids_to_apply)
+                    for credit in credits:
+                        # Doble chequeo para seguridad: el abono debe pertenecer al cliente y no tener transacción asignada
+                        if credit.cliente == self.object.cliente and credit.transaction is None:
+                            credit.transaction = self.object
+                            credit.save()
 
                 # 🔹 Solo guardamos formset si NO es facturador o si es superuser
                 if not is_facturador or is_superuser:
@@ -1424,3 +1684,16 @@ def get_effective_date_view(request):
     except (ValueError, TypeError):
         return JsonResponse({'error': 'Formato de fecha inválido'}, status=400)
     
+
+@login_required
+def get_client_balance(request):
+    client_id = request.GET.get('client_id')
+    if not client_id:
+        return JsonResponse({'error': 'Client ID no proporcionado'}, status=400)
+    
+    try:
+        client = Client.objects.get(pk=client_id)
+        balance = client.available_balance
+        return JsonResponse({'balance': f'{balance:,.2f}'}) # Formatted balance
+    except Client.DoesNotExist:
+        return JsonResponse({'error': 'Cliente no encontrado'}, status=404)

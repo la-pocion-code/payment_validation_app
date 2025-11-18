@@ -1,0 +1,139 @@
+{% extends "records/base.html" %}
+{% load static %}
+
+{% block title %}Gestionar Cliente{% endblock %}
+
+{% block content %}
+    <h2>Gestionar Cliente</h2>
+
+    <div class="mb-3">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#Client-modal" data-url="{% url 'Client_create' %}">
+            Nuevo Cliente
+        </button>
+        {% comment %} <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#bulkUploadModal">
+            <i class="fas fa-upload"></i> Carga Masiva
+        </button> {% endcomment %}
+        {% comment %} <a href="{% url 'client_bulk_upload_page' %}" class="btn btn-primary">
+            <i class="fas fa-upload"></i> Carga Masiva
+        </a> {% endcomment %}
+    </div>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Nombre del Cliente</th>
+                <th>Documento</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for Cliente in Clientes %}
+            <tr>
+                <td>{{ Cliente.name }}</td>
+                <td>{{ Cliente.dni }}</td>
+                <td>
+                    <button type="button" class="btn-accion-icono" title="Editar" data-bs-toggle="modal" data-bs-target="#Client-modal" data-url="{% url 'Client_update' Cliente.pk %}">
+                        <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+                    </button>
+                    <button type="button" class="btn-accion-icono" title="Eliminar" data-bs-toggle="modal" data-bs-target="#Client-modal" data-url="{% url 'Client_delete' Cliente.pk %}">
+                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3">No hay clientes registrados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+     {# Modal Structure for Create/Edit/Delete #}
+    <div class="modal fade" id="Client-modal" tabindex="-1" aria-labelledby="ClientModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ClientModalLabel">Gestionar Cliente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="Client-form-container">
+                    {# Client form will be loaded here via AJAX #}
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const clientModalElement = document.getElementById('Client-modal');
+        const clientFormContainer = document.getElementById('Client-form-container');
+        const clientModal = new bootstrap.Modal(clientModalElement); // Instancia del modal de Bootstrap
+
+        // Este evento se dispara CADA VEZ que el modal '#Client-modal' intenta mostrarse
+        clientModalElement.addEventListener('show.bs.modal', function (event) {
+            // El botón que disparó el modal
+            const button = event.relatedTarget;
+            // Extraemos la URL del atributo 'data-url' que pusimos en los botones
+            const url = button.getAttribute('data-url');
+
+            // Limpiamos el contenido anterior y mostramos un 'cargando...'
+            clientFormContainer.innerHTML = '<p class="text-center">Cargando...</p>';
+            
+            // Hacemos la petición AJAX para obtener el formulario
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(response => response.text())
+                .then(html => {
+                    clientFormContainer.innerHTML = html;
+                    attachClientFormSubmitHandler(); // Adjuntamos el manejador al nuevo formulario
+                })
+                .catch(error => {
+                    clientFormContainer.innerHTML = '<p class="text-center text-danger">Error al cargar el contenido.</p>';
+                    console.error('Error loading Client form:', error);
+                });
+        });
+
+        // Function to attach submit handler to the dynamically loaded form
+        function attachClientFormSubmitHandler() {
+            const ClientForm = clientFormContainer.querySelector('form');
+            if (ClientForm) {
+                ClientForm.addEventListener('submit', function(e) {
+                    e.preventDefault(); // Prevent default form submission
+                    const formData = new FormData(ClientForm);
+                    fetch(ClientForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message || 'Operación exitosa!');
+                            clientModal.hide();
+                            location.reload(); // Reload the page to show updated list
+                        } else {
+                            // Display errors by re-rendering the form HTML
+                            clientFormContainer.innerHTML = data.form_html;
+                            attachClientFormSubmitHandler(); // Re-attach handler for the new form
+                        }
+                    })
+                    .catch(error => console.error('Error submitting Client form:', error));
+                });
+
+                // Add event listener for the new cancel button in the form
+                const cancelButton = ClientForm.querySelector('.btn-cancel');
+                if (cancelButton) {
+                    cancelButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        clientModal.hide();
+                    });
+                }
+            }
+        }
+    });
+    
+</script>
+{% endblock %}

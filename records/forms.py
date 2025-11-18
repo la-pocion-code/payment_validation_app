@@ -2,7 +2,7 @@
 
 from django import forms
 from django.forms import modelformset_factory, BaseModelFormSet
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType, Client
 import json
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserChangeForm
@@ -172,7 +172,33 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
     class Meta(FinancialRecordForm.Meta):
         exclude = ['uploaded_by']
 
-    
+
+
+class CreditForm(forms.ModelForm):
+    class Meta:
+        model = FinancialRecord
+        fields = [
+            'cliente', 
+            'origen_transaccion',
+            'fecha', 
+            'hora', 
+            'comprobante', 
+            'banco_llegada', 
+            'valor'
+        ]
+        widgets = {
+            'fecha': forms.DateInput(attrs={'type': 'date'}),
+            'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['cliente'].queryset = Client.objects.order_by('name')
+        # Hacemos todos los campos requeridos si no lo son ya
+        for field in self.fields.values():
+            field.required = True
+
+
 class BankForm(forms.ModelForm):
     class Meta:
         model = Bank
@@ -183,9 +209,19 @@ class OrigenTransaccionForm(forms.ModelForm):
         model = OrigenTransaccion
         fields = ['name', 'dias_efectivo']
 
+class ClientForm(forms.ModelForm):
+    class Meta:
+        model = Client
+        fields = ['name', 'dni']
+
 
 class CSVUploadForm(forms.Form):
     csv_file = forms.FileField(label="Seleccionar archivo CSV", max_length=5 * 1024 * 1024) # Added max_length for file size limit
+
+
+
+class BulkClientUploadForm(forms.Form):
+    file = forms.FileField(label="Seleccionar archivo Excel o CSV")
 
 class UserUpdateForm(forms.ModelForm):
     class Meta:
@@ -274,7 +310,7 @@ FinancialRecordFormSet = modelformset_factory(
     form=FinancialRecordForm,
     formset=BaseFinancialRecordFormSet,
     fields=['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor', 'payment_status'],
-    extra=1,
+    extra=0,
     can_delete=True
 )
 

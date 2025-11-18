@@ -1,0 +1,25 @@
+{% extends "records/base.html" %}
+{% load static %}
+
+{% block title %}Carga Masiva de Clientes{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Carga Masiva de Clientes</h2>
+    <p>Sube un archivo Excel (.xlsx) o CSV (.csv) con las columnas <strong>name</strong> y <strong>dni</strong> para crear múltiples clientes a la vez.</p>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" action="{% url 'client_bulk_upload_page' %}">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">Cargar Archivo</button>
+                    <a href="{% url 'Client_list' %}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

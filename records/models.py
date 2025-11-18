@@ -3,12 +3,12 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 from django.contrib.auth.models import User
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from datetime import datetime
 from decimal import Decimal
 from .utils import calculate_effective_date
 import secrets
-
+import re
 
 
 class AuthorizedUser(models.Model):
@@ -24,6 +24,54 @@ class AuthorizedUser(models.Model):
     def save(self, *args, **kwargs):
         self.email = self.email.lower()
         super(AuthorizedUser, self).save(*args, **kwargs)
+
+
+
+class Client(models.Model):
+    name = models.CharField("Nombre del Cliente", max_length=255)
+
+    # DNI como texto para permitir letras y guiones
+    dni = models.CharField("Documento", max_length=50)
+
+    @property
+    def available_balance(self):
+        """
+        Calcula el saldo a favor disponible para un cliente.
+        Suma el valor de todos los recibos (FinancialRecord) que:
+        1. Pertenecen a este cliente.
+        2. Tienen estado 'Aprobado'.
+        3. No están asociados a ninguna transacción (transaction is NULL).
+        """
+        total = self.financialrecord_set.filter(
+            payment_status='Aprobado',
+            transaction__isnull=True
+        ).aggregate(
+            total_balance=Sum('valor')
+        )['total_balance']
+        
+        return total or Decimal('0.00')
+
+    def save(self, *args, **kwargs):
+        # Limpieza del campo DNI antes de guardar
+        if self.dni:
+            # Permitir solo letras, números y guiones
+            self.dni = re.sub(r"[^A-Za-z0-9\-]", "", self.dni)
+        # Limpiar nombre (permite letras y espacios)
+        if self.name:
+            # Mayúsculas
+            self.name = self.name.upper()
+
+            # Eliminar cualquier caracter que NO sea letra o espacio
+            self.name = re.sub(r"[^A-Z\s]", "", self.name)
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} ({self.dni})"
+
+    class Meta:
+        verbose_name = "Cliente"
+        verbose_name_plural = "Clientes"
 
 class TransactionType(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -87,7 +135,7 @@ class Transaction(models.Model):
         ('Anulado', 'Anulado'),
     ]
     date = models.DateField(default=timezone.now, verbose_name="Fecha Venta")
-    cliente = models.CharField(max_length=200, blank=True, null=True)
+    cliente = models.ForeignKey(Client, on_delete=models.PROTECT, verbose_name="Cliente", null=True, blank=True)
     vendedor = models.ForeignKey(Seller,on_delete=models.PROTECT, verbose_name="Vendedor")
     transaction_type = models.ForeignKey(TransactionType, on_delete=models.PROTECT, verbose_name="Tipo de Transacción")
     description = models.CharField(max_length=255, verbose_name="Observación", blank=True, null=True)
@@ -158,8 +206,9 @@ class FinancialRecord(models.Model):
         ('Rechazado', 'Rechazado')
     ]
     fecha = models.DateField()
-    hora = models.TimeField()
+    hora = models.TimeField() 
     comprobante = models.CharField(max_length=200, verbose_name="# Comprobante")
+    cliente = models.ForeignKey(Client, on_delete=models.PROTECT, verbose_name="Cliente", null=True, blank=True)
     banco_llegada = models.ForeignKey(Bank, on_delete=models.PROTECT, verbose_name="Banco Llegada")
     origen_transaccion = models.ForeignKey('OrigenTransaccion', on_delete=models.PROTECT, verbose_name="Origen de Transacción")
     valor = models.DecimalField(max_digits=12, decimal_places=2)

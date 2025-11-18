@@ -49,8 +49,11 @@
                 <div class="filter-field">
                     {{ transaction_form.cliente.label_tag }}
                     {{ transaction_form.cliente }}
-                    {{ transaction_form.cliente.errors }}
+                    <div id="client-balance-container" class="mt-2" style="display: none;">
+                        <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
                     </div>
+                    {{ transaction_form.cliente.errors }}
+                </div>
                 <div class="filter-field">
                     {{ transaction_form.vendedor.label_tag }}
                     {{ transaction_form.vendedor }}
@@ -261,6 +264,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const actualAmountOutput = document.getElementById('id_actual_amount');
     const differenceOutput = document.getElementById('id_difference_amount');
 
+    // --- Selectores para Saldo de Cliente (NUEVO) ---
+    const clientSelect = document.getElementById('id_cliente');
+    const balanceContainer = document.getElementById('client-balance-container');
+    const balanceDisplay = document.getElementById('client-balance-display');
+
+
     if (!addFormBtn || !container || !emptyFormTemplateEl || !totalFormsInput) {
         console.error('One or more critical script elements for the formset were not found.');
         return;
@@ -460,6 +469,36 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ==========================================================
+    // --- LÓGICA PARA SALDO DE CLIENTE (NUEVA) ---
+    // ==========================================================
+    function updateBalance(clientId) {
+        if (!clientId) {
+            if(balanceContainer) balanceContainer.style.display = 'none';
+            return;
+        }
+
+        fetch(`/ajax/get_client_balance/?client_id=${clientId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (balanceContainer && balanceDisplay && data.balance !== undefined) {
+                    const balanceValue = parseFloat(data.balance.replace(/,/g, ''));
+                    if (balanceValue > 0) {
+                        balanceDisplay.textContent = `Saldo a favor: $${data.balance}`;
+                        balanceContainer.style.display = 'block';
+                    } else {
+                        balanceContainer.style.display = 'none';
+                    }
+                } else {
+                    if(balanceContainer) balanceContainer.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching client balance:', error);
+                if(balanceContainer) balanceContainer.style.display = 'none';
+            });
+    }
+
+    // ==========================================================
     // --- INICIALIZACIÓN Y EVENT LISTENERS ---
     // ==========================================================
     
@@ -467,6 +506,18 @@ document.addEventListener('DOMContentLoaded', function() {
     addFormBtn.addEventListener('click', addForm);
     container.addEventListener('click', handleContainerClick);
     if(transactionDateField) transactionDateField.addEventListener('change', syncAllDates);
+
+    // --- Listeners para Saldo de Cliente (NUEVO) ---
+    if (clientSelect) {
+        // Al cargar la página, verificar si ya hay un cliente seleccionado
+        if (clientSelect.value) {
+            updateBalance(clientSelect.value);
+        }
+        // Al cambiar la selección del cliente
+        clientSelect.addEventListener('change', function() {
+            updateBalance(this.value);
+        });
+    }
 
     // --- Listeners para Cálculo de Totales y Formateo de Números (Nuevos) ---
     function formatNumberInput(input) {

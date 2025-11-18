@@ -6,7 +6,7 @@
 {% block content %}
     <h2>Gestionar Bancos</h2>
 
-    <a href="{% url 'bank_create' %}" id="open-bank-create-modal" class="btn-primary">Crear Nuevo Banco</a>
+    <a href="{% url 'bank_create' %}" id="open-bank-create-modal" class="btn btn-success">Nuevo Banco</a>
 
     <table border="1">
         <thead>
@@ -35,7 +35,7 @@
     </table>
 
     {# Modal Structure #}
-    <div id="bank-modal" class="modal" style="display: none;">
+    <div id="bank-modal" class="custom-modal" style="display: none;">
         <div class="modal-content">
             <span class="close-button">&times;</span>     
             <div id="bank-form-container">
@@ -76,7 +76,7 @@
 
         // Close modal if clicked outside content
         window.addEventListener('click', function(event) {
-            if (event.target == bankModal) {
+            if (event.target.classList.contains('custom-modal')) {
                 closeModal();
             }
         });

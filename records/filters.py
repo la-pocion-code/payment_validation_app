@@ -80,12 +80,12 @@ class TransactionFilter(django_filters.FilterSet):
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
     cliente = django_filters.CharFilter(
-        field_name='cliente',
+        field_name='cliente__name',
         lookup_expr='icontains',
         label='Cliente'
     )
     vendedor = django_filters.CharFilter(
-        field_name='vendedor',
+        field_name='vendedor__name',
         lookup_expr='icontains',
         label='Vendedor'
     )

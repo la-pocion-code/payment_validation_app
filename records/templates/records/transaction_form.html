@@ -45,7 +45,13 @@
                     {% if request.user.is_superuser or 'Digitador' in user_groups %}
                         <td>{{ form.transaction_type }} {{ form.transaction_type.errors }}</td>
                         <td>{{ form.date }} {{ form.date.errors }}</td>
-                        <td>{{ form.cliente }} {{ form.cliente.errors }}</td>
+                        <td>
+                            {{ form.cliente }}
+                            <div id="client-balance-container" class="mt-2" style="display: none;">
+                                <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
+                            </div>
+                            {{ form.cliente.errors }}
+                        </td>
                         <td>{{ form.vendedor }} {{ form.vendedor.errors }}</td>
 
                         <!-- Campo Valor Venta con validación -->
@@ -71,7 +77,12 @@
                     {% else %}
                         <td><input type="text" class="form-control" value="{{ form.transaction_type.value }}" readonly></td>
                         <td><input type="text" class="form-control" value="{{ form.date.value }}" readonly></td>
-                        <td><input type="text" class="form-control" value="{{ form.cliente.value }}" readonly></td>
+                        <td>
+                            <input type="text" class="form-control" value="{{ form.cliente.value }}" readonly>
+                            <div id="client-balance-container" class="mt-2" style="display: none;">
+                                <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
+                            </div>
+                        </td>
                         <td><input type="text" class="form-control" value="{{ form.vendedor.value }}" readonly></td>
 
                         <!-- Campo Valor Venta solo lectura -->
@@ -108,6 +119,24 @@
                 </tbody>
             </table>
         </fieldset>
+
+        {% if available_credits %}
+        <fieldset class="mt-4">
+            <legend>Abonos Disponibles para Aplicar</legend>
+            <p>Este cliente tiene un saldo a favor. Selecciona los abonos que deseas aplicar a esta transacción.</p>
+            
+            <div class="available-credits-list p-3 border rounded bg-light">
+                {% for credit in available_credits %}
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="apply_credit" value="{{ credit.pk }}" id="credit_{{ credit.pk }}">
+                    <label class="form-check-label" for="credit_{{ credit.pk }}">
+                        Fecha: {{ credit.fecha }} | Valor: ${{ credit.valor|floatformat:2|intcomma }} | Comprobante: {{ credit.comprobante }}
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </fieldset>
+        {% endif %}
 
         {# Financial Records Formset #}
         <fieldset>
@@ -344,6 +373,50 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // --- LÓGICA PARA SALDO DE CLIENTE (NUEVA) ---
+        const clientSelect = document.getElementById('id_cliente');
+        const balanceContainer = document.getElementById('client-balance-container');
+        const balanceDisplay = document.getElementById('client-balance-display');
+
+        function updateBalance(clientId) {
+            if (!clientId) {
+                if(balanceContainer) balanceContainer.style.display = 'none';
+                return;
+            }
+
+            fetch(`/ajax/get_client_balance/?client_id=${clientId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (balanceContainer && balanceDisplay && data.balance !== undefined) {
+                        const balanceValue = parseFloat(data.balance.replace(/,/g, ''));
+                        if (balanceValue > 0) {
+                            balanceDisplay.textContent = `Saldo a favor: $${data.balance}`;
+                            balanceContainer.style.display = 'block';
+                        } else {
+                            balanceContainer.style.display = 'none';
+                        }
+                    } else {
+                       if(balanceContainer) balanceContainer.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching client balance:', error);
+                    if(balanceContainer) balanceContainer.style.display = 'none';
+                });
+        }
+
+        if (clientSelect) {
+            // Al cargar la página, verificar si ya hay un cliente seleccionado
+            if (clientSelect.value) {
+                updateBalance(clientSelect.value);
+            }
+            // Al cambiar la selección del cliente
+            clientSelect.addEventListener('change', function() {
+                updateBalance(this.value);
+            });
+        }
+        // --- FIN LÓGICA SALDO CLIENTE ---
+
         const formsetContainer = document.getElementById('formset-container');
         const addReceiptBtn = document.getElementById('add-receipt-btn');
         const totalForms = document.querySelector('#id_receipts-TOTAL_FORMS');

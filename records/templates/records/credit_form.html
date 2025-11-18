@@ -1,0 +1,21 @@
+<!-- records/templates/records/abono_form.html -->
+{% extends "records/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="form-container">
+            {{ form.as_p }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Guardar Abono</button>
+            <a href="{% url 'record_list' %}" class="btn-secondary">Cancelar</a>
+        </div>
+    </form>
+{% endblock %}

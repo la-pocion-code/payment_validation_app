@@ -6,7 +6,7 @@
 {% block content %}
     <h2>Gestionar Vendedores</h2>
 
-    <a href="{% url 'seller_create' %}" id="open-seller-create-modal" class="btn-primary">Crear Nuevo Vendedor</a>
+    <a href="{% url 'seller_create' %}" id="open-seller-create-modal" class="btn btn-success">Nuevo Vendedor</a>
 
     <table border="1">
         <thead>
@@ -35,7 +35,7 @@
     </table>
 
     {# Modal Structure #}
-    <div id="seller-modal" class="modal" style="display: none;">
+    <div id="seller-modal" class="custom-modal" style="display: none;">
         <div class="modal-content">
             <span class="close-button">&times;</span>     
             <div id="seller-form-container">
@@ -76,7 +76,7 @@
 
         // Close modal if clicked outside content
         window.addEventListener('click', function(event) {
-            if (event.target == sellerModal) {
+            if (event.target.classList.contains('custom-modal')) {
                 closeModal();
             }
         });

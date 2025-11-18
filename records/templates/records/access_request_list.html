@@ -32,9 +32,9 @@
                             <td>{{ req.user.email }}</td>
                             <td>{{ req.requested_at|date:"d/m/Y H:i" }}</td>
                             <td>
-                                <a href="{% url 'access_request_approve_deny' req.pk %}" class="btn btn-info btn-sm open-access-request-modal" title="Gestionar">
-                                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Gestionar" width="20" height="20"> 
-                                </a>
+                            <button type="button" class="btn btn-info btn-sm" title="Gestionar" data-bs-toggle="modal" data-bs-target="#user-modal" data-url="{% url 'access_request_approve_deny' req.pk %}">
+                                <img src="{% static 'images/pen-solid-full.svg' %}" alt="Gestionar" width="20" height="20">
+                            </button>
                             </td>
                         </tr>
                     {% endfor %}
@@ -94,13 +94,12 @@
                             <td>{{ user.last_login|default:"Nunca"|date:"d/m/Y H:i" }}</td>
                             <td>{{ user.date_joined|date:"d/m/Y H:i" }}</td>
                             <td>
-                                <a href="{% url 'user_update' user.pk %}" class="btn btn-info btn-sm open-user-edit-modal" title="Editar">
-                                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20"> 
-                                </a>   
-                                <a href="{% url 'user_delete' user.pk %}" class="btn btn-info btn-sm open-user-edit-modal" title="Eliminar" data-record-id="{{ registro.pk }}" data-record-comprobante="{{ registro.comprobante }}">
-                                    <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20"></a>
-                                <!-- <a href="{% url 'user_update' user.pk %}" class="btn btn-info btn-sm open-user-edit-modal">Editar</a> -->
-                                <!-- <a href="{% url 'user_delete' user.pk %}" class="btn btn-danger btn-sm open-user-delete-modal">Eliminar</a> -->
+                                <button type="button" class="btn btn-info btn-sm" title="Editar" data-bs-toggle="modal" data-bs-target="#user-modal" data-url="{% url 'user_update' user.pk %}">
+                                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+                                </button>
+                                <button type="button" class="btn btn-danger btn-sm" title="Eliminar" data-bs-toggle="modal" data-bs-target="#user-modal" data-url="{% url 'user_delete' user.pk %}">
+                                    <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
+                                </button>
                             </td>
                         </tr>
                     {% endfor %}
@@ -115,11 +114,16 @@
 </div>
 
 {# Modal Structure #}
-<div id="user-modal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close-button">&times;</span>     
-        <div id="user-form-container">
-            {# Form will be loaded here via AJAX #}
+<div class="modal fade" id="user-modal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalLabel">Gestionar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="user-form-container">
+                {# Form will be loaded here via AJAX #}
+            </div>
         </div>
     </div>
 </div>
@@ -129,43 +133,32 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const userModal = document.getElementById('user-modal');
-        const closeButton = userModal.querySelector('.close-button');
+        const userModalElement = document.getElementById('user-modal');
         const userFormContainer = document.getElementById('user-form-container');
+        const userModal = new bootstrap.Modal(userModalElement);
 
-        function openModal(url) {
-            userModal.style.display = 'flex';
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.text())
-            .then(html => {
-                userFormContainer.innerHTML = html;
-                attachFormSubmitHandler();
-            })
-            .catch(error => console.error('Error loading form:', error));
-        }
+        userModalElement.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const url = button.getAttribute('data-url');
+            const modalTitle = userModalElement.querySelector('.modal-title');
 
-        function closeModal() {
-            userModal.style.display = 'none';
-            userFormContainer.innerHTML = '';
-        }
-
-        closeButton.addEventListener('click', closeModal);
-
-        window.addEventListener('click', function(event) {
-            if (event.target == userModal) {
-                closeModal();
+            // Actualizar título del modal dinámicamente
+            if (button.title) {
+                modalTitle.textContent = button.title;
             }
-        });
 
-        document.querySelectorAll('.open-user-edit-modal, .open-user-delete-modal, .open-access-request-modal').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                openModal(this.href);
-            });
+            userFormContainer.innerHTML = '<p class="text-center">Cargando...</p>';
+            
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(response => response.text())
+                .then(html => {
+                    userFormContainer.innerHTML = html;
+                    attachFormSubmitHandler();
+                })
+                .catch(error => {
+                    userFormContainer.innerHTML = '<p class="text-center text-danger">Error al cargar el contenido.</p>';
+                    console.error('Error loading form:', error);
+                });
         });
 
         function attachFormSubmitHandler() {
@@ -174,7 +167,6 @@
                 currentForm.addEventListener('submit', function(e) {
                     e.preventDefault();
                     const formData = new FormData(currentForm);
-                    console.log('Submitting form...'); // Debug log
                     fetch(currentForm.action, {
                         method: 'POST',
                         headers: {
@@ -183,16 +175,12 @@
                         },
                         body: formData
                     })
-                    .then(response => {
-                        console.log('Raw response:', response); // Debug log
-                        return response.json();
-                    })
+                    .then(response => response.json())
                     .then(data => {
-                        console.log('Parsed data:', data); // Debug log
                         if (data.success) {
                             alert(data.message || 'Operación exitosa!');
-                            closeModal();
-                            location.reload();
+                            userModal.hide();
+                            window.location.reload();
                         } else {
                             userFormContainer.innerHTML = data.form_html;
                             attachFormSubmitHandler();
@@ -205,7 +193,7 @@
                 if (cancelButton) {
                     cancelButton.addEventListener('click', function(e) {
                         e.preventDefault();
-                        closeModal();
+                        userModal.hide();
                     });
                 }
             }
