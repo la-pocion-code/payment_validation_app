@@ -7,7 +7,7 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3>{{ title }}</h3>
-        <a href="{% url 'csv_upload' %}" class="btn btn-success">
+        <a href="{% url 'csv_upload' %}" class="btn btn-info">
             <i class="fas fa-plus"></i> Cargar Archivo
         </a> 
         <a href="{% url 'credit_create' %}" class="btn btn-success">
@@ -24,10 +24,11 @@
                             <th>ID</th>
                             <th>Cliente</th>
                             <th>Fecha Registro</th>
+                            <th>Comprobante</th>
+                            <th>Banco Llegada</th>
                             <th>Valor</th>
                             <th>Estado</th>
                             <th>Subido por</th>
-                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -38,6 +39,8 @@
                             </td>
                             <td>{{ credit.cliente.name|default:"N/A" }}</td>
                             <td>{{ credit.creado|date:"d/m/Y H:i" }}</td>
+                            <td>{{ credit.comprobante }}</td>
+                            <td>{{ credit.banco_llegada.name }}</td>
                             <td>${{ credit.valor|intcomma }}</td>
                             <td>
                                 <span class="badge {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
@@ -45,7 +48,7 @@
                                 </span>
                             </td>
                             <td>{{ credit.uploaded_by.username|default:"Sistema" }}</td>
-                            <td>
+                            {% comment %} <td>
                                 <a href="{% url 'record_detail' credit.pk %}" class="btn btn-sm btn-outline-info" title="Ver Detalles">
                                     <i class="fas fa-eye"></i>
                                 </a>
@@ -57,7 +60,7 @@
                                     <i class="fas fa-trash"></i>
                                 </a>
                                 {% endif %}
-                            </td>
+                            </td> {% endcomment %}
                         </tr>
                         {% empty %}
                         <tr>
@@ -85,3 +88,5 @@
     </div>
 </div>
 {% endblock %}
+
+

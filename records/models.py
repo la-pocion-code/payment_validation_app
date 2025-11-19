@@ -31,7 +31,7 @@ class Client(models.Model):
     name = models.CharField("Nombre del Cliente", max_length=255)
 
     # DNI como texto para permitir letras y guiones
-    dni = models.CharField("Documento", max_length=50)
+    dni = models.CharField("Documento", max_length=50, unique=True)
 
     @property
     def available_balance(self):

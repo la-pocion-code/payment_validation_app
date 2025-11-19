@@ -41,7 +41,7 @@ urlpatterns = [
     path('Client/<int:pk>/edit/', views.ClientUpdateView.as_view(), name='Client_update'),
     path('Client/<int:pk>/delete/', views.ClientDeleteView.as_view(), name='Client_delete'),
     path('Clientes/', views.ClientListView.as_view(), name='Client_list'),
-    path('Clientes/cargar/', views.bulk_client_upload, name='bulk_client_upload_page'),
+    path('Clientes/cargar/', views.bulk_client_upload, name='client_bulk_upload_page'),
     path('seller/new/', views.SellerCreateView.as_view(), name='seller_create'),
     path('seller/<int:pk>/edit/', views.SellerUpdateView.as_view(), name='seller_update'),
     path('seller/<int:pk>/delete/', views.SellerDeleteView.as_view(), name='seller_delete'),
@@ -61,5 +61,6 @@ urlpatterns = [
     path('ajax/get_client_balance/', views.get_client_balance, name='get_client_balance'),
     path('credit/nuevo/', views.CreditCreateView.as_view(), name='credit_create'),
     path('credits/', views.CreditListView.as_view(), name='credit_list'),
+    path('records/clientes/buscar/', views.search_clients, name='client_search_ajax'), 
 
 ]

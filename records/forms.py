@@ -175,10 +175,25 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
 
 
 class CreditForm(forms.ModelForm):
+    # Campo visible para la búsqueda y autocompletado del cliente
+    client_search = forms.CharField(
+        label="Cliente",
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar cliente por nombre o DNI...',
+            'autocomplete': 'off' # Deshabilitar el autocompletado del navegador
+        })
+    )
+    # Campo oculto para almacenar el ID del cliente seleccionado
+    cliente_id = forms.IntegerField(
+        widget=forms.HiddenInput(),
+        required=True # Este campo es requerido para guardar el FinancialRecord
+    )
     class Meta:
         model = FinancialRecord
         fields = [
-            'cliente', 
+            'cliente', # <-- AÑADIR ESTA LÍNEA
             'origen_transaccion',
             'fecha', 
             'hora', 
@@ -189,14 +204,48 @@ class CreditForm(forms.ModelForm):
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
+            'cliente': forms.HiddenInput(), # <-- AÑADIR ESTA LÍNEA
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['cliente'].queryset = Client.objects.order_by('name')
+        # self.fields['cliente'].queryset = Client.objects.order_by('name') # Esto ya no es necesario
+
+        # Si estamos editando un registro existente, precargamos el nombre del cliente
+        if self.instance and self.instance.pk and self.instance.cliente:
+            self.fields['client_search'].initial = str(self.instance.cliente) # Muestra nombre y DNI
+            self.fields['cliente_id'].initial = self.instance.cliente.pk
+
         # Hacemos todos los campos requeridos si no lo son ya
-        for field in self.fields.values():
-            field.required = True
+        # Iteramos sobre los nombres de los campos para evitar el AttributeError
+        for field_name, field in self.fields.items():
+            field.required = True # Hacemos todos los campos requeridos por simplicidad
+        
+        # Hacemos que el campo 'cliente' del modelo no sea requerido a nivel de formulario,
+        # ya que lo llenaremos manualmente en el método clean().
+        self.fields['cliente'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        client_id = cleaned_data.get('cliente_id')
+        client_search = cleaned_data.get('client_search')
+
+        if not client_id:
+            self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
+        else:
+            try:
+                # Intentamos obtener el cliente usando el ID
+                cliente_obj = Client.objects.get(pk=client_id)
+                # Verificamos que el nombre en el campo de búsqueda coincida con el cliente seleccionado
+                # Esto es para evitar que el usuario escriba algo y no seleccione de la lista
+                if str(cliente_obj) != client_search:
+                     self.add_error('client_search', "El cliente seleccionado no coincide con el texto ingresado. Por favor, seleccione de la lista de sugerencias.")
+                cleaned_data['cliente'] = cliente_obj # Asignamos el objeto Client al campo 'cliente' del modelo
+            except Client.DoesNotExist:
+                self.add_error('client_search', "El cliente seleccionado no es válido.")
+        
+        return cleaned_data
 
 
 class BankForm(forms.ModelForm):

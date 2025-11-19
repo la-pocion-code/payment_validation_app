@@ -11,6 +11,7 @@ from django.contrib.messages.views import SuccessMessageMixin
 from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from datetime import datetime
 from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter
@@ -29,6 +30,7 @@ from .utils import calculate_effective_date
 from .forms import BulkClientUploadForm
 from datetime import datetime
 from django.utils import timezone
+from django.db.models import Q
 
 
 
@@ -332,7 +334,11 @@ class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
             self.object = self.get_object()
             context = self.get_context_data(object=self.object)
             html_form = render_to_string(self.template_name, context, request=request)
-            return HttpResponse(html_form)
+            # Devolvemos tanto el HTML del formulario como la URL a la que debe apuntar.
+            return JsonResponse({
+                'html_form': html_form,
+                'form_url': reverse_lazy('Client_delete', kwargs={'pk': self.object.pk})
+            })
         return super().get(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
@@ -380,7 +386,10 @@ class ClientUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMi
 
     def form_valid(self, form):
         if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            Client = form.save()
+            try:
+                Client = form.save()
+            except IntegrityError:
+                return JsonResponse({'success': False, 'form_html': render_to_string('records/Client_form.html', {'form': form, 'title': self.get_context_data()['title']}, request=self.request)})
             return JsonResponse({'success': True, 'id': Client.id, 'name': Client.name, 'message': self.success_message})
         return super().form_valid(form)
 
@@ -411,9 +420,17 @@ class ClientDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     def post(self, request, *args, **kwargs):
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             self.object = self.get_object()
-            self.object.delete()
-            messages.success(self.request, self.success_message)
-            return JsonResponse({'success': True, 'message': self.success_message})
+            try:
+                self.object.delete()
+                messages.success(self.request, self.success_message)
+                return JsonResponse({'success': True, 'message': self.success_message})
+            except (IntegrityError, ProtectedError):
+                # Este error ocurre si el cliente está asociado a transacciones (on_delete=PROTECT)
+                error_message = f'No se puede eliminar el cliente "{self.object.name}" porque tiene transacciones asociadas.'
+                return JsonResponse({'success': False, 'message': error_message}, status=400)
+            except Exception as e:
+                # Captura cualquier otro error inesperado
+                return JsonResponse({'success': False, 'message': str(e)}, status=500)
         return super().post(request, *args, **kwargs)
 
 class ClientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -435,30 +452,50 @@ def bulk_client_upload(request):
             import pandas as pd
 
             try:
-                df = pd.read_excel(file)  # Intenta leer como Excel primero
-            except Exception as e:
+                # Reiniciar el puntero del archivo por si se leyó antes
+                file.seek(0)
+                df = pd.read_excel(file)
+            except Exception:
                 try:
-                    df = pd.read_csv(file)  # Si falla, intenta leer como CSV
-                except Exception as e2:
-                    messages.error(request, f"Error al leer el archivo: {e}. Error adicional al intentar leer como CSV: {e2}")
+                    # Si falla, intentar leer como CSV
+                    file.seek(0)
+                    df = pd.read_csv(file)
+                except Exception as e:
+                    messages.error(request, f"No se pudo leer el archivo. Asegúrate de que sea un Excel o CSV válido. Error: {e}")
                     return redirect('Client_list')
 
             # Validar que las columnas 'name' y 'dni' existan
-            if 'name' not in df.columns or 'dni' not in df.columns:
+            required_columns = ['name', 'dni']
+            if not all(col in df.columns for col in required_columns):
                 messages.error(request, "El archivo debe contener las columnas 'name' y 'dni'.")
                 return redirect('Client_list')
+
+            # Eliminar filas donde 'name' o 'dni' son nulos
+            df.dropna(subset=['name', 'dni'], inplace=True)
+
+            if df.empty:
+                messages.warning(request, "El archivo no contiene registros válidos para procesar.")
+                return redirect('Client_list')
+
+            total_rows = len(df)
+            messages.info(request, f"Archivo leído correctamente. Se procesarán {total_rows} registros.")
 
             # Iterar sobre las filas del DataFrame y crear los clientes
             created_count = 0
             duplicates_count = 0
+            error_count = 0
+
             for index, row in df.iterrows():
-                name = row['name']
-                dni = row['dni']
+                # Limpiar datos de espacios en blanco
+                name = str(row['name']).strip()
+                dni = str(row['dni']).strip()
+
+                if not name or not dni:
+                    error_count += 1
+                    continue
 
                 # Verificar si ya existe un cliente con el mismo DNI
-                existing_client = Client.objects.filter(dni=dni).first()
-
-                if existing_client:
+                if Client.objects.filter(dni=dni).exists():
                     duplicates_count += 1
                 else:
                     try:
@@ -466,20 +503,15 @@ def bulk_client_upload(request):
                         created_count += 1
                     except Exception as e:
                         messages.error(request, f"Error al crear el cliente {name} (DNI: {dni}): {e}")
-                        continue
-            message_parts = []
-            if created_count > 0:
-                # messages.success(request, f"Se crearon {created_count} clientes exitosamente.")
-                message_parts.append(f"Se crearon {created_count} clientes exitosamente.")
-            if duplicates_count > 0:
-                # messages.warning(request, f"Se omitieron {duplicates_count} clientes duplicados (mismo DNI).")
-                message_parts.append(f'Se omitieron {duplicates_count} clientes duplicados (mismo DNI).')
-            messages.success(request, " ".join(message_parts))
+                        error_count += 1
+            
+            # Construir mensaje final
+            message = f"Proceso finalizado. Clientes nuevos: {created_count}. Duplicados omitidos: {duplicates_count}. Errores: {error_count}."
+            messages.success(request, message)
             return redirect('Client_list')
     else:
         form = BulkClientUploadForm()
 
-    # return render(request, 'records/bulk_client_upload_modal.html', {'form': form})
     return render(request, 'records/client_bulk_upload_page.html', {'form': form})
 
 
@@ -502,7 +534,10 @@ class ClientCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            Client = form.save()
+            try:
+                Client = form.save()
+            except IntegrityError:
+                return JsonResponse({'success': False, 'form_html': render_to_string('records/Client_form.html', {'form': form, 'title': 'Crear Nuevo Cliente'}, request=self.request)})
             return JsonResponse({'success': True, 'id': Client.id, 'name': Client.name, 'message': '¡Cliente creado exitosamente!'})
         return super().form_valid(form)
 
@@ -1697,3 +1732,32 @@ def get_client_balance(request):
         return JsonResponse({'balance': f'{balance:,.2f}'}) # Formatted balance
     except Client.DoesNotExist:
         return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
+    
+
+
+@login_required 
+def search_clients(request):
+    """
+    Vista para buscar clientes vía AJAX para el autocompletado.
+    Responde con una lista de objetos JSON.
+    """
+    # jQuery UI Autocomplete envía el término de búsqueda en el parámetro 'term'
+    term = request.GET.get('term', '').strip()
+    
+    results = []
+    if len(term) >= 2: # Empezar a buscar con al menos 2 caracteres
+        clients = Client.objects.filter(
+            Q(name__icontains=term) | Q(dni__icontains=term)
+        ).order_by('name')[:10] # Limitar a 10 resultados para un buen rendimiento
+
+        for client in clients:
+            results.append({
+                "id": client.id,
+                # 'label' es lo que jQuery UI mostrará en la lista de sugerencias.
+                # Usamos el __str__ del modelo que ya está bien formateado.
+                "label": str(client), 
+            })
+            
+    # safe=False es necesario para devolver una lista de objetos JSON.
+    return JsonResponse(results, safe=False)
+

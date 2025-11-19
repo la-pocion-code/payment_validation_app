@@ -99,8 +99,8 @@
             <td>{{ transaction.vendedor }}</td>
             <td>{{ transaction.facturador }}</td>
             <td>{{ transaction.numero_factura }}</td>
-            <td>{{ transaction.receipts_total|intcomma }}</td>
-            <td>{{ transaction.expected_amount|intcomma }}</td>
+            <td>${{ transaction.receipts_total|intcomma }}</td>
+            <td>${{ transaction.expected_amount|intcomma }}</td>
             
             <!-- Celda Diferencia con color condicional -->
             <td>
@@ -174,7 +174,7 @@
                                 <td>{{ receipt.hora|time:"H:i" }}</td>
                                 <td>{{ receipt.comprobante }}</td>
                                 <td>{{ receipt.banco_llegada.name }}</td>
-                                <td>{{ receipt.valor|intcomma }}</td>
+                                <td>${{ receipt.valor|intcomma }}</td>
                                 <td>
                                     <span class="status-badge 
                                         {% if receipt.payment_status == 'Aprobado' %}status-aprobado
