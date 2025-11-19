@@ -1761,3 +1761,18 @@ def search_clients(request):
     # safe=False es necesario para devolver una lista de objetos JSON.
     return JsonResponse(results, safe=False)
 
+@login_required
+def search_sellers(request):
+    """
+    Vista para buscar vendedores vía AJAX para el autocompletado.
+    """
+    term = request.GET.get('term', '').strip()
+    results = []
+    if len(term) >= 2:
+        sellers = Seller.objects.filter(name__icontains=term).order_by('name')[:10]
+        for seller in sellers:
+            results.append({
+                "id": seller.id,
+                "label": seller.name,
+            })
+    return JsonResponse(results, safe=False)

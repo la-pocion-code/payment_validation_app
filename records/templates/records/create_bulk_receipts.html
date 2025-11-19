@@ -47,17 +47,21 @@
                     {{ transaction_form.date.errors }}
                 </div>
                 <div class="filter-field">
-                    {{ transaction_form.cliente.label_tag }}
-                    {{ transaction_form.cliente }}
+                    {{ transaction_form.client_search.label_tag }}
+                    {{ transaction_form.client_search }}
+                    {{ transaction_form.cliente_id }} {# Campo oculto #}
                     <div id="client-balance-container" class="mt-2" style="display: none;">
                         <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
                     </div>
-                    {{ transaction_form.cliente.errors }}
+                    {{ transaction_form.client_search.errors }}
+                    {{ transaction_form.cliente_id.errors }}
                 </div>
                 <div class="filter-field">
-                    {{ transaction_form.vendedor.label_tag }}
-                    {{ transaction_form.vendedor }}
-                    {{ transaction_form.vendedor.errors }}
+                    {{ transaction_form.seller_search.label_tag }}
+                    {{ transaction_form.seller_search }}
+                    {{ transaction_form.vendedor_id }} {# Campo oculto #}
+                    {{ transaction_form.seller_search.errors }}
+                    {{ transaction_form.vendedor_id.errors }}
                 </div>  
                 <div class="filter-field">
                     {{ transaction_form.expected_amount.label_tag }}
@@ -265,7 +269,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const differenceOutput = document.getElementById('id_difference_amount');
 
     // --- Selectores para Saldo de Cliente (NUEVO) ---
-    const clientSelect = document.getElementById('id_cliente');
+    const clientSelect = document.getElementById('id_cliente_id'); // Ahora escuchamos el campo oculto
     const balanceContainer = document.getElementById('client-balance-container');
     const balanceDisplay = document.getElementById('client-balance-display');
 
@@ -499,15 +503,83 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ==========================================================
+    // --- LÓGICA DE AUTOCOMPLETADO (NUEVA) ---
+    // ==========================================================
+    
+    // --- Autocompletado para Clientes ---
+    const clientSearchInput = $("#id_client_search");
+    const clientIdHiddenInput = $("#id_cliente_id");
+
+    clientSearchInput.autocomplete({
+        source: "{% url 'client_search_ajax' %}",
+        minLength: 2,
+        select: function(event, ui) {
+            clientIdHiddenInput.val(ui.item.id).trigger('change'); // Asignar ID y disparar 'change'
+            clientSearchInput.val(ui.item.label);
+            return false;
+        },
+        focus: function(event, ui) {
+            clientSearchInput.val(ui.item.label);
+            return false;
+        }
+    });
+
+    clientSearchInput.on('keyup input', function() {
+        if ($(this).val().trim() === '') {
+            clientIdHiddenInput.val('').trigger('change'); // Limpiar ID y disparar 'change'
+        }
+    });
+
+    // --- Autocompletado para Vendedores ---
+    const sellerSearchInput = $("#id_seller_search");
+    const sellerIdHiddenInput = $("#id_vendedor_id");
+
+    sellerSearchInput.autocomplete({
+        source: "{% url 'seller_search_ajax' %}",
+        minLength: 2,
+        select: function(event, ui) {
+            sellerIdHiddenInput.val(ui.item.id);
+            sellerSearchInput.val(ui.item.label);
+            return false;
+        },
+        focus: function(event, ui) {
+            sellerSearchInput.val(ui.item.label);
+            return false;
+        }
+    });
+
+    sellerSearchInput.on('keyup input', function() {
+        if ($(this).val().trim() === '') {
+            sellerIdHiddenInput.val('');
+        }
+    });
+
+
+    // ==========================================================
     // --- INICIALIZACIÓN Y EVENT LISTENERS ---
     // ==========================================================
     
     // Listeners del Formset (Existentes)
     addFormBtn.addEventListener('click', addForm);
-    container.addEventListener('click', handleContainerClick);
+    container.addEventListener('click', handleContainerClick);
     if(transactionDateField) transactionDateField.addEventListener('change', syncAllDates);
 
     // --- Listeners para Saldo de Cliente (NUEVO) ---
+    if (clientSelect) {
+        // Al cargar la página, verificar si ya hay un cliente seleccionado
+        // Ahora escuchamos el campo oculto
+        const initialClientId = clientIdHiddenInput.val();
+        if (initialClientId) {
+            updateBalance(initialClientId);
+        }
+
+        // Al cambiar la selección del cliente (disparado por el autocompletado)
+        clientIdHiddenInput.on('change', function() {
+            updateBalance(this.value);
+        });
+    }
+    /*
+    // --- Listeners para Saldo de Cliente (CÓDIGO ANTIGUO - A REEMPLAZAR) ---
     if (clientSelect) {
         // Al cargar la página, verificar si ya hay un cliente seleccionado
         if (clientSelect.value) {
@@ -518,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateBalance(this.value);
         });
     }
-
+    */
     // --- Listeners para Cálculo de Totales y Formateo de Números (Nuevos) ---
     function formatNumberInput(input) {
             if (!input || !input.value) {

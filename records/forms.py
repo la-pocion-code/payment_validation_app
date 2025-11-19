@@ -306,6 +306,30 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
 
                 
 class TransactionForm(forms.ModelForm):
+    # --- Campos de Autocompletado para Cliente ---
+    client_search = forms.CharField(
+        label="Cliente",
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar cliente por nombre o DNI...',
+            'autocomplete': 'off'
+        })
+    )
+    cliente_id = forms.IntegerField(widget=forms.HiddenInput(), required=True)
+
+    # --- Campos de Autocompletado para Vendedor ---
+    seller_search = forms.CharField(
+        label="Vendedor",
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Buscar vendedor por nombre...',
+            'autocomplete': 'off'
+        })
+    )
+    vendedor_id = forms.IntegerField(widget=forms.HiddenInput(), required=True)
+
     def __init__(self, *args, **kwargs):
         user = kwargs.get('user', None) # Get user, but don't pop yet
         
@@ -314,6 +338,15 @@ class TransactionForm(forms.ModelForm):
         super_kwargs = {k: v for k, v in kwargs.items() if k != 'user'}
         
         super().__init__(*args, **super_kwargs)
+
+        # --- Precargar datos si estamos editando una transacción existente ---
+        if self.instance and self.instance.pk:
+            if self.instance.cliente:
+                self.fields['client_search'].initial = str(self.instance.cliente)
+                self.fields['cliente_id'].initial = self.instance.cliente.pk
+            if self.instance.vendedor:
+                self.fields['seller_search'].initial = self.instance.vendedor.name
+                self.fields['vendedor_id'].initial = self.instance.vendedor.pk
 
         # Inicializa y oculta campos
         if not self.instance.pk:
@@ -332,6 +365,10 @@ class TransactionForm(forms.ModelForm):
                 for field in self.fields.values():
                     field.disabled = True
 
+        # --- Hacemos que los campos originales no sean requeridos a nivel de formulario ---
+        self.fields['cliente'].required = False
+        self.fields['vendedor'].required = False
+
 
 
     def clean_expected_amount(self):
@@ -345,12 +382,41 @@ class TransactionForm(forms.ModelForm):
                 raise forms.ValidationError("Ingrese un número válido.")
         return expected_amount
 
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # --- Validación y asignación para Cliente ---
+        cliente_id = cleaned_data.get('cliente_id')
+        if cliente_id:
+            try:
+                cleaned_data['cliente'] = Client.objects.get(pk=cliente_id)
+            except Client.DoesNotExist:
+                self.add_error('client_search', "El cliente seleccionado no es válido.")
+        elif cleaned_data.get('client_search'): # Si hay texto pero no ID
+             self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
+
+        # --- Validación y asignación para Vendedor ---
+        vendedor_id = cleaned_data.get('vendedor_id')
+        if vendedor_id:
+            try:
+                cleaned_data['vendedor'] = Seller.objects.get(pk=vendedor_id)
+            except Seller.DoesNotExist:
+                self.add_error('seller_search', "El vendedor seleccionado no es válido.")
+        elif cleaned_data.get('seller_search'): # Si hay texto pero no ID
+            self.add_error('seller_search', "Debe seleccionar un vendedor de la lista de sugerencias.")
+
+        return cleaned_data
+
     class Meta:
         model = Transaction
+        # Incluimos 'cliente' y 'vendedor' para que form.save() funcione, pero los ocultaremos
         fields = ['date', 'cliente', 'vendedor', 'transaction_type', 'description', 'status', 'numero_factura', 'facturador', 'created_by', 'expected_amount']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date', 'id': 'id_transaction_date', 'class': 'form-control'}),
             'expected_amount': forms.TextInput(),
+            # Ocultamos los campos originales
+            'cliente': forms.HiddenInput(),
+            'vendedor': forms.HiddenInput(),
         }
 
 
