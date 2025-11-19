@@ -1,0 +1,241 @@
+{% extends 'records/base.html' %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}Detalle de recibo{% endblock %}
+
+{% block content %}
+    {% csrf_token %}
+    {% if client %}
+    <div class="detail-section">
+        <h3>Información del Cliente</h3>
+        <p><strong>Nombre:</strong> {{ client.name }}</p>
+        <p><strong>DNI:</strong> {{ client.dni }}</p>
+        <p><strong>Saldo a Favor:</strong> ${{ client.available_balance|intcomma }}</p> 
+    </div>
+{% endif %}
+    <h2>Detalle de recibo #{{ credit.id }}</h2>
+    <h3>Información del Abono</h3>
+     <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha Registro</th>
+                            <th>Hora</th>
+                            <th>Comprobante</th>
+                            <th>Banco Llegada</th>
+                            <th>Valor</th>
+                            <th>Estado</th>                   
+                
+                    
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{{ credit.creado|date:"d/m/Y" }}</td>
+                            <td>{{ credit.hora|time:"H:i:s" }}</td>
+                            <td>{{ credit.comprobante }}</td>
+                            <td>{{ credit.banco_llegada.name }}</td>
+                            <td>${{ credit.valor|intcomma }}</td>
+                            <td>
+                                {% if user.is_superuser or 'Validador' in user_groups %}
+                                    {# Para Admin/Validador: mostrar un menú desplegable dentro de un div para mejor control #}
+                                    <div class="editable-status-container">
+                                        <select name="payment_status" id="payment_status_select" data-credit-id="{{ credit.pk }}" class="form-select badge-select {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                            {% for status_key, status_value in credit.APROVED_CHOICES %}
+                                                <option value="{{ status_key }}" {% if credit.payment_status == status_key %}selected{% endif %}>
+                                                    {{ status_value }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <small id="status-feedback" class="form-text"></small>
+                                    </div>
+                                {% else %}
+                                    {# Para otros usuarios: mostrar solo texto #}
+                                    <span class="badge {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                        {{ credit.payment_status }}
+                                    </span>
+                                {% endif %}
+                   
+                            </td>
+                            {% if credit.effective_date_message %}
+                                <p><small style="color: #007bff;">{{ credit.effective_date_message }}</small></p>
+                            {% endif %}
+                   
+                        </tr>     
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <h3>Historial de Cambios del Abono</h3>
+    {% if history %}
+        <table class="history-table" border="1">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Usuario</th>
+                    <th>Tipo</th>
+                    <th>Cambios</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in history %}
+                    <tr>
+                        <td>{{ record.history_date|date:"d/m/Y H:i" }}</td>
+                        <td>{{ record.history_user|default:"Sistema" }}</td>
+                        <td>{{ record.get_history_type_display }}</td>
+                        <td>
+                            {% if record.history_type == '~' and record.delta %}
+                                <ul>
+                                {% for change in record.delta.changes %}
+                                    <li>
+                                        <strong>{{ change.field|capfirst }}:</strong>
+                                        de <em>{{ change.old }}</em> a <em>{{ change.new }}</em>
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            {% elif record.history_type == '+' %}
+                                Creado
+                            {% elif record.history_type == '-' %}
+                                Eliminado
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No hay historial de cambios para este abono.</p>
+    {% endif %}
+
+    <div class="actions">
+        {% comment %} {% if user.is_superuser or 'Validador' in user_groups %}
+            <a href="{% url 'record_update_financial' credit.pk %}" class="btn-accion-icono" title="Editar Abono">
+                <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
+            </a>
+        {% endif %} {% endcomment %}
+        <a href="{% url 'credit_list' %}" class="btn btn-secondary d-flex align-items-center">Atrás</a>
+        {% comment %} <a href="{% url 'credit_list' %}" class="btn-accion-icono" title="Volver a la lista">
+            <img src="{% static 'images/arrow-left-solid.svg' %}" alt="Atrás" width="20" height="20">
+        </a> {% endcomment %}
+    </div>
+
+<style>
+    .detail-section {
+        background-color: #f9f9f9;
+        border: 1px solid #eee;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+    }
+    .detail-section h3 {
+        margin-top: 0;
+        color: #362573;
+    }
+    .detail-section p {
+        margin-bottom: 5px;
+    }
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    .history-table th, .history-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    .history-table th {
+        background-color: #e0e0e0;
+    }
+    .actions {
+        margin-top: 20px;
+        margin-bottom: 20px;
+        display: flex;
+        gap: 10px;
+    }
+    /* Estilos ajustados para que el <select> se parezca a un badge sin perder funcionalidad */
+    .badge-select {
+        /* appearance: none; -> Esta línea rompía el desplegable, la eliminamos. */
+        border: 0;
+        padding: 0.5em 2.5em 0.5em 0.75em; /* Aumentamos el padding para dar espacio al texto y la flecha */
+        font-size: 0.9em; /* Aumentamos ligeramente el tamaño de la fuente */
+        font-weight: 700;
+        line-height: 1;
+        color: #fff;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        /* Usamos el fondo de Bootstrap para la flecha, pero lo personalizamos */
+        background-position: right 0.75rem center;
+    }
+    .badge-select.bg-success { background-color: #198754 !important; color: white; }
+    .badge-select.bg-danger { background-color: #dc3545 !important; color: white; }
+    .badge-select.bg-warning { background-color: #ffc107 !important; color: black; }
+
+    /* Feedback message styles */
+    #status-feedback.text-success { color: #198754; }
+    #status-feedback.text-danger { color: #dc3545; }
+</style>
+
+{% if user.is_superuser or 'Validador' in user_groups %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.getElementById('payment_status_select');
+    const feedbackElement = document.getElementById('status-feedback');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    statusSelect.addEventListener('change', function() {
+        const creditId = this.dataset.creditId;
+        const newStatus = this.value;
+        const url = `/credits/${creditId}/update_status/`;
+
+        // Preparamos los datos para enviar
+        const formData = new FormData();
+        formData.append('payment_status', newStatus);
+
+        // Mostramos un mensaje de "guardando..."
+        feedbackElement.textContent = 'Guardando...';
+        feedbackElement.className = 'form-text';
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                feedbackElement.textContent = data.message;
+                feedbackElement.className = 'form-text text-success';
+
+                // Actualizamos el color del select
+                statusSelect.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'text-dark');
+                if (newStatus === 'Aprobado') statusSelect.classList.add('bg-success');
+                else if (newStatus === 'Rechazado') statusSelect.classList.add('bg-danger');
+                else { statusSelect.classList.add('bg-warning', 'text-dark'); }
+
+            } else {
+                feedbackElement.textContent = `Error: ${data.message}`;
+                feedbackElement.className = 'form-text text-danger';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            feedbackElement.textContent = 'Error de red al intentar actualizar.';
+            feedbackElement.className = 'form-text text-danger';
+        });
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

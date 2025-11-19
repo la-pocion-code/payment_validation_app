@@ -1,4 +1,5 @@
 import csv
+from django.views.decorators.http import require_POST
 from io import TextIOWrapper
 from django.db.models import Q, Count, F
 from django.http import HttpResponse, JsonResponse
@@ -247,7 +248,28 @@ class CreditListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Listado de Abonos'
         return context
+    
 
+class CreditDetailView(LoginRequiredMixin, DetailView):
+    model = FinancialRecord # Cambiado de Transaction a FinancialRecord
+    template_name = 'records/credit_detail.html'
+    context_object_name = 'credit' # Cambiado de 'transaction' a 'credit'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Historial de cambios para el FinancialRecord (abono)
+        history = self.object.history.all()
+        for h in history:
+            if h.prev_record:
+                h.delta = h.diff_against(h.prev_record)
+        context['history'] = history
+        
+        # Añadir información del cliente al contexto si existe
+        if self.object.cliente:
+            context['client'] = self.object.cliente
+        
+        return context
 
 class BankCreateView(LoginRequiredMixin, CreateView):
     model = Bank
@@ -1776,3 +1798,34 @@ def search_sellers(request):
                 "label": seller.name,
             })
     return JsonResponse(results, safe=False)
+
+
+
+@require_POST
+@login_required
+def update_credit_status(request, pk):
+    """
+    Vista para actualizar el estado de un abono (FinancialRecord) vía AJAX.
+    Solo accesible por superusuarios y validadores.
+    """
+    # 1. Verificar permisos
+    if not (request.user.is_superuser or request.user.groups.filter(name='Validador').exists()):
+        return JsonResponse({'success': False, 'message': 'No tienes permiso para realizar esta acción.'}, status=403)
+
+    # 2. Obtener el abono y el nuevo estado
+    credit = get_object_or_404(FinancialRecord, pk=pk)
+    new_status = request.POST.get('payment_status')
+    
+    # 3. Validar el nuevo estado
+    valid_statuses = [choice[0] for choice in FinancialRecord.APROVED_CHOICES]
+    if new_status not in valid_statuses:
+        return JsonResponse({'success': False, 'message': 'Estado no válido.'}, status=400)
+
+    # 4. Actualizar y guardar
+    try:
+        credit.payment_status = new_status
+        credit.save()
+        # Devolvemos el nuevo estado y un mensaje de éxito
+        return JsonResponse({'success': True, 'new_status': credit.get_payment_status_display(), 'message': 'Estado actualizado correctamente.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)

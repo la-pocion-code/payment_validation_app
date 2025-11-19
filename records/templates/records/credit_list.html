@@ -1,6 +1,6 @@
 {% extends "records/base.html" %}
 {% load humanize %}
-
+{% load static %}
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
@@ -14,7 +14,62 @@
             <i class="fas fa-plus"></i> Nuevo Abono
         </a>
     </div>
+    {# Filtros#}
+<div class="filter-container">
+    <form method="get" action="" class="filter-form">
+        {% csrf_token %}
+        <div class="filter-fields">
+            <div class="filter-field">
+                {{ filter.form.id.label_tag }}
+                {{ filter.form.unique_transaction_id }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.date__gte.label_tag }}
+                {{ filter.form.date__gte }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.date__lte.label_tag }}
+                {{ filter.form.date__lte }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.cliente.label_tag }}
+                {{ filter.form.cliente }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.vendedor.label_tag }}
+                {{ filter.form.vendedor }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.facturador.label_tag }}
+                {{ filter.form.facturador }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.numero_factura.label_tag }}
+                {{ filter.form.numero_factura }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.status.label_tag }}
+                {{ filter.form.status }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.transaction_type.label_tag }}
+                {{ filter.form.transaction_type }}
+            </div>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <a href="{% url 'record_list' %}" class="btn-limpiar" title="Limpiar Filtros">
+                <img src="{% static 'images/icon_clear_filters.svg' %}" alt="Limpiar Filtros" width="20" height="20">
+            </a>
+            {% if user.is_superuser %}
+                <a href="{% url 'export_transactions_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn-limpiar" title="Exportar a CSV">
+                    <img src="{% static 'images/icon_export_csv.svg' %}" alt="Exportar a CSV" width="20" height="20">
+                </a>
+            {% endif %}
+        </div>
 
+    </form>
+</div>
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
@@ -24,6 +79,7 @@
                             <th>ID</th>
                             <th>Cliente</th>
                             <th>Fecha Registro</th>
+                            <th>Hora</th>
                             <th>Comprobante</th>
                             <th>Banco Llegada</th>
                             <th>Valor</th>
@@ -33,12 +89,14 @@
                     </thead>
                     <tbody>
                         {% for credit in credits %}
-                        <tr>
-                            <td>
+                        <tr  onclick="window.location='{% url 'credit_detail' credit.pk %}'" style="cursor:pointer;">
+                            {% comment %} <td>
                                 <a href="{% url 'record_detail' credit.pk %}">#{{ credit.id }}</a>
-                            </td>
+                            </td> {% endcomment %}
+                            <td>{{ credit.id }}</td>
                             <td>{{ credit.cliente.name|default:"N/A" }}</td>
-                            <td>{{ credit.creado|date:"d/m/Y H:i" }}</td>
+                            <td>{{ credit.creado|date:"d/m/Y" }}</td>
+                            <td>{{ credit.hora|time:"H:i:s" }}</td>
                             <td>{{ credit.comprobante }}</td>
                             <td>{{ credit.banco_llegada.name }}</td>
                             <td>${{ credit.valor|intcomma }}</td>
@@ -48,18 +106,19 @@
                                 </span>
                             </td>
                             <td>{{ credit.uploaded_by.username|default:"Sistema" }}</td>
-                            {% comment %} <td>
-                                <a href="{% url 'record_detail' credit.pk %}" class="btn btn-sm btn-outline-info" title="Ver Detalles">
+                            {% comment %}
+                            <td>
+                                 <a href="{% url 'credit_detail' credit.pk %}" class="btn btn-sm btn-outline-info" title="Ver Detalles">
                                     <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{% url 'record_update_financial' credit.pk %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                </a> {% endcomment %}
+                                {% comment %} <a href="{% url 'record_update_financial' credit.pk %}" class="btn btn-sm btn-outline-primary" title="Editar">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 {% if user.is_superuser %}
                                 <a href="{% url 'record_delete_financial' credit.pk %}" class="btn btn-sm btn-outline-danger" title="Eliminar">
                                     <i class="fas fa-trash"></i>
                                 </a>
-                                {% endif %}
+                                {% endif %} 
                             </td> {% endcomment %}
                         </tr>
                         {% empty %}

@@ -16,9 +16,9 @@
                 <table class="table table-striped table-hover">
                     <thead class="table-light">
                         <tr>
+                            <th>Cliente</th>
                             <th>{{ form.origen_transaccion.label }}</th>
                             <th>{{ form.fecha.label }}</th>
-                            <th>Cliente</th>
                             <th>{{ form.hora.label }}</th>
                             <th>{{ form.comprobante.label }}</th>
                             <th>{{ form.banco_llegada.label }}</th>
@@ -27,12 +27,12 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td>{{ form.origen_transaccion }}</td>
-                            <td>{{ form.fecha }}</td>
                             <td>
                                 {{ form.client_search }}
                                 {{ form.cliente_id }} {# Campo oculto para el ID del cliente #}
                             </td>
+                            <td>{{ form.origen_transaccion }}</td>
+                            <td>{{ form.fecha }}</td>
                             <td>{{ form.hora }}</td>
                             <td>{{ form.comprobante }}</td>
                             <td>{{ form.banco_llegada }}</td>

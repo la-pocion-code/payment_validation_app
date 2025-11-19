@@ -171,7 +171,7 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ receipt.fecha|date:"d/m/Y" }}</td>
-                                <td>{{ receipt.hora|time:"H:i" }}</td>
+                                <td>{{ receipt.hora|time:"H:i:s" }}</td>
                                 <td>{{ receipt.comprobante }}</td>
                                 <td>{{ receipt.banco_llegada.name }}</td>
                                 <td>${{ receipt.valor|intcomma }}</td>

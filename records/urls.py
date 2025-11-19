@@ -59,9 +59,10 @@ urlpatterns = [
     path('download_csv_template/', views.download_csv_template, name='download_csv_template'),
     path('ajax/get_effective_date/', views.get_effective_date_view, name='get_effective_date'),
     path('ajax/get_client_balance/', views.get_client_balance, name='get_client_balance'),
-    path('credit/nuevo/', views.CreditCreateView.as_view(), name='credit_create'),
     path('records/clientes/buscar/', views.search_clients, name='client_search_ajax'), 
     path('records/vendedores/buscar/', views.search_sellers, name='seller_search_ajax'), 
     path('credits/', views.CreditListView.as_view(), name='credit_list'),
-
+    path('credit/nuevo/', views.CreditCreateView.as_view(), name='credit_create'),
+    path('credits/<int:pk>/', views.CreditDetailView.as_view(), name='credit_detail'),
+    path('credits/<int:pk>/update_status/', views.update_credit_status, name='update_credit_status'),
 ]
