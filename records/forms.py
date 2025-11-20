@@ -176,7 +176,26 @@ class FinancialRecordUpdateForm(FinancialRecordForm):
 
 
 
-class CreditForm(forms.ModelForm):
+class CreditForm(FinancialRecordForm):
+    class Meta:
+        model = FinancialRecord
+        fields = [
+            'cliente', 
+            'origen_transaccion',
+            'fecha', 
+            'hora', 
+            'comprobante', 
+            'banco_llegada', 
+            'valor',
+            'payment_status',
+        ]
+        widgets = {
+            'fecha': forms.DateInput(attrs={'type': 'date'}),
+            'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
+            'cliente': forms.HiddenInput(), # <-- AÑADIR ESTA LÍNEA
+            'payment_status': forms.HiddenInput(), # Ocultamos el estado
+        }
+
     # Campo visible para la búsqueda y autocompletado del cliente
     client_search = forms.CharField(
         label="Cliente",
@@ -184,47 +203,22 @@ class CreditForm(forms.ModelForm):
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Buscar cliente por nombre o DNI...',
-            'autocomplete': 'off' # Deshabilitar el autocompletado del navegador
+            'autocomplete': 'off'
         })
     )
     # Campo oculto para almacenar el ID del cliente seleccionado
-    cliente_id = forms.IntegerField(
-        widget=forms.HiddenInput(),
-        required=True # Este campo es requerido para guardar el FinancialRecord
-    )
-    class Meta:
-        model = FinancialRecord
-        fields = [
-            'cliente', # <-- AÑADIR ESTA LÍNEA
-            'origen_transaccion',
-            'fecha', 
-            'hora', 
-            'comprobante', 
-            'banco_llegada', 
-            'valor'
-        ]
-        widgets = {
-            'fecha': forms.DateInput(attrs={'type': 'date'}),
-            'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
-            'cliente': forms.HiddenInput(), # <-- AÑADIR ESTA LÍNEA
-        }
+    cliente_id = forms.IntegerField(widget=forms.HiddenInput(), required=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # self.fields['cliente'].queryset = Client.objects.order_by('name') # Esto ya no es necesario
-
+        
         # Si estamos editando un registro existente, precargamos el nombre del cliente
         if self.instance and self.instance.pk and self.instance.cliente:
             self.fields['client_search'].initial = str(self.instance.cliente) # Muestra nombre y DNI
             self.fields['cliente_id'].initial = self.instance.cliente.pk
 
-        # Hacemos todos los campos requeridos si no lo son ya
-        # Iteramos sobre los nombres de los campos para evitar el AttributeError
-        for field_name, field in self.fields.items():
-            field.required = True # Hacemos todos los campos requeridos por simplicidad
-        
-        # Hacemos que el campo 'cliente' del modelo no sea requerido a nivel de formulario,
-        # ya que lo llenaremos manualmente en el método clean().
+        # Hacemos que los campos del modelo no sean requeridos a nivel de formulario,
+        # ya que los llenaremos manualmente en el método clean() o ya tienen su propia lógica.
         self.fields['cliente'].required = False
 
     def clean_cliente_id(self):
@@ -233,7 +227,10 @@ class CreditForm(forms.ModelForm):
         return client_id if client_id else None
 
     def clean(self):
+        # Primero, ejecutamos la lógica de limpieza del padre (FinancialRecordForm)
+        # Esto ejecutará la detección de duplicados.
         cleaned_data = super().clean()
+        # Si la validación del padre falla, no continuamos.
         
         client_id = cleaned_data.get('cliente_id')
         client_search = cleaned_data.get('client_search')
@@ -254,7 +251,7 @@ class CreditForm(forms.ModelForm):
             except Client.DoesNotExist:
                 self.add_error('client_search', "El cliente seleccionado no es válido.")
         
-        return cleaned_data
+        return cleaned_data # Devolvemos los datos limpios
 
 
 class BankForm(forms.ModelForm):

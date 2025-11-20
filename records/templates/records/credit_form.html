@@ -1,66 +1,156 @@
-{% extends "records/base.html" %}
+{% extends 'records/base.html' %}
 {% load humanize %}
-{% load static %}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-    <h2>{{ title }}</h2>
-    {# Agregamos un ID al formulario para interceptar el envío #}
-    <form method="post" id="credit-form">
-        {% csrf_token %}
-        
-    <div class="card">
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h1 class="h4 mb-0">{{ title }}</h1>
+        </div>
         <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Cliente</th>
-                            <th>{{ form.origen_transaccion.label }}</th>
-                            <th>{{ form.fecha.label }}</th>
-                            <th>{{ form.hora.label }}</th>
-                            <th>{{ form.comprobante.label }}</th>
-                            <th>{{ form.banco_llegada.label }}</th>
-                            <th>{{ form.valor.label }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>
-                                {{ form.client_search }}
-                                {{ form.cliente_id }} {# Campo oculto para el ID del cliente #}
-                            </td>
-                            <td>{{ form.origen_transaccion }}</td>
-                            <td>{{ form.fecha }}</td>
-                            <td>{{ form.hora }}</td>
-                            <td>{{ form.comprobante }}</td>
-                            <td>{{ form.banco_llegada }}</td>
-                            <td>
-                                {# Django renderiza el input aquí. JS se encargará de darle formato #}
-                                {{ form.valor }}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+            <form method="post" id="credit-form" novalidate>
+                {% csrf_token %}
 
-        <div class="btn-container">
-            <button type="submit" class="btn btn-success">Guardar</button>
-            <a href="{% url 'credit_list' %}" class="btn btn-danger">Cancelar</a>
+                {# --- 1. Mostrar Errores No Específicos de un Campo (DUPLICADO EXACTO) --- #}
+                {# Esta sección es clave para mostrar el mensaje de "Duplicado Exacto" en rojo. #}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for error in form.non_field_errors %}
+                            {{ error|safe }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row">
+                    {# Campo de búsqueda de Cliente #}
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.client_search.id_for_label }}" class="form-label">{{ form.client_search.label }}</label>
+                        {{ form.client_search }}
+                        {% if form.client_search.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.client_search.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {# Campo Origen de Transacción #}
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.origen_transaccion.id_for_label }}" class="form-label">{{ form.origen_transaccion.label }}</label>
+                        {{ form.origen_transaccion }}
+                        {% if form.origen_transaccion.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.origen_transaccion.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    {# Fecha y Hora #}
+                    <div class="col-md-3 mb-3">
+                        <label for="{{ form.fecha.id_for_label }}" class="form-label">{{ form.fecha.label }}</label>
+                        {{ form.fecha }}
+                        {% if form.fecha.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.fecha.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="{{ form.hora.id_for_label }}" class="form-label">{{ form.hora.label }}</label>
+                        {{ form.hora }}
+                        {% if form.hora.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.hora.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {# Comprobante #}
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.comprobante.id_for_label }}" class="form-label">{{ form.comprobante.label }}</label>
+                        {{ form.comprobante }}
+                        {% if form.comprobante.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.comprobante.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    {# Banco y Valor #}
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.banco_llegada.id_for_label }}" class="form-label">{{ form.banco_llegada.label }}</label>
+                        {{ form.banco_llegada }}
+                        {% if form.banco_llegada.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.banco_llegada.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.valor.id_for_label }}" class="form-label">{{ form.valor.label }}</label>
+                        {{ form.valor }}
+                        {% if form.valor.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.valor.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# --- 2. Lógica para el Checkbox de Confirmación (POSIBLE DUPLICADO) --- #}
+                {# Esta es la sección que muestra el checkbox cuando la vista lo indica. #}
+                {% if show_confirm_duplicate %}
+                    <div class="alert alert-warning mt-3" id="similar-duplicate-warning-box">
+                        <strong>ADVERTENCIA: Posible registro duplicado.</strong>
+                        <p class="mb-2">Ya existe un registro con la misma Fecha, Hora, Banco y Valor. Si estás seguro de que no es un duplicado, marca la casilla de confirmación para guardar de todos modos.</p>
+                        <div class="form-check">
+                            {# Renderizamos el campo que ahora será un checkbox visible #}
+                            <input type="checkbox" name="confirm_duplicate" class="form-check-input" id="id_confirm_duplicate" value="true">
+                            <label class="form-check-label" for="id_confirm_duplicate">
+                                Entiendo que este registro es similar a uno existente y deseo guardarlo de todos modos.
+                            </label>
+                        </div>
+                    </div>
+                {% else %}
+                    {# Si no hay advertencia, el campo se renderiza como oculto (su estado por defecto) #}
+                    {{ form.confirm_duplicate }}
+                {% endif %}
+
+                {# Campos ocultos necesarios para el formulario #}
+                {{ form.cliente_id }}
+                {{ form.cliente }}
+                {{ form.payment_status }}
+
+                <div class="card-footer text-end bg-light">
+                    <a href="{% url 'credit_list' %}" class="btn btn-secondary me-2">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Guardar Abono
+                    </button>
+                </div>
+            </form>
         </div>
-    </form>
+    </div>
+</div>
+
 {% endblock %}
+
 
 {% block extra_js %}
 <script>
 $(document).ready(function() {
     // ==============================================================
-    // 1. LÓGICA DE AUTOCOMPLETADO (Tu código original)
+    // 1. LÓGICA DE AUTOCOMPLETADO
     // ==============================================================
     const clientSearchInput = $("#id_client_search");
     const clientIdHiddenInput = $("#id_cliente_id");
+
+    // Aseguramos que el input tenga clase form-control (estilo bootstrap)
+    clientSearchInput.addClass('form-control');
 
     clientSearchInput.autocomplete({
         source: "{% url 'client_search_ajax' %}",
@@ -68,6 +158,8 @@ $(document).ready(function() {
         select: function(event, ui) {
             clientIdHiddenInput.val(ui.item.id);
             clientSearchInput.val(ui.item.label);
+            // Opcional: Cambiar borde a verde para indicar éxito visual
+            clientSearchInput.addClass('is-valid'); 
             return false;
         },
         focus: function(event, ui) {
@@ -79,74 +171,77 @@ $(document).ready(function() {
     clientSearchInput.on('keyup input', function() {
         if ($(this).val().trim() === '') {
             clientIdHiddenInput.val('');
+            clientSearchInput.removeClass('is-valid');
         }
     });
 
     // ==============================================================
-    // 2. LÓGICA DE FORMATO DE MONEDA (Implementada igual que en transacciones)
+    // 2. LÓGICA DE FORMATO DE MONEDA Y TEXTO
     // ==============================================================
     
-    // Seleccionamos el input de valor y el formulario
-    // Django por defecto genera el id 'id_valor' para el campo 'valor'
     const valorInput = document.getElementById('id_valor'); 
     const creditForm = document.getElementById('credit-form');
 
-    // A. Forzar tipo texto para evitar que el navegador borre las comas
+    // Aplicar estilos de Bootstrap a todos los inputs/selects generados por Django
+    $('input, select').not('[type=hidden], [type=checkbox], [type=radio]').addClass('form-control');
+    
+    // A. Configuración inicial del campo valor
     if (valorInput) {
         valorInput.setAttribute('type', 'text');
         valorInput.setAttribute('autocomplete', 'off');
-        valorInput.classList.add('text-end'); // Opcional: alinear a la derecha como es usual en números
+        valorInput.classList.add('text-end'); // Alinear números a la derecha
+        valorInput.placeholder = "0.00";
     }
 
-    // B. Función para dar formato visual (1,000.00)
+    // B. Función de formateo
     function formatNumberInput(input) {
         if (!input || !input.value) return;
 
         let value = input.value.trim();
-        // Quitamos comas para poder convertir a número
         const numericValue = parseFloat(value.replace(/,/g, ''));
         
         if (isNaN(numericValue)) return;
 
-        // Formateamos estilo US (comas miles, punto decimal)
         const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
         input.value = numericValue.toLocaleString('en-US', numberFormatOptions);
     }
 
-    // C. Listener: Mientras escribe (INPUT) -> Sanitizar caracteres
+    // C. Evento Input (Sanitización)
     if (valorInput) {
         valorInput.addEventListener('input', function(e) {
             let currentValue = e.target.value;
-            
-            // Permitir solo números y punto decimal (eliminamos letras y otros símbolos)
+            // Permitir solo números y puntos
             const sanitizedValue = currentValue.replace(/[^0-9.]/g, '');
-
             if (currentValue !== sanitizedValue) {
                 e.target.value = sanitizedValue;
             }
         });
 
-        // D. Listener: Al salir de la casilla (BLUR) -> Aplicar formato bonito
+        // D. Evento Blur (Formato visual)
         valorInput.addEventListener('blur', function(e) {
             formatNumberInput(e.target);
         });
 
-        // E. Listener: Al entrar a la casilla (FOCUS) -> Quitar formato para editar fácil
+        // E. Evento Focus (Limpiar para editar)
         valorInput.addEventListener('focus', function(e) {
             let val = e.target.value;
             if (val) {
                 e.target.value = val.replace(/,/g, '');
-                e.target.select(); // Seleccionar todo para facilitar sobreescritura
+                e.target.select();
             }
         });
+        
+        // Aplicar formato si ya hay un valor al cargar (ej: si falló la validación)
+        if (valorInput.value) {
+            formatNumberInput(valorInput);
+        }
     }
 
     // ==============================================================
-    // 3. LIMPIEZA AL GUARDAR (SUBMIT)
+    // 3. LIMPIEZA AL GUARDAR
     // ==============================================================
     if (creditForm) {
         creditForm.addEventListener('submit', function() {
-            // Antes de enviar, quitamos las comas para que Django reciba un float válido
             if (valorInput && valorInput.value) {
                 valorInput.value = valorInput.value.replace(/,/g, '');
             }

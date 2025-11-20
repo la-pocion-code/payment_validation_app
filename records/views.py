@@ -220,18 +220,70 @@ class CreditCreateView(LoginRequiredMixin, CreateView):
     template_name = 'records/credit_form.html'
     success_url = reverse_lazy('credit_list') # O a donde quieras redirigir
 
+    def get_form_kwargs(self):
+        """
+        Pasa el objeto 'request' al formulario. Es crucial para que el formulario
+        pueda acceder al usuario (self.request.user) al crear un DuplicateRecordAttempt.
+        """
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Registrar Nuevo Abono'
+        # Este flag se usará en la plantilla para mostrar el checkbox de confirmación
+        context['show_confirm_duplicate'] = 'confirm_duplicate' in (self.request.POST or {})
         return context
 
     def form_valid(self, form):
-        # Asignamos el usuario que está creando el abono
-        form.instance.uploaded_by = self.request.user
-        # El estado inicial de un abono debe ser 'Pendiente' de aprobación
-        form.instance.payment_status = 'Pendiente'
+        with transaction.atomic():
+            # Asignamos el objeto a self.object para que la vista lo reconozca
+            self.object = form.save(commit=False)
+            credit = self.object # Podemos seguir usando 'credit' por legibilidad
+            credit.uploaded_by = self.request.user
+            # El estado ya se establece en el formulario, pero lo aseguramos aquí
+            credit.payment_status = 'Pendiente' 
+            credit.save()
+
+            # Si el usuario confirmó un duplicado similar, creamos el registro de intento
+            # que ya fue validado en el form.
+            if form.cleaned_data.get('confirm_duplicate'):
+                serializable_data = {k: str(v) for k, v in form.cleaned_data.items()}
+                DuplicateRecordAttempt.objects.create(
+                    user=self.request.user,
+                    data=serializable_data,
+                    attempt_type='SIMILAR',
+                    is_resolved=True, # Lo marcamos como resuelto porque el usuario confirmó
+                    resolved_by=self.request.user,
+                    resolved_at=timezone.now()
+                )
+
         messages.success(self.request, 'Abono registrado exitosamente. Queda pendiente de aprobación.')
+        # Dejamos que la clase base maneje la redirección.
+        # Llama a super().form_valid() que a su vez llama a get_success_url().
         return super().form_valid(form)
+
+    def form_invalid(self, form):
+        # Si el formulario es inválido específicamente por una advertencia de duplicado similar...
+        if 'confirm_duplicate' in form.errors:
+            # El mensaje de error ya viene formateado desde el formulario, así que lo usamos directamente.
+            # El uso de safe es porque confiamos en el HTML generado en nuestro form.
+            messages.warning(self.request, form.errors['confirm_duplicate'][0], extra_tags='safe')
+            # Volvemos a renderizar el formulario, pero esta vez pasamos un flag
+            # para que la plantilla sepa que debe mostrar el checkbox de confirmación.
+            return self.render_to_response(self.get_context_data(form=form, show_confirm_duplicate=True))
+        
+        # Si hay errores que no son de campo (como el duplicado exacto)
+        if form.non_field_errors():
+            for error in form.non_field_errors():
+                # Mostramos el error específico del formulario (que ya tiene formato HTML)
+                messages.error(self.request, error, extra_tags='safe')
+        else:
+            # Mensaje genérico solo si no hay un error no-field más específico
+            messages.error(self.request, 'Por favor, corrige los errores resaltados en el formulario.')
+        
+        return self.render_to_response(self.get_context_data(form=form))
 
 class CreditListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
