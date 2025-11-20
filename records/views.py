@@ -15,7 +15,7 @@ from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from datetime import datetime
 from django.core.exceptions import PermissionDenied
-from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter
+from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter, CreditFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
 from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm, ClientForm, CreditForm
@@ -233,20 +233,27 @@ class CreditCreateView(LoginRequiredMixin, CreateView):
         messages.success(self.request, 'Abono registrado exitosamente. Queda pendiente de aprobación.')
         return super().form_valid(form)
 
-class CreditListView(LoginRequiredMixin, ListView):
+class CreditListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
-    template_name = 'records/credit_list.html' # Un nuevo template para la lista
+    template_name = 'records/credit_list.html'
     context_object_name = 'credits'
     paginate_by = 50
+    filterset_class = CreditFilter
 
     def get_queryset(self):
-        # La lógica clave: obtenemos solo los registros que NO están ligados a una transacción.
-        # Los ordenamos por fecha de creación descendente para ver los más nuevos primero.
-        return FinancialRecord.objects.filter(transaction__isnull=True).order_by('-creado')
+        """
+        El queryset base sobre el cual se aplicarán los filtros.
+        Obtenemos solo los abonos (registros sin transacción asociada).
+        """
+        queryset = FinancialRecord.objects.filter(transaction__isnull=True).order_by('-creado')
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Listado de Abonos'
+        # FilterView añade el objeto 'filter' al contexto automáticamente.
+        # Podemos usarlo para obtener la URL con los filtros actuales para la paginación.
+        context['filter_params'] = self.request.GET.urlencode()
         return context
     
 

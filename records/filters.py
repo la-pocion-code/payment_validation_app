@@ -107,3 +107,46 @@ class TransactionFilter(django_filters.FilterSet):
     class Meta:
         model = Transaction
         fields = ['unique_transaction_id', 'date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status', 'transaction_type']
+
+
+
+
+class CreditFilter(django_filters.FilterSet):
+    fecha__gte = django_filters.DateFilter(
+        field_name='fecha',
+        lookup_expr='gte',
+        label='Fecha Desde',
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+    fecha__lte = django_filters.DateFilter(
+        field_name='fecha',
+        lookup_expr='lte',
+        label='Fecha Hasta',
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+    cliente = django_filters.CharFilter(
+        field_name='cliente__name',
+        lookup_expr='icontains',
+        label='Cliente',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del cliente...'})
+    )
+    comprobante = django_filters.CharFilter(
+        field_name='comprobante',
+        lookup_expr='icontains',
+        label='Comprobante',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '# Comprobante'})
+    )
+    banco_llegada = django_filters.ModelChoiceFilter(
+        queryset=Bank.objects.all(),
+        label='Banco',
+        widget=forms.Select(attrs={'class': 'form-select'}) # 'form-select' es mejor para Bootstrap 5
+    )
+    payment_status = django_filters.ChoiceFilter(
+        choices=FinancialRecord.APROVED_CHOICES,
+        label='Estado',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    class Meta:
+        model = FinancialRecord
+        fields = ['fecha__gte', 'fecha__lte', 'cliente', 'comprobante', 'banco_llegada', 'payment_status']

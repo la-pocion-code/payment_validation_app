@@ -47,9 +47,7 @@
                     {# La lógica de 'readonly' ya está manejada en el TransactionForm. #}
                         <td>{{ form.transaction_type }} {{ form.transaction_type.errors }}</td>
                         <td>
-                            {# CORRECCIÓN: Si el campo es readonly, el valor puede no mostrarse. #}
-                            {# Usamos un truco para asegurar que el valor de la instancia se use. #}
-                            <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" 
+                            <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}"
                                    class="form-control" id="{{ form.date.id_for_label }}" {% if form.date.field.widget.attrs.readonly %}readonly{% endif %}>
                             {{ form.date.errors }}</td>
                         <td>
@@ -162,16 +160,15 @@
                                 </div>
                                 <div class="receipt-field">
                                     {{ form.fecha.label_tag }}
-                                    <input type="date" name="{{ form.fecha.name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}" 
-                                           class="form-control" id="{{ form.fecha.id_for_label }}" {% if form.fecha.field.widget.attrs.readonly %}readonly{% endif %}>
+                                    {{ form.fecha}}
                                     {{ form.fecha.errors }}
                                 </div>
                                 <div class="receipt-field">
                                     {{ form.hora.label_tag }}
-                                    {# Hacemos lo mismo para la hora para ser consistentes #}
-                                    <input type="time" name="{{ form.hora.name }}" value="{{ form.instance.hora|time:'H:i:s' }}" 
-                                           class="form-control" id="{{ form.hora.id_for_label }}" step="1" 
-                                           {% if form.hora.field.widget.attrs.readonly %}readonly{% endif %}>
+                                    {{ form.hora }} {# Dejamos que Django renderice el campo principal #}
+                                    {% if form.hora.field.widget.attrs.readonly %}
+                                        <input type="hidden" name="{{ form.hora.name }}" value="{{ form.instance.hora|time:'H:i:s' }}">
+                                    {% endif %}
                                     {{ form.hora.errors }}
                                 </div>
                                 <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
@@ -208,15 +205,14 @@
                                 </div>
                                 <div class="receipt-field">
                                     {{ form.fecha.label_tag }}
-                                    <input type="date" name="{{ form.fecha.name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}" 
-                                           class="form-control" id="{{ form.fecha.id_for_label }}" {% if form.fecha.field.widget.attrs.readonly %}readonly{% endif %}>
-                                    {{ form.fecha.errors }}
+                                    <input type="date" name="{{ form.fecha.name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}"
                                 </div>
                                 <div class="receipt-field">
                                     {{ form.hora.label_tag }}
-                                    <input type="time" name="{{ form.hora.name }}" value="{{ form.instance.hora|time:'H:i:s' }}" 
-                                           class="form-control" id="{{ form.hora.id_for_label }}" step="1" 
-                                           {% if form.hora.field.widget.attrs.readonly %}readonly{% endif %}>
+                                    {{ form.hora }}
+                                    {% if form.hora.field.widget.attrs.readonly %}
+                                        <input type="hidden" name="{{ form.hora.name }}" value="{{ form.instance.hora|time:'H:i:s' }}">
+                                    {% endif %}
                                     {{ form.hora.errors }}
                                 </div>
                                 <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
@@ -285,8 +281,14 @@
         <div class="receipt-form-instance" id="receipt-form-__prefix__">
             <h5>Nuevo Recibo</h5>
             <div class="receipt-form-fields">
-                <div class="receipt-field">{{ formset.empty_form.origen_transaccion.label_tag }}{{ formset.empty_form.origen_transaccion }}</div>
-                <div class="receipt-field">{{ formset.empty_form.fecha.label_tag }}{{ formset.empty_form.fecha }}</div>
+                <div class="receipt-field">
+                    {{ formset.empty_form.origen_transaccion.label_tag }}
+                    {{ formset.empty_form.origen_transaccion }}
+                </div>
+                <div class="receipt-field">
+                    {{ formset.empty_form.fecha.label_tag }}
+                    {{ formset.empty_form.fecha }}
+                </div>
                 <div class="receipt-field">{{ formset.empty_form.hora.label_tag }}{{ formset.empty_form.hora }}</div>
                 <div class="receipt-field">{{ formset.empty_form.comprobante.label_tag }}{{ formset.empty_form.comprobante }}</div>
                 <div class="receipt-field">{{ formset.empty_form.banco_llegada.label_tag }}{{ formset.empty_form.banco_llegada }}</div>
