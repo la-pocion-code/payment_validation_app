@@ -13,9 +13,9 @@ from django.urls import reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
-from datetime import datetime
+from datetime import datetime 
 from django.core.exceptions import PermissionDenied
-from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter, CreditFilter
+from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter, CreditFilter, ClientFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
 from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm, ClientForm, CreditForm
@@ -462,14 +462,19 @@ class ClientDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
                 return JsonResponse({'success': False, 'message': str(e)}, status=500)
         return super().post(request, *args, **kwargs)
 
-class ClientListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class ClientListView(LoginRequiredMixin, UserPassesTestMixin, FilterView):
     model = Client
     template_name = 'records/Client_list.html'
-    context_object_name = 'Clientes'
-
+    context_object_name = 'clients' # Cambiado a 'clients' para seguir convenciones
+    filterset_class = ClientFilter
+    paginate_by = 50 # Mostraremos 50 clientes por página
 
     def test_func(self):
         return self.request.user.is_superuser
+    
+    def get_queryset(self):
+        # Ordenamos por nombre para una visualización consistente
+        return super().get_queryset().order_by('name')
     
 
 @user_passes_test(lambda u: u.is_superuser)

@@ -1,5 +1,5 @@
 import django_filters
-from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction
+from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client
 from django.contrib.auth.models import User
 from django import forms
 
@@ -150,3 +150,22 @@ class CreditFilter(django_filters.FilterSet):
     class Meta:
         model = FinancialRecord
         fields = ['fecha__gte', 'fecha__lte', 'cliente', 'comprobante', 'banco_llegada', 'payment_status']
+
+
+class ClientFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(
+        field_name='name',
+        lookup_expr='icontains',
+        label='Nombre',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Buscar por nombre...'})
+    )
+    dni = django_filters.CharFilter(
+        field_name='dni',
+        lookup_expr='icontains',
+        label='Documento',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Buscar por documento...'})
+    )
+
+    class Meta:
+        model = Client
+        fields = ['name', 'dni']
