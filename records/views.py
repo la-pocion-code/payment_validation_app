@@ -250,7 +250,7 @@ class CreditListView(LoginRequiredMixin, FilterView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Listado de Abonos'
+        context['title'] = 'Listado de Recibos'
         # FilterView añade el objeto 'filter' al contexto automáticamente.
         # Podemos usarlo para obtener la URL con los filtros actuales para la paginación.
         context['filter_params'] = self.request.GET.urlencode()

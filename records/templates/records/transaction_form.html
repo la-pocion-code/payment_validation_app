@@ -158,9 +158,10 @@
 
                                     {{ form.origen_transaccion.errors }}
                                 </div>
+                                <td>
                                 <div class="receipt-field">
                                     {{ form.fecha.label_tag }}
-                                    {{ form.fecha}}
+                                    {{ form.fecha }}
                                     {{ form.fecha.errors }}
                                 </div>
                                 <div class="receipt-field">
@@ -205,7 +206,8 @@
                                 </div>
                                 <div class="receipt-field">
                                     {{ form.fecha.label_tag }}
-                                    <input type="date" name="{{ form.fecha.name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}"
+                                    {{ form.fecha }}
+                                    {{ form.fecha.errors }}
                                 </div>
                                 <div class="receipt-field">
                                     {{ form.hora.label_tag }}
@@ -736,6 +738,26 @@
                 sellerIdHiddenInput.val('');
             }
         });
+    });
+    </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Itera sobre cada formulario del formset
+        {% for form in formset %}
+            // Obtiene el campo de fecha por su ID único
+            const dateInput = document.getElementById('{{ form.fecha.id_for_label }}');
+            
+            // Verifica si el campo existe y si tiene un valor inicial desde la base de datos
+            {% if form.instance.fecha %}
+                if (dateInput) {
+                    // Crea un objeto Date a partir de la fecha de la instancia
+                    const dateObj = new Date('{{ form.instance.fecha|date:"Y-m-d" }}T00:00:00');
+                    // Formatea la fecha a YYYY-MM-DD y la asigna al valor del input
+                    dateInput.value = dateObj.toISOString().split('T')[0];
+                }
+            {% endif %}
+        {% endfor %}
     });
     </script>
 {% endblock %}
