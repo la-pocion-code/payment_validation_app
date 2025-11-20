@@ -42,57 +42,42 @@
                     </thead>
                     <tbody>
                     <tr>
-                    {% if request.user.is_superuser or 'Digitador' in user_groups %}
+                    {# --- INICIO DE LA CORRECCIÓN --- #}
+                    {# Unificamos la lógica. Siempre mostramos los campos del formulario. #}
+                    {# La lógica de 'readonly' ya está manejada en el TransactionForm. #}
                         <td>{{ form.transaction_type }} {{ form.transaction_type.errors }}</td>
-                        <td>{{ form.date }} {{ form.date.errors }}</td>
                         <td>
-                            {{ form.cliente }}
+                            {# CORRECCIÓN: Si el campo es readonly, el valor puede no mostrarse. #}
+                            {# Usamos un truco para asegurar que el valor de la instancia se use. #}
+                            <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" 
+                                   class="form-control" id="{{ form.date.id_for_label }}" {% if form.date.field.widget.attrs.readonly %}readonly{% endif %}>
+                            {{ form.date.errors }}</td>
+                        <td>
+                            {{ form.client_search }}
+                            {{ form.cliente_id }} {# CAMPO OCULTO #}
                             <div id="client-balance-container" class="mt-2" style="display: none;">
                                 <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
                             </div>
-                            {{ form.cliente.errors }}
+                            {{ form.client_search.errors }}
                         </td>
-                        <td>{{ form.vendedor }} {{ form.vendedor.errors }}</td>
-
+                        <td>{{ form.seller_search }} {{ form.seller_search.errors }}</td>
+                        <td>
+                            {{ form.seller_search }}
+                            {{ form.vendedor_id }} {# CAMPO OCULTO #}
+                            {{ form.seller_search.errors }}
+                        </td>
                         <!-- Campo Valor Venta con validación -->
                         <td>
-                            {% if request.user.is_superuser or 'Digitador' in user_groups %}
                                 <input type="text"
                                     id="id_expected_amount"
                                     class="form-control text-end"
                                     name="expected_amount"
                                     value="{{ form.expected_amount.value|floatformat:2|intcomma }}">
-                            {% else %}
-                                <input type="text"
-                                    id="id_expected_amount"
-                                    class="form-control text-end"
-                                    name="expected_amount"
-                                    value="{{ form.expected_amount.value|floatformat:2|intcomma }}" readonly>
-                            {% endif %}
                             {{ form.expected_amount.errors }}
                         </td>
 
                         <td>{{ form.description }} {{ form.description.errors }}</td>
-
-                    {% else %}
-                        <td><input type="text" class="form-control" value="{{ form.transaction_type.value }}" readonly></td>
-                        <td><input type="text" class="form-control" value="{{ form.date.value }}" readonly></td>
-                        <td>
-                            <input type="text" class="form-control" value="{{ form.cliente.value }}" readonly>
-                            <div id="client-balance-container" class="mt-2" style="display: none;">
-                                <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
-                            </div>
-                        </td>
-                        <td><input type="text" class="form-control" value="{{ form.vendedor.value }}" readonly></td>
-
-                        <!-- Campo Valor Venta solo lectura -->
-                        <td>
-                            <input type="text" id="id_expected_amount" class="form-control text-end"
-                                value="{{ form.expected_amount.value|default_if_none:0|floatformat:2|intcomma }}" readonly>
-                        </td>
-
-                        <td><input type="text" class="form-control" value="{{ form.description.value }}" readonly></td>
-                    {% endif %}
+                    {# --- FIN DE LA CORRECCIÓN --- #}
 
                         <!-- Facturador -->
                         <td>
@@ -175,8 +160,20 @@
 
                                     {{ form.origen_transaccion.errors }}
                                 </div>
-                                <div class="receipt-field">{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
-                                <div class="receipt-field">{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
+                                <div class="receipt-field">
+                                    {{ form.fecha.label_tag }}
+                                    <input type="date" name="{{ form.fecha.name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}" 
+                                           class="form-control" id="{{ form.fecha.id_for_label }}" {% if form.fecha.field.widget.attrs.readonly %}readonly{% endif %}>
+                                    {{ form.fecha.errors }}
+                                </div>
+                                <div class="receipt-field">
+                                    {{ form.hora.label_tag }}
+                                    {# Hacemos lo mismo para la hora para ser consistentes #}
+                                    <input type="time" name="{{ form.hora.name }}" value="{{ form.instance.hora|time:'H:i:s' }}" 
+                                           class="form-control" id="{{ form.hora.id_for_label }}" step="1" 
+                                           {% if form.hora.field.widget.attrs.readonly %}readonly{% endif %}>
+                                    {{ form.hora.errors }}
+                                </div>
                                 <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
                                 <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
                                 <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
@@ -209,8 +206,19 @@
 
                                     {{ form.origen_transaccion.errors }}
                                 </div>
-                                <div class="receipt-field">{{ form.fecha.label_tag }}{{ form.fecha }}{{ form.fecha.errors }}</div>
-                                <div class="receipt-field">{{ form.hora.label_tag }}{{ form.hora }}{{ form.hora.errors }}</div>
+                                <div class="receipt-field">
+                                    {{ form.fecha.label_tag }}
+                                    <input type="date" name="{{ form.fecha.name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}" 
+                                           class="form-control" id="{{ form.fecha.id_for_label }}" {% if form.fecha.field.widget.attrs.readonly %}readonly{% endif %}>
+                                    {{ form.fecha.errors }}
+                                </div>
+                                <div class="receipt-field">
+                                    {{ form.hora.label_tag }}
+                                    <input type="time" name="{{ form.hora.name }}" value="{{ form.instance.hora|time:'H:i:s' }}" 
+                                           class="form-control" id="{{ form.hora.id_for_label }}" step="1" 
+                                           {% if form.hora.field.widget.attrs.readonly %}readonly{% endif %}>
+                                    {{ form.hora.errors }}
+                                </div>
                                 <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
                                 <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
                                 <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
@@ -372,6 +380,7 @@
     {# --- FIN: NUEVAS CLASES CSS PARA COLORES --- #}
 
     <script>
+    // Usamos jQuery para el autocompletado
     document.addEventListener('DOMContentLoaded', function() {
         // --- LÓGICA PARA SALDO DE CLIENTE (NUEVA) ---
         const clientSelect = document.getElementById('id_cliente');
@@ -671,6 +680,60 @@
         }
 
         updateTotals();
+    });
+    </script>
+
+    <script>
+    // Usamos $(document).ready() que es el equivalente de jQuery a DOMContentLoaded
+    $(document).ready(function() {
+        // --- LÓGICA DE AUTOCOMPLETADO PARA CLIENTE ---
+        const clientSearchInput = $("#id_client_search");
+        const clientIdHiddenInput = $("#id_cliente_id");
+
+        clientSearchInput.autocomplete({
+            source: "{% url 'client_search_ajax' %}",
+            minLength: 2,
+            select: function(event, ui) {
+                clientIdHiddenInput.val(ui.item.id).trigger('change'); // Asignar ID y disparar 'change'
+                clientSearchInput.val(ui.item.label);
+                updateBalance(ui.item.id); // Actualizar saldo al seleccionar
+                return false;
+            },
+            focus: function(event, ui) {
+                clientSearchInput.val(ui.item.label);
+                return false;
+            }
+        });
+
+        clientSearchInput.on('keyup input', function() {
+            if ($(this).val().trim() === '') {
+                clientIdHiddenInput.val('').trigger('change'); // Limpiar ID y disparar 'change'
+            }
+        });
+
+        // --- LÓGICA DE AUTOCOMPLETADO PARA VENDEDOR ---
+        const sellerSearchInput = $("#id_seller_search");
+        const sellerIdHiddenInput = $("#id_vendedor_id");
+
+        sellerSearchInput.autocomplete({
+            source: "{% url 'seller_search_ajax' %}",
+            minLength: 2,
+            select: function(event, ui) {
+                sellerIdHiddenInput.val(ui.item.id);
+                sellerSearchInput.val(ui.item.label);
+                return false;
+            },
+            focus: function(event, ui) {
+                sellerSearchInput.val(ui.item.label);
+                return false;
+            }
+        });
+
+        sellerSearchInput.on('keyup input', function() {
+            if ($(this).val().trim() === '') {
+                sellerIdHiddenInput.val('');
+            }
+        });
     });
     </script>
 {% endblock %}

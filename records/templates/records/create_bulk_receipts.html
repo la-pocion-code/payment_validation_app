@@ -578,19 +578,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateBalance(this.value);
         });
     }
-    /*
-    // --- Listeners para Saldo de Cliente (CÓDIGO ANTIGUO - A REEMPLAZAR) ---
-    if (clientSelect) {
-        // Al cargar la página, verificar si ya hay un cliente seleccionado
-        if (clientSelect.value) {
-            updateBalance(clientSelect.value);
-        }
-        // Al cambiar la selección del cliente
-        clientSelect.addEventListener('change', function() {
-            updateBalance(this.value);
-        });
-    }
-    */
+
     // --- Listeners para Cálculo de Totales y Formateo de Números (Nuevos) ---
     function formatNumberInput(input) {
             if (!input || !input.value) {

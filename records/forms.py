@@ -63,13 +63,15 @@ class FinancialRecordForm(forms.ModelForm):
         # Aplicar restricciones solo si estamos editando un registro existente y el usuario no es superusuario
         if user and self.instance.pk and not user.is_superuser:
             # Por defecto, deshabilitar todos los campos
+            # CAMBIO: Usar 'readonly' en lugar de 'disabled' para que los valores se muestren.
             for field in self.fields.values():
-                field.disabled = True
+                field.widget.attrs['readonly'] = True
 
             # Habilitar campos específicos según el grupo del usuario
             if user.groups.filter(name='Validador').exists():
                 # Si es Validador, solo puede editar el estado de pago
-                self.fields['payment_status'].disabled = False
+                # Quitamos 'readonly' del campo de estado para que sea editable.
+                del self.fields['payment_status'].widget.attrs['readonly']
   
 
         # Lógica original del formulario para valores por defecto y campos ocultos
@@ -225,6 +227,11 @@ class CreditForm(forms.ModelForm):
         # ya que lo llenaremos manualmente en el método clean().
         self.fields['cliente'].required = False
 
+    def clean_cliente_id(self):
+        # Asegurarnos de que el valor sea un entero si existe
+        client_id = self.cleaned_data.get('cliente_id')
+        return client_id if client_id else None
+
     def clean(self):
         cleaned_data = super().clean()
         
@@ -232,7 +239,9 @@ class CreditForm(forms.ModelForm):
         client_search = cleaned_data.get('client_search')
 
         if not client_id:
-            self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
+            # Solo requerir si el usuario ha escrito algo en el campo de búsqueda
+            if client_search:
+                self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
         else:
             try:
                 # Intentamos obtener el cliente usando el ID
@@ -338,8 +347,9 @@ class TransactionForm(forms.ModelForm):
         super_kwargs = {k: v for k, v in kwargs.items() if k != 'user'}
         
         super().__init__(*args, **super_kwargs)
-
-        # --- Precargar datos si estamos editando una transacción existente ---
+        
+        # --- PASO 1: Precargar datos si estamos editando una transacción existente ---
+        # Esto DEBE ocurrir ANTES de deshabilitar campos.
         if self.instance and self.instance.pk:
             if self.instance.cliente:
                 self.fields['client_search'].initial = str(self.instance.cliente)
@@ -347,23 +357,24 @@ class TransactionForm(forms.ModelForm):
             if self.instance.vendedor:
                 self.fields['seller_search'].initial = self.instance.vendedor.name
                 self.fields['vendedor_id'].initial = self.instance.vendedor.pk
+        
+        # --- PASO 2: Aplicar lógica de roles y campos deshabilitados ---
+        if user and not user.is_superuser:
+            if user.groups.filter(name='Facturador').exists():
+                allowed_fields = ['description', 'status', 'numero_factura', 'facturador']
+                for field_name, field in self.fields.items():
+                    if field_name not in allowed_fields:
+                        # Usamos 'readonly' en lugar de 'disabled'.
+                        # 'disabled' evita que el campo se envíe con el formulario.
+                        # 'readonly' lo muestra pero no permite edición.
+                        field.widget.attrs['readonly'] = True
 
-        # Inicializa y oculta campos
+        # --- PASO 3: Configurar valores iniciales para transacciones NUEVAS ---
         if not self.instance.pk:
             self.fields['status'].initial = 'Pendiente'
             self.fields['status'].widget = forms.HiddenInput()
             self.fields['date'].initial = timezone.now().date()
             self.fields['created_by'].widget = forms.HiddenInput()
-
-        if user and not user.is_superuser:
-            if user.groups.filter(name='Facturador').exists():
-                allowed_fields = ['description', 'status', 'numero_factura']
-                for field_name, field in self.fields.items():
-                    if field_name not in allowed_fields:
-                        field.disabled = True
-            else:
-                for field in self.fields.values():
-                    field.disabled = True
 
         # --- Hacemos que los campos originales no sean requeridos a nivel de formulario ---
         self.fields['cliente'].required = False
@@ -388,10 +399,14 @@ class TransactionForm(forms.ModelForm):
         # --- Validación y asignación para Cliente ---
         cliente_id = cleaned_data.get('cliente_id')
         if cliente_id:
-            try:
-                cleaned_data['cliente'] = Client.objects.get(pk=cliente_id)
-            except Client.DoesNotExist:
-                self.add_error('client_search', "El cliente seleccionado no es válido.")
+            # Solo validar si el campo no es de solo lectura (es decir, si es editable)
+            if not self.fields['client_search'].widget.attrs.get('readonly'):
+                try:
+                    cleaned_data['cliente'] = Client.objects.get(pk=cliente_id)
+                except Client.DoesNotExist:
+                    self.add_error('client_search', "El cliente seleccionado no es válido.")
+        elif cleaned_data.get('client_search') and not self.fields['client_search'].widget.attrs.get('readonly'):
+             self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
         elif cleaned_data.get('client_search'): # Si hay texto pero no ID
              self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
 

@@ -938,6 +938,12 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
     template_name = 'records/transaction_detail.html'
     context_object_name = 'transaction'
 
+    def get_queryset(self):
+        """
+        Optimiza la consulta para incluir los datos del cliente y vendedor.
+        """
+        return super().get_queryset().select_related('cliente', 'vendedor')
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
@@ -960,7 +966,7 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
                 'history': receipt_history
             })
         context['receipts_with_history'] = receipts_with_history
-        
+
         return context
 
 FinancialRecordInlineFormSet = inlineformset_factory(
@@ -977,6 +983,12 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
     template_name = 'records/transaction_form.html'
     success_url = reverse_lazy('record_list')
     success_message = "¡Transacción actualizada exitosamente!"
+
+    def get_queryset(self):
+        """
+        Optimiza la consulta para incluir los datos del cliente y vendedor.
+        """
+        return super().get_queryset().select_related('cliente', 'vendedor')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

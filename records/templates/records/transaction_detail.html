@@ -26,8 +26,8 @@
             <tr>
                 <td>{{ transaction.transaction_type }}</td>
                 <td>{{ transaction.date|date:"d/m/Y" }}</td>
-                <td>{{ transaction.cliente }}</td>
-                <td>{{ transaction.vendedor }}</td>
+                <td>{{ transaction.cliente|default:"N/A" }}</td>
+                <td>{{ transaction.vendedor|default:"N/A" }}</td>
                 <td>{{ transaction.receipts_total|intcomma }}</td>
                 <td>{{ transaction.expected_amount|intcomma }}</td>
                 <td>{{ transaction.difference|intcomma }}</td>

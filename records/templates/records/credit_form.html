@@ -1,4 +1,3 @@
-<!-- records/templates/records/abono_form.html -->
 {% extends "records/base.html" %}
 {% load humanize %}
 {% load static %}
@@ -7,7 +6,8 @@
 
 {% block content %}
     <h2>{{ title }}</h2>
-    <form method="post">
+    {# Agregamos un ID al formulario para interceptar el envío #}
+    <form method="post" id="credit-form">
         {% csrf_token %}
         
     <div class="card">
@@ -36,7 +36,10 @@
                             <td>{{ form.hora }}</td>
                             <td>{{ form.comprobante }}</td>
                             <td>{{ form.banco_llegada }}</td>
-                            <td>{{ form.valor }}</td>
+                            <td>
+                                {# Django renderiza el input aquí. JS se encargará de darle formato #}
+                                {{ form.valor }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -44,7 +47,6 @@
         </div>
 
         <div class="btn-container">
-
             <button type="submit" class="btn btn-success">Guardar</button>
             <a href="{% url 'credit_list' %}" class="btn btn-danger">Cancelar</a>
         </div>
@@ -54,51 +56,102 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    // Seleccionamos los campos del formulario por su ID
+    // ==============================================================
+    // 1. LÓGICA DE AUTOCOMPLETADO (Tu código original)
+    // ==============================================================
     const clientSearchInput = $("#id_client_search");
     const clientIdHiddenInput = $("#id_cliente_id");
 
-    // Inicializamos el widget de autocompletado de jQuery UI
     clientSearchInput.autocomplete({
-        // source: define de dónde se obtendrán los datos.
-        // En este caso, nuestra nueva URL de Django.
         source: "{% url 'client_search_ajax' %}",
-        
-        // minLength: número mínimo de caracteres para activar la búsqueda.
         minLength: 2,
-
-        // select: evento que se dispara cuando un usuario selecciona un ítem de la lista.
         select: function(event, ui) {
-            // 'ui.item' contiene el objeto JSON del ítem seleccionado ({id: ..., label: ...})
-            
-            // 1. Asignar el ID del cliente al campo oculto.
             clientIdHiddenInput.val(ui.item.id);
-            
-            // 2. Asignar el texto (label) al campo visible.
             clientSearchInput.val(ui.item.label);
-            
-            // 3. Prevenir el comportamiento por defecto del widget, que es
-            //    insertar el 'value' del ítem en el input.
             return false;
         },
-
-        // focus: evento que se dispara al pasar el cursor sobre un ítem.
-        // Opcional, pero mejora la experiencia de usuario.
         focus: function(event, ui) {
-            // Muestra el label en el input mientras se navega por la lista, sin cambiar el valor real.
             clientSearchInput.val(ui.item.label);
             return false;
         }
     });
 
-    // Evento para limpiar el campo oculto si el usuario borra el texto.
-    // Esto es crucial para evitar enviar un ID de cliente incorrecto si el usuario
-    // borra su selección y no elige una nueva.
     clientSearchInput.on('keyup input', function() {
         if ($(this).val().trim() === '') {
             clientIdHiddenInput.val('');
         }
     });
+
+    // ==============================================================
+    // 2. LÓGICA DE FORMATO DE MONEDA (Implementada igual que en transacciones)
+    // ==============================================================
+    
+    // Seleccionamos el input de valor y el formulario
+    // Django por defecto genera el id 'id_valor' para el campo 'valor'
+    const valorInput = document.getElementById('id_valor'); 
+    const creditForm = document.getElementById('credit-form');
+
+    // A. Forzar tipo texto para evitar que el navegador borre las comas
+    if (valorInput) {
+        valorInput.setAttribute('type', 'text');
+        valorInput.setAttribute('autocomplete', 'off');
+        valorInput.classList.add('text-end'); // Opcional: alinear a la derecha como es usual en números
+    }
+
+    // B. Función para dar formato visual (1,000.00)
+    function formatNumberInput(input) {
+        if (!input || !input.value) return;
+
+        let value = input.value.trim();
+        // Quitamos comas para poder convertir a número
+        const numericValue = parseFloat(value.replace(/,/g, ''));
+        
+        if (isNaN(numericValue)) return;
+
+        // Formateamos estilo US (comas miles, punto decimal)
+        const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+        input.value = numericValue.toLocaleString('en-US', numberFormatOptions);
+    }
+
+    // C. Listener: Mientras escribe (INPUT) -> Sanitizar caracteres
+    if (valorInput) {
+        valorInput.addEventListener('input', function(e) {
+            let currentValue = e.target.value;
+            
+            // Permitir solo números y punto decimal (eliminamos letras y otros símbolos)
+            const sanitizedValue = currentValue.replace(/[^0-9.]/g, '');
+
+            if (currentValue !== sanitizedValue) {
+                e.target.value = sanitizedValue;
+            }
+        });
+
+        // D. Listener: Al salir de la casilla (BLUR) -> Aplicar formato bonito
+        valorInput.addEventListener('blur', function(e) {
+            formatNumberInput(e.target);
+        });
+
+        // E. Listener: Al entrar a la casilla (FOCUS) -> Quitar formato para editar fácil
+        valorInput.addEventListener('focus', function(e) {
+            let val = e.target.value;
+            if (val) {
+                e.target.value = val.replace(/,/g, '');
+                e.target.select(); // Seleccionar todo para facilitar sobreescritura
+            }
+        });
+    }
+
+    // ==============================================================
+    // 3. LIMPIEZA AL GUARDAR (SUBMIT)
+    // ==============================================================
+    if (creditForm) {
+        creditForm.addEventListener('submit', function() {
+            // Antes de enviar, quitamos las comas para que Django reciba un float válido
+            if (valorInput && valorInput.value) {
+                valorInput.value = valorInput.value.replace(/,/g, '');
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
