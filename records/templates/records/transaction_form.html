@@ -69,7 +69,8 @@
                                     id="id_expected_amount"
                                     class="form-control text-end"
                                     name="expected_amount"
-                                    value="{{ form.expected_amount.value|floatformat:2|intcomma }}">
+                                    {# Usamos stringformat para forzar formato 1000.00 (Punto decimal, sin comas miles) #}
+                                    value="{{ form.expected_amount.value|stringformat:'.2f' }}">
                             {{ form.expected_amount.errors }}
                         </td>
                         <td>{{ form.description }} {{ form.description.errors }}</td>
