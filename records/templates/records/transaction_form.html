@@ -34,7 +34,7 @@
                         <th>Cliente</th>
                         <th>Vendedor</th>
                         <th>Valor Venta</th>
-                        <th>Descripción</th>
+                        <th>Observación</th>
                         <th>Facturador</th>
                         <th># de Factura</th>
                         <th>Estado Transacción</th>
@@ -58,7 +58,6 @@
                             </div>
                             {{ form.client_search.errors }}
                         </td>
-                        <td>{{ form.seller_search }} {{ form.seller_search.errors }}</td>
                         <td>
                             {{ form.seller_search }}
                             {{ form.vendedor_id }} {# CAMPO OCULTO #}
@@ -73,7 +72,7 @@
                                     value="{{ form.expected_amount.value|floatformat:2|intcomma }}">
                             {{ form.expected_amount.errors }}
                         </td>
-
+                        <td>{{ form.description }} {{ form.description.errors }}</td>
                         <td>{{ form.description }} {{ form.description.errors }}</td>
                     {# --- FIN DE LA CORRECCIÓN --- #}
 
@@ -113,7 +112,7 @@
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="apply_credit" value="{{ credit.pk }}" id="credit_{{ credit.pk }}">
                     <label class="form-check-label" for="credit_{{ credit.pk }}">
-                        Fecha: {{ credit.fecha }} | Valor: ${{ credit.valor|floatformat:2|intcomma }} | Comprobante: {{ credit.comprobante }}
+                        id: {{ credit.pk }} | Fecha: {{ credit.fecha }}  | Comprobante: {{ credit.comprobante }} | Banco: {{ credit.banco_llegada }} | Valor: ${{ credit.valor|floatformat:2|intcomma }}
                     </label>
                 </div>
                 {% endfor %}

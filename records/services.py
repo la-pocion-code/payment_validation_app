@@ -72,6 +72,10 @@ class CSVProcessor:
             # Si la columna no existe, usar el valor por defecto
             row_data['origen_transaccion'] = self.default_origen
 
+
+        # --- INICIO: Asignar estado de pago Aprobado ---
+        row_data['payment_status'] = 'Aprobado'
+        # --- FIN: Asignar estado de pago Aprobado ---
         return row_data
 
     def process(self):
