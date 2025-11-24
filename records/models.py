@@ -226,12 +226,23 @@ class FinancialRecord(models.Model):
     modificado = models.DateTimeField(auto_now=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_financial_records')
 
-   
-
     class Meta:
         verbose_name = "Registro Financiero"
         verbose_name_plural = "Registros Financieros"
         unique_together = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor']
+
+    def display_client(self):
+        """
+        Retorna el cliente asociado al recibo.
+        Si el recibo tiene un cliente directo (es un abono), lo retorna.
+        Si el recibo está asociado a una transacción, retorna el cliente de esa transacción.
+        """
+        if self.cliente:
+            return self.cliente
+        elif self.transaction and self.transaction.cliente:
+            return self.transaction.cliente
+        return "N/A" # O puedes retornar None o una cadena vacía si prefieres
+
 
     def __str__(self):
         return f"{self.fecha} - {self.comprobante} - {self.valor}"

@@ -83,7 +83,7 @@
                         {% for credit in credits %}
                         <tr onclick="window.location='{% url 'credit_detail' credit.pk %}'" style="cursor:pointer;">
                             <td>{{ credit.id }}</td>
-                            <td>{{ credit.cliente.name|default:"N/A" }}</td>
+                            <td>{{ credit.display_client }}</td>
                             <td>{{ credit.fecha|date:"d/m/Y" }}</td> {# Cambié creado por fecha para coincidir con el filtro #}
                             <td>{{ credit.hora|time:"H:i:s" }}</td>
                             <td>{{ credit.comprobante }}</td>

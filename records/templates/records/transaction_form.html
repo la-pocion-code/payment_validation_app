@@ -335,21 +335,32 @@
                             </div>
 
                             {# DELETE BUTTON #}
-                            {% comment %} <div class="receipt-delete-wrapper">
-                                {# Solo Admin puede borrar cualquier cosa #}
-                                {# Digitador puede borrar (no guardar) recibos NUEVOS que esta creando, pero no existentes #}
-                                {% if formset.can_delete %}
+                            {# DELETE / UNLINK BUTTONS #}
+                            <div class="receipt-delete-wrapper">
+                                {% comment %} {% if formset.can_delete %}
                                     {% if is_admin %}
+                                        {# Admin can delete anything #}
                                         <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
                                         <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
                                         <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
                                     {% elif is_digitador and not form.instance.pk %}
-                                        {# Permitir eliminar filas nuevas que aun no se han guardado #}
+                                        {# Digitador can delete NEW receipts #}
                                         <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
                                         <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
                                     {% endif %}
+                                {% endif %} {% endcomment %}
+
+                                {# Unlink Logic for Existing Records #}
+                                {% if form.instance.pk %}
+                                    {% if is_admin or is_digitador %}
+                                        <div class="unlink-checkbox-wrapper" style="display: none;">
+                                            <input type="checkbox" name="unlink_credit" value="{{ form.instance.pk }}">
+                                        </div>
+                                        <button type="button" class="btn btn-warning btn-unlink-receipt" style="margin-left: 5px;">Desvincular</button>
+                                        <button type="button" class="btn btn-secondary btn-undo-unlink" style="display: none; margin-left: 5px;">Re-vincular</button>
+                                    {% endif %}
                                 {% endif %}
-                            </div> {% endcomment %}
+                            </div>
                         </div>
                         {{ form.id }}
                     </div>
@@ -472,6 +483,15 @@
         .receipt-form-instance.marked-for-deletion input, .receipt-form-instance.marked-for-deletion select {
             text-decoration: line-through;
         }
+        /* --- NUEVO: Estilo para recibos marcados para desvincular --- */
+        .receipt-form-instance.marked-for-unlinking {
+            background-color: #fff3cd; /* Color de advertencia claro */
+            border-color: #ffeeba;
+        }
+        .receipt-form-instance.marked-for-unlinking .receipt-form-fields {
+            opacity: 0.7;
+        }
+
 
         .receipt-form-instance.has-errors { border-color: red; background-color: #ffebeb; }
         .non-field-errors { color: red; font-weight: bold; margin-bottom: 10px; }
@@ -594,6 +614,25 @@
             }
         }
 
+        function markForUnlinking(formInstance) {
+            const unlinkCheckbox = formInstance.querySelector('input[name="unlink_credit"]');
+            if (unlinkCheckbox) {
+                unlinkCheckbox.checked = true;
+                formInstance.classList.add('marked-for-unlinking');
+                formInstance.querySelector('.btn-unlink-receipt').style.display = 'none';
+                formInstance.querySelector('.btn-undo-unlink').style.display = 'inline-block';
+            }
+        }
+
+        function undoMarkForUnlinking(formInstance) {
+            const unlinkCheckbox = formInstance.querySelector('input[name="unlink_credit"]');
+            if (unlinkCheckbox) {
+                unlinkCheckbox.checked = false;
+                formInstance.classList.remove('marked-for-unlinking');
+                formInstance.querySelector('.btn-unlink-receipt').style.display = 'inline-block';
+                formInstance.querySelector('.btn-undo-unlink').style.display = 'none';
+            }
+        }
         // Event listeners for modal buttons
         confirmDeleteBtn.addEventListener('click', function() {
             if (formToMarkForDeletion) {
@@ -619,6 +658,15 @@
             if (event.target.classList.contains('btn-undo-delete')) {
                 const formInstance = event.target.closest('.receipt-form-instance');
                 undoMarkForDeletion(formInstance);
+            }
+            // --- NUEVO: Eventos para desvincular/re-vincular ---
+            if (event.target.classList.contains('btn-unlink-receipt')) {
+                const formInstance = event.target.closest('.receipt-form-instance');
+                markForUnlinking(formInstance);
+            }
+            if (event.target.classList.contains('btn-undo-unlink')) {
+                const formInstance = event.target.closest('.receipt-form-instance');
+                undoMarkForUnlinking(formInstance);
             }
         });
 

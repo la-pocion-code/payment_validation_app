@@ -297,9 +297,12 @@ class CreditListView(LoginRequiredMixin, FilterView):
         """
         El queryset base sobre el cual se aplicarán los filtros.
         Obtenemos solo los abonos (registros sin transacción asociada).
+        Modificado para incluir todos los FinancialRecords y optimizar la carga del cliente.
         """
-        queryset = FinancialRecord.objects.filter(transaction__isnull=True).order_by('-creado')
-        return queryset
+        queryset = FinancialRecord.objects.all().order_by('-creado') # Eliminado el filtro transaction__isnull=True
+        # Optimizar la carga de datos relacionados para evitar N+1 queries
+        # Esto cargará el cliente directo y el cliente de la transacción en una sola consulta.
+        return queryset.select_related('cliente', 'transaction__cliente')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1127,6 +1130,16 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                     self.object.facturador = self.object.facturador.username
 
                 self.object.save()
+
+                # 🔹 Desvincular recibos marcados
+                credit_ids_to_unlink = self.request.POST.getlist('unlink_credit')
+                if credit_ids_to_unlink:
+                    # Filtramos solo los recibos que pertenecen a esta transacción
+                    receipts_to_unlink = self.object.receipts.filter(pk__in=credit_ids_to_unlink)
+                    for receipt in receipts_to_unlink:
+                        receipt.cliente = self.object.cliente # ¡CLAVE! Asignamos el cliente de la transacción al recibo.
+                        receipt.transaction = None # Rompemos el vínculo
+                        receipt.save()
 
                 # 🔹 Aplicar abonos seleccionados a esta transacción
                 credit_ids_to_apply = self.request.POST.getlist('apply_credit')
