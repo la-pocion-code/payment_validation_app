@@ -270,11 +270,11 @@
                             {# FECHA #}
                             <div class="receipt-field">
                                 {{ form.fecha.label_tag }}
-                                {% if is_admin %}
-                                    {{ form.fecha }}
-                                {% elif is_digitador and not form.instance.pk %}
+                                {% if is_admin and not form.instance.pk or is_digitador and not form.instance.pk %}
+                                    {# Admin y Digitador pueden editar la fecha SOLO en un recibo NUEVO #}
                                     {{ form.fecha }}
                                 {% else %}
+                                    {# Para recibos existentes, TODOS (incluido el Admin) ven un campo de solo lectura #}
                                     <input type="date" class="form-control" value="{{ form.instance.fecha|date:'Y-m-d' }}" readonly>
                                     {% if form.instance.pk %}
                                         <input type="hidden" name="{{ form.fecha.html_name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}">
