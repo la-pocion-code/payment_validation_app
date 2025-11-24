@@ -1,5 +1,6 @@
 import django_filters
 from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client
+from django.db.models import Q
 from django.contrib.auth.models import User
 from django import forms
 
@@ -124,12 +125,6 @@ class CreditFilter(django_filters.FilterSet):
         label='Fecha Hasta',
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
-    cliente = django_filters.CharFilter(
-        field_name='cliente__name',
-        lookup_expr='icontains',
-        label='Cliente',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del cliente...'})
-    )
     comprobante = django_filters.CharFilter(
         field_name='comprobante',
         lookup_expr='icontains',
@@ -147,9 +142,28 @@ class CreditFilter(django_filters.FilterSet):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
 
+    # Filtro personalizado para buscar por el cliente mostrado (directo o a través de la transacción)
+    display_client = django_filters.CharFilter(
+        method='filter_by_client',
+        label='Cliente',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre o DNI del cliente...'})
+    )
+
+    def filter_by_client(self, queryset, name, value):
+        """
+        Este método personalizado filtra el queryset de FinancialRecord
+        buscando el 'value' (nombre o DNI del cliente) en dos lugares:
+        1. En el campo 'cliente' del propio recibo (para abonos).
+        2. En el campo 'cliente' de la transacción asociada al recibo.
+        """
+        return queryset.filter(
+            Q(cliente__name__icontains=value) | Q(cliente__dni__icontains=value) |
+            Q(transaction__cliente__name__icontains=value) | Q(transaction__cliente__dni__icontains=value)
+        ).distinct()
+
     class Meta:
         model = FinancialRecord
-        fields = ['fecha__gte', 'fecha__lte', 'cliente', 'comprobante', 'banco_llegada', 'payment_status']
+        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'banco_llegada', 'payment_status', 'display_client']
 
 
 class ClientFilter(django_filters.FilterSet):

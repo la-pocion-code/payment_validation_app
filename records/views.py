@@ -304,7 +304,7 @@ class CreditListView(LoginRequiredMixin, FilterView):
         queryset = FinancialRecord.objects.all().order_by('-creado') # Eliminado el filtro transaction__isnull=True
         # Optimizar la carga de datos relacionados para evitar N+1 queries
         # Esto cargará el cliente directo y el cliente de la transacción en una sola consulta.
-        return queryset.select_related('cliente', 'transaction__cliente')
+        return queryset.select_related('cliente', 'transaction__cliente', 'banco_llegada', 'uploaded_by')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
