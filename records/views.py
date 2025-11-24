@@ -86,6 +86,7 @@ def delete_access_request(request, request_id):
     messages.success(request, f'Solicitud de acceso para {username} eliminada exitosamente.')
     return redirect('access_request_list')
 
+@method_decorator(group_required('Admin', 'Digitador',  ), name='dispatch')
 class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = FinancialRecord
     form_class = FinancialRecordForm
@@ -105,7 +106,7 @@ class RecordCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         context['clientes'] = FinancialRecord.objects.values_list('cliente', flat=True).distinct()
         return context
 
-
+@method_decorator(group_required('Admin' ), name='dispatch')
 class FinancialRecordDetailView(LoginRequiredMixin, DetailView):
     model = FinancialRecord
     template_name = 'records/record_detail.html' # Usaremos este nuevo template
@@ -158,6 +159,7 @@ class RecordUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         context['history'] = history
         return context
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = FinancialRecord
     template_name = 'records/record_confirm_delete.html'
@@ -213,7 +215,7 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         return super().post(request, *args, **kwargs)
 
 
-
+@method_decorator(group_required('Admin', 'Digitador'), name='dispatch')
 class CreditCreateView(LoginRequiredMixin, CreateView):
     model = FinancialRecord
     form_class = CreditForm
@@ -334,6 +336,7 @@ class CreditDetailView(LoginRequiredMixin, DetailView):
         
         return context
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class BankCreateView(LoginRequiredMixin, CreateView):
     model = Bank
     form_class = BankForm
@@ -367,6 +370,7 @@ class BankCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Crear Nuevo Banco'
         return context
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class BankUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = Bank
     form_class = BankForm
@@ -405,6 +409,7 @@ class BankUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixi
         self.template_name = 'records/bank_form_standalone.html'
         return super().form_invalid(form)
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Bank
     template_name = 'records/bank_confirm_delete.html'
@@ -434,6 +439,7 @@ class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
             return JsonResponse({'success': True, 'message': self.success_message})
         return super().post(request, *args, **kwargs)
 
+
 class BankListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Bank
     template_name = 'records/bank_list.html'
@@ -443,7 +449,7 @@ class BankListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return self.request.user.is_superuser
     
     
-
+@method_decorator(group_required('Admin'), name='dispatch')
 class ClientUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = Client
     form_class = ClientForm
@@ -485,6 +491,7 @@ class ClientUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMi
         self.template_name = 'records/Client_form_standalone.html'
         return super().form_invalid(form)
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class ClientDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Client
     template_name = 'records/Client_confirm_delete.html'
@@ -518,6 +525,7 @@ class ClientDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
                 return JsonResponse({'success': False, 'message': str(e)}, status=500)
         return super().post(request, *args, **kwargs)
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class ClientListView(LoginRequiredMixin, UserPassesTestMixin, FilterView):
     model = Client
     template_name = 'records/Client_list.html'
@@ -606,7 +614,7 @@ def bulk_client_upload(request):
 
 
 
-
+@method_decorator(group_required('Admin' ), name='dispatch')
 class ClientCreateView(LoginRequiredMixin, CreateView):
     model = Client
     form_class = ClientForm
@@ -643,7 +651,7 @@ class ClientCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Crear Nuevo Cliente'
         return context
     
-
+@method_decorator(group_required('Admin'), name='dispatch')
 class OrigenTransaccionCreateView(LoginRequiredMixin, CreateView):
     model = OrigenTransaccion
     form_class = OrigenTransaccionForm
@@ -677,7 +685,7 @@ class OrigenTransaccionCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Crear Nuevo Origen de Transacción'
         return context
 
-
+@method_decorator(group_required('Admin'), name='dispatch')
 class OrigenTransaccionUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = OrigenTransaccion
     form_class = OrigenTransaccionForm
@@ -716,6 +724,7 @@ class OrigenTransaccionUpdateView(LoginRequiredMixin, UserPassesTestMixin, Succe
         self.template_name = 'records/origen_transaccion_form_standalone.html'
         return super().form_invalid(form)
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class OrigenTransaccionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = OrigenTransaccion
     template_name = 'records/origen_transaccion_confirm_delete.html'
@@ -750,7 +759,7 @@ class OrigenTransaccionListView(LoginRequiredMixin, UserPassesTestMixin, ListVie
         return self.request.user.is_superuser
 
 
-# Vista para crear Vendedores (maneja modales AJAX)
+@method_decorator(group_required('Admin'), name='dispatch')
 class SellerCreateView(LoginRequiredMixin, CreateView):
     model = Seller
     form_class = SellerForm
@@ -783,7 +792,7 @@ class SellerCreateView(LoginRequiredMixin, CreateView):
         return context
 
 
-# Vista para actualizar Vendedores
+@method_decorator(group_required('Admin'), name='dispatch')
 class SellerUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = Seller
     form_class = SellerForm
@@ -822,7 +831,7 @@ class SellerUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMi
         self.template_name = 'records/seller_form_standalone.html'
         return super().form_invalid(form)
 
-# Vista para eliminar Vendedores
+@method_decorator(group_required('Admin'), name='dispatch')
 class SellerDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Seller
     template_name = 'records/seller_confirm_delete.html'
@@ -857,7 +866,7 @@ class SellerListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return self.request.user.is_superuser
 
 
-# Vista para crear Vendedores (maneja modales AJAX)
+@method_decorator(group_required('Admin'), name='dispatch')
 class TransactionTypeCreateView(LoginRequiredMixin, CreateView):
     model = TransactionType
     form_class = TransactionTypeForm
@@ -891,6 +900,7 @@ class TransactionTypeCreateView(LoginRequiredMixin, CreateView):
 
 
 # Vista para actualizar Vendedores
+@method_decorator(group_required('Admin'), name='dispatch')
 class TransactionTypeUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = TransactionType
     form_class = TransactionTypeForm
@@ -930,6 +940,7 @@ class TransactionTypeUpdateView(LoginRequiredMixin, UserPassesTestMixin, Success
         return super().form_invalid(form)
 
 # Vista para eliminar Vendedores
+@method_decorator(group_required('Admin'), name='dispatch')
 class TransactionTypeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = TransactionType
     template_name = 'records/TransactionType_confirm_delete.html'
@@ -955,6 +966,7 @@ class TransactionTypeDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteV
             return JsonResponse({'success': True, 'message': self.success_message})
         return super().post(request, *args, **kwargs)
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class TransactionTypeListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = TransactionType
     template_name = 'records/TransactionType_list.html'
@@ -1000,7 +1012,7 @@ class TransactionListView(LoginRequiredMixin, FilterView):
         # Devolvemos el queryset con optimización y orden
         return queryset.prefetch_related('receipts').order_by('-id')
 
-
+@method_decorator(group_required('Admin'), name='dispatch')
 class TransactionDetailView(LoginRequiredMixin, DetailView):
     model = Transaction
     template_name = 'records/transaction_detail.html'
@@ -1044,6 +1056,7 @@ FinancialRecordInlineFormSet = inlineformset_factory(
     extra=0, # Start with zero empty forms
     can_delete=True
 )
+
 
 class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Transaction
@@ -1206,6 +1219,7 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
 
         return self.render_to_response(context)
     
+@method_decorator(group_required('Admin'), name='dispatch')  
 class TransactionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Transaction
     template_name = 'records/transaction_confirm_delete.html'
@@ -1229,7 +1243,7 @@ class TransactionDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
         return super().post(request, *args, **kwargs)
 
 
-
+@method_decorator(group_required('Admin'), name='dispatch')
 class AccessRequestApprovalView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = AccessRequest
     form_class = AccessRequestApprovalForm
@@ -1297,7 +1311,7 @@ class AccessRequestApprovalView(LoginRequiredMixin, UserPassesTestMixin, Success
         context['user_to_approve'] = self.get_object().user
         return context
 
-
+@method_decorator(group_required('Admin'), name='dispatch')
 class UserUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
     model = User
     form_class = UserUpdateForm
@@ -1332,6 +1346,7 @@ class UserUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixi
         context['title'] = 'Editar Usuario'
         return context
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class UserDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = User
     template_name = 'records/user_confirm_delete.html'
@@ -1622,6 +1637,7 @@ def csv_upload_view(request):
 
     return render(request, 'records/csv_upload_form.html', {'form': form})
 
+@method_decorator(group_required('Admin'), name='dispatch')
 class DuplicateAttemptsListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = DuplicateRecordAttempt
     template_name = 'records/duplicate_attempts_list.html'
@@ -1634,7 +1650,7 @@ class DuplicateAttemptsListView(LoginRequiredMixin, UserPassesTestMixin, ListVie
     def get_queryset(self):
         return DuplicateRecordAttempt.objects.filter(is_resolved=False).order_by('-timestamp')
 
-@login_required
+@method_decorator(group_required('Admin'), name='dispatch')
 def resolve_duplicate_attempt(request, pk):
     if not request.user.is_superuser:
         messages.error(request, 'No tienes permisos para realizar esta acción.')
@@ -1663,7 +1679,7 @@ class DuplicateAttemptsHistoryListView(LoginRequiredMixin, UserPassesTestMixin, 
         return DuplicateRecordAttempt.objects.all().order_by('-timestamp')
 
 
-@login_required
+@method_decorator(group_required('Admin'), name='dispatch')
 def export_duplicate_attempts_csv(request):
     if not request.user.is_superuser:
         messages.error(request, 'No tienes permisos para realizar esta acción.')

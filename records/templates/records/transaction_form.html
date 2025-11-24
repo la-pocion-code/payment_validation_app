@@ -5,11 +5,10 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
+
+
     <h2>{{ title }}</h2>
-
-
-
-    <div class="d-flex justify-content-end mb-4">
+    <div class="d-flex justify-content-start mb-4">
         <div id="transaction-summary" 
              class="card shadow-sm"
              data-expected-amount="{{ transaction.expected_amount|stringformat:'f' }}"
@@ -383,7 +382,7 @@
 
                                 {# Unlink Logic for Existing Records #}
                                 {% if form.instance.pk %}
-                                    {% if is_admin or is_digitador %}
+                                    {% if is_admin  %}
                                         <div class="unlink-checkbox-wrapper" style="display: none;">
                                             <input type="checkbox" name="unlink_credit" value="{{ form.instance.pk }}">
                                         </div>
