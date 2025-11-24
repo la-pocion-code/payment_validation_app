@@ -75,6 +75,7 @@
                             <th>Comprobante</th>
                             <th>Banco Llegada</th>
                             <th>Valor</th>
+                            <th>Fecha Efectiva</th>
                             <th>Estado</th>
                             <th>Subido por</th>
                         </tr>
@@ -90,6 +91,10 @@
                             <td>{{ credit.banco_llegada.name }}</td>
                             <td>${{ credit.valor|intcomma }}</td>
                             <td>
+                                {# Usamos la propiedad del modelo que acabamos de crear #}
+                                <small class="text-info">{{ credit.effective_date_message }}</small>
+                            </td>
+                            <td>
                                 <span class="badge {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
                                     {{ credit.payment_status }}
                                 </span>
@@ -99,6 +104,7 @@
                         {% empty %}
                         <tr>
                             <td colspan="9" class="text-center">No se encontraron abonos con los filtros seleccionados.</td>
+                            <td colspan="10" class="text-center">No se encontraron abonos con los filtros seleccionados.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

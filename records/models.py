@@ -262,8 +262,8 @@ class FinancialRecord(models.Model):
             fecha_formateada = fecha_efectiva.strftime('%d/%m/%Y')
 
             return (
-                f"Tomará {dias} días hábiles. "
-                f"Fecha efectiva esperada: {fecha_formateada}."
+                f"{dias} días hábiles. "
+                f"Fecha esperada: {fecha_formateada}."
             )
 
         # Si no se cumplen las condiciones, no devolvemos nada
