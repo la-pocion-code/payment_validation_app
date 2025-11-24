@@ -81,6 +81,11 @@
             </div>
         </fieldset>
         
+        <!-- Contenedor para Abonos Disponibles (se llenará con AJAX) -->
+        <div id="available-credits-container" class="mt-4">
+            <!-- El contenido de _available_credits_list.html se inyectará aquí -->
+        </div>
+
         <hr class="my-4">
 
         <fieldset>
@@ -315,6 +320,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
+        // --- MODIFICACIÓN: Incluir abonos aplicados en el cálculo ---
+        let totalAppliedCredits = 0;
+        const appliedCreditCheckboxes = document.querySelectorAll('#available-credits-container .apply-credit-checkbox:checked');
+        
+        appliedCreditCheckboxes.forEach(checkbox => {
+            const value = parseFloat(checkbox.dataset.value) || 0;
+            totalAppliedCredits += value;
+        });
+
+        totalReceipts += totalAppliedCredits; // Sumamos los abonos al total de recibos
+
         const expected = parseCustomFloat(expectedAmountInput.value);
         const difference = expected - totalReceipts;
 
@@ -501,6 +517,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 if(balanceContainer) balanceContainer.style.display = 'none';
             });
     }
+    
+    function fetchAvailableCredits(clientId) {
+        const creditsContainer = document.getElementById('available-credits-container');
+        if (!creditsContainer) return;
+
+        if (!clientId) {
+            creditsContainer.innerHTML = ''; // Limpiar si no hay cliente
+            updateTotals(); // Recalcular totales
+            return;
+        }
+
+        fetch(`/ajax/get_available_credits/?client_id=${clientId}`)
+            .then(response => response.json())
+            .then(data => {
+                creditsContainer.innerHTML = data.html;
+                // Una vez cargados los abonos, recalculamos los totales
+                updateTotals();
+            })
+            .catch(error => {
+                console.error('Error fetching available credits:', error);
+                creditsContainer.innerHTML = ''; // Limpiar en caso de error
+            });
+    }
 
     // ==========================================================
     // --- LÓGICA DE AUTOCOMPLETADO (NUEVA) ---
@@ -571,13 +610,22 @@ document.addEventListener('DOMContentLoaded', function() {
         const initialClientId = clientIdHiddenInput.val();
         if (initialClientId) {
             updateBalance(initialClientId);
+            fetchAvailableCredits(initialClientId); // Cargar abonos para cliente inicial
         }
 
         // Al cambiar la selección del cliente (disparado por el autocompletado)
         clientIdHiddenInput.on('change', function() {
             updateBalance(this.value);
+            fetchAvailableCredits(this.value); // Cargar abonos al cambiar de cliente
         });
     }
+
+    // --- Listener para cambios en los checkboxes de abonos (delegación de eventos) ---
+    document.getElementById('available-credits-container').addEventListener('change', function(e) {
+        if (e.target.classList.contains('apply-credit-checkbox')) {
+            updateTotals(); // Si se marca/desmarca un abono, actualizar totales
+        }
+    });
 
     // --- Listeners para Cálculo de Totales y Formateo de Números (Nuevos) ---
     function formatNumberInput(input) {

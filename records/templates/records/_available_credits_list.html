@@ -1,0 +1,22 @@
+{% if credits %}
+<fieldset class="mt-4">
+    <legend>Abonos Disponibles para Aplicar</legend>
+    <p>Este cliente tiene un saldo a favor. Selecciona los abonos que deseas aplicar a esta transacción.</p>
+    
+    <div class="available-credits-list p-3 border rounded bg-light">
+        {% for credit in credits %}
+        <div class="form-check">
+            <input class="form-check-input apply-credit-checkbox" 
+                   type="checkbox" 
+                   name="apply_credit" 
+                   value="{{ credit.pk }}"
+                   data-value="{{ credit.valor|stringformat:'f' }}"
+                   id="apply_credit_{{ credit.pk }}">
+            <label class="form-check-label" for="apply_credit_{{ credit.pk }}">
+                Aplicar Abono: {{ credit.fecha }} - {{ credit.comprobante }} - Valor: ${{ credit.valor|floatformat:2 }}
+            </label>
+        </div>
+        {% endfor %}
+    </div>
+</fieldset>
+{% endif %}

@@ -58,6 +58,7 @@ urlpatterns = [
     path('duplicates/history/export/', views.export_duplicate_attempts_csv, name='export_duplicate_attempts_csv'),
     path('download_csv_template/', views.download_csv_template, name='download_csv_template'),
     path('ajax/get_effective_date/', views.get_effective_date_view, name='get_effective_date'),
+    path('ajax/get_available_credits/', views.get_available_credits, name='get_available_credits'),
     path('ajax/get_client_balance/', views.get_client_balance, name='get_client_balance'),
     path('records/clientes/buscar/', views.search_clients, name='client_search_ajax'), 
     path('records/vendedores/buscar/', views.search_sellers, name='seller_search_ajax'), 

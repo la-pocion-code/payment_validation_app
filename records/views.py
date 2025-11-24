@@ -27,6 +27,7 @@ from django.utils.decorators import method_decorator
 from .services import CSVProcessor 
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm 
+from django.template.loader import render_to_string
 from .utils import calculate_effective_date
 from .forms import BulkClientUploadForm
 from datetime import datetime
@@ -1753,6 +1754,17 @@ def create_bulk_receipts(request):
                 )
                 new_transaction.save()
 
+                # 🔹 Aplicar abonos seleccionados a la nueva transacción
+                credit_ids_to_apply = request.POST.getlist('apply_credit')
+                if credit_ids_to_apply:
+                    # Buscamos los abonos que pertenecen al cliente y no tienen transacción asignada
+                    credits_to_apply = FinancialRecord.objects.filter(
+                        pk__in=credit_ids_to_apply,
+                        cliente=new_transaction.cliente,
+                        transaction__isnull=True
+                    )
+                    credits_to_apply.update(transaction=new_transaction)
+
                 for form in formset:
                     if form.has_changed() and form.cleaned_data:
                         if form.cleaned_data.get('DELETE'):
@@ -1852,6 +1864,27 @@ def get_effective_date_view(request):
     except (ValueError, TypeError):
         return JsonResponse({'error': 'Formato de fecha inválido'}, status=400)
     
+@login_required
+def get_available_credits(request):
+    """
+    Vista AJAX para obtener los abonos disponibles de un cliente.
+    Devuelve un fragmento de HTML renderizado.
+    """
+    client_id = request.GET.get('client_id')
+    credits = []
+    if client_id:
+        try:
+            credits = FinancialRecord.objects.filter(
+                cliente_id=client_id,
+                payment_status='Aprobado',
+                transaction__isnull=True
+            )
+        except (ValueError, TypeError):
+            pass # Ignora si el client_id no es válido
+
+    html = render_to_string('records/_available_credits_list.html', {'credits': credits}, request=request)
+    return JsonResponse({'html': html})
+
 
 @login_required
 def get_client_balance(request):
