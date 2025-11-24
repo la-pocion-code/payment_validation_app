@@ -6,19 +6,33 @@
 
 {% block content %}
     <h2>{{ title }}</h2>
-    <div class="d-flex align-items-end gap-2 mb-3">
-        <label for="id_total_receipts_amount" class="form-label">Valor Recibos</label>
-        <input type="text" id="id_total_receipts_amount" class="form-control text-end"
-            value="{{ total_receipts_amount|default:0|floatformat:2|intcomma }}" readonly style="width:140px;">
-        
-        <label for="id_difference" class="form-label">Diferencia</label>
-        <input type="text" id="id_difference" class="form-control text-end 
-            {% if difference == 0 %}bg-verde
-            {% elif difference > 0 %}bg-rojo
-            {% elif difference < 0 %}bg-amarillo
-            {% endif %}
-        " value="{{ difference|default:0|floatformat:2|intcomma }}" readonly style="width:140px;">
+
+
+
+    <div class="d-flex justify-content-end mb-4">
+        <div id="transaction-summary" 
+             class="card shadow-sm"
+             data-expected-amount="{{ transaction.expected_amount|stringformat:'f' }}"
+             data-initial-receipts="{{ total_receipts_amount|stringformat:'f' }}">
+            <div class="card-body p-2">
+                <div class="d-flex align-items-center gap-4">
+                    <div class="text-center px-2">
+                        <small class="text-muted d-block">Monto Esperado</small>
+                        <h5 id="expected-amount-display" class="mb-0 text-body-secondary">{{ transaction.expected_amount|floatformat:2 }}</h5>
+                    </div>
+                    <div class="text-center px-2">
+                        <small class="text-muted d-block">Total Recibos</small>
+                        <h5 id="total-receipts-display" class="mb-0 fw-bold">{{ total_receipts_amount|floatformat:2 }}</h5>
+                    </div>
+                    <div class="text-center px-2">
+                        <small class="text-muted d-block">Diferencia</small>
+                        <h5 id="transaction-difference-display" class="mb-0 fw-bold">{{ difference|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+
 
     <form method="post" id="transaction-form">
         {% csrf_token %}
@@ -169,7 +183,24 @@
             <p>Este cliente tiene un saldo a favor. Selecciona los abonos que deseas aplicar a esta transacción.</p>
             
             <div class="available-credits-list p-3 border rounded bg-light">
+                <!-- En records/transaction_form.html, dentro de la sección de "Abonos Disponibles" -->
+
                 {% for credit in available_credits %}
+                <div class="form-check">
+                    <input class="form-check-input apply-credit-checkbox" 
+                        type="checkbox" 
+                        name="apply_credit" 
+                        value="{{ credit.pk }}"
+                        data-value="{{ credit.valor|stringformat:'f' }}"
+                        id="apply_credit_{{ credit.pk }}">
+                        
+                    <label class="form-check-label" for="apply_credit_{{ credit.pk }}">
+                        Aplicar Abono: {{ credit.fecha }} - {{ credit.comprobante }} - Valor: ${{ credit.valor|floatformat:2 }}
+                    </label>
+                </div>
+                {% endfor %}
+
+                {% comment %} {% for credit in available_credits %}
                 <div class="form-check">
                     {# Todos pueden ver abonos, pero solo Admin y Digitador deberian poder aplicarlos activamente #}
                     {# Aunque la logica original permitia a todos, vamos a restringirlo si es necesario. #}
@@ -183,7 +214,7 @@
                         id: {{ credit.pk }} | Fecha: {{ credit.fecha }}  | Comprobante: {{ credit.comprobante }} | Banco: {{ credit.banco_llegada }} | Valor: ${{ credit.valor|floatformat:2|intcomma }}
                     </label>
                 </div>
-                {% endfor %}
+                {% endfor %} {% endcomment %}
             </div>
         </fieldset>
         {% endif %}
@@ -524,6 +555,76 @@
         }
     </style>
     {# --- FIN: NUEVAS CLASES CSS PARA COLORES --- #}
+<!-- Al final de records/transaction_form.html -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Obtener elementos y valores iniciales del DOM
+        const summaryContainer = document.getElementById('transaction-summary');
+        if (!summaryContainer) {
+            console.error('El contenedor del resumen #transaction-summary no fue encontrado.');
+            return;
+        }
+
+        const expectedAmount = parseFloat(summaryContainer.dataset.expectedAmount);
+        const initialReceiptsTotal = parseFloat(summaryContainer.dataset.initialReceipts);
+
+        const totalReceiptsDisplay = document.getElementById('total-receipts-display');
+        const differenceDisplay = document.getElementById('transaction-difference-display');
+
+        // 2. Seleccionar todos los checkboxes relevantes
+        const applyCheckboxes = document.querySelectorAll('.apply-credit-checkbox');
+        const unlinkCheckboxes = document.querySelectorAll('.unlink-credit-checkbox');
+
+        // 3. Función para recalcular y actualizar la UI
+        function updateTotals() {
+            let creditsToApplyTotal = 0;
+            applyCheckboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    creditsToApplyTotal += parseFloat(checkbox.dataset.value);
+                }
+            });
+
+            let creditsToUnlinkTotal = 0;
+            unlinkCheckboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    creditsToUnlinkTotal += parseFloat(checkbox.dataset.value);
+                }
+            });
+
+            // El nuevo total de recibos es:
+            // (Total inicial) + (Abonos que estoy aplicando) - (Recibos que estoy desvinculando)
+            const newTotalReceipts = initialReceiptsTotal + creditsToApplyTotal - creditsToUnlinkTotal;
+            
+            // La nueva diferencia
+            const newDifference = expectedAmount - newTotalReceipts;
+
+            // Actualizar el HTML con los nuevos valores formateados
+            totalReceiptsDisplay.textContent = newTotalReceipts.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
+            differenceDisplay.textContent = newDifference.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
+
+            // Cambiar color de la diferencia si es necesario
+            if (newDifference < 0) {
+                differenceDisplay.style.color = 'red';
+            } else if (newDifference === 0) {
+                differenceDisplay.style.color = 'green';
+            } else {
+                differenceDisplay.style.color = 'orange';
+            }
+        }
+
+        // 4. Añadir "listeners" a todos los checkboxes
+        applyCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateTotals);
+        });
+
+        unlinkCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateTotals);
+        });
+
+        // 5. (Opcional) Llamar a la función una vez al cargar la página por si hay valores pre-marcados
+        updateTotals();
+    });
+    </script>
 
     <script>
     // Usamos jQuery para el autocompletado
