@@ -42,61 +42,121 @@
                     </thead>
                     <tbody>
                     <tr>
-                    {# --- INICIO DE LA CORRECCIÓN --- #}
-                    {# Unificamos la lógica. Siempre mostramos los campos del formulario. #}
-                    {# La lógica de 'readonly' ya está manejada en el TransactionForm. #}
-                        <td>{{ form.transaction_type }} {{ form.transaction_type.errors }}</td>
+                        {# --- LOGICA DE PERMISOS PARA CAMPOS DE TRANSACCION --- #}
+                        {# Admin: Todo editable #}
+                        {# Digitador: Todo readonly #}
+                        {# Validador: Todo readonly #}
+                        {# Facturador: Solo 'status' y 'numero_factura' editables #}
+
+
+                        {# 1. TIPO TRANSACCION #}
                         <td>
-                            <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}"
-                                   class="form-control" id="{{ form.date.id_for_label }}" {% if form.date.field.widget.attrs.readonly %}readonly{% endif %}>
-                            {{ form.date.errors }}</td>
+                            {% if is_admin %}
+                                {{ form.transaction_type }}
+                            {% else %}
+                                <input type="text" class="form-control" value="{{ form.instance.transaction_type }}" readonly>
+                                <input type="hidden" name="{{ form.transaction_type.name }}" value="{{ form.instance.transaction_type.id }}">
+                            {% endif %}
+                            {{ form.transaction_type.errors }}
+                        </td>
+
+                        {# 2. FECHA #}
                         <td>
-                            {{ form.client_search }}
-                            {{ form.cliente_id }} {# CAMPO OCULTO #}
+                            {% if is_admin %}
+                                <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" id="{{ form.date.id_for_label }}">
+                            {% else %}
+                                <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" readonly>
+                            {% endif %}
+                            {{ form.date.errors }}
+                        </td>
+
+                        {# 3. CLIENTE #}
+                        <td>
+                            {% if is_admin %}
+                                {{ form.client_search }}
+                                {{ form.cliente_id }}
+                            {% else %}
+                                <input type="text" class="form-control" value="{{ form.instance.cliente }}" readonly>
+                                <input type="hidden" name="{{ form.client_search.name }}" value="{{ form.instance.cliente }}">
+                                <input type="hidden" name="{{ form.cliente_id.name }}" value="{{ form.instance.cliente.id }}">
+                            {% endif %}
+                            
                             <div id="client-balance-container" class="mt-2" style="display: none;">
                                 <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
                             </div>
                             {{ form.client_search.errors }}
                         </td>
+
+                        {# 4. VENDEDOR #}
                         <td>
-                            {{ form.seller_search }}
-                            {{ form.vendedor_id }} {# CAMPO OCULTO #}
+                            {% if is_admin %}
+                                {{ form.seller_search }}
+                                {{ form.vendedor_id }}
+                            {% else %}
+                                <input type="text" class="form-control" value="{{ form.instance.vendedor }}" readonly>
+                                <input type="hidden" name="{{ form.seller_search.name }}" value="{{ form.instance.vendedor }}">
+                                <input type="hidden" name="{{ form.vendedor_id.name }}" value="{{ form.instance.vendedor.id }}">
+                            {% endif %}
                             {{ form.seller_search.errors }}
                         </td>
-                        <!-- Campo Valor Venta con validación -->
+
+                        {# 5. VALOR VENTA #}
                         <td>
-                                <input type="text"
-                                    id="id_expected_amount"
-                                    class="form-control text-end"
-                                    name="expected_amount"
-                                    {# Usamos stringformat para forzar formato 1000.00 (Punto decimal, sin comas miles) #}
-                                    value="{{ form.expected_amount.value|stringformat:'.2f' }}">
+                            {% if is_admin %}
+                                <input type="text" id="id_expected_amount" class="form-control text-end" name="expected_amount" value="{{ form.expected_amount.value|stringformat:'.2f' }}">
+                            {% else %}
+                                <input type="text" id="id_expected_amount" class="form-control text-end" name="expected_amount" value="{{ form.expected_amount.value|stringformat:'.2f' }}" readonly>
+                            {% endif %}
                             {{ form.expected_amount.errors }}
                         </td>
-                        <td>{{ form.description }} {{ form.description.errors }}</td>
-                        <td>{{ form.description }} {{ form.description.errors }}</td>
-                    {# --- FIN DE LA CORRECCIÓN --- #}
 
-                        <!-- Facturador -->
+                        {# 6. OBSERVACION #}
                         <td>
-                            {% if request.user.is_superuser or 'Digitador' not in user_groups %}
+                            {% if is_admin %}
+                                {{ form.description }}
+                            {% else %}
+                                <textarea class="form-control" rows="2" readonly>{{ form.instance.description }}</textarea>
+                                <input type="hidden" name="{{ form.description.name }}" value="{{ form.instance.description }}">
+                            {% endif %}
+                            {{ form.description.errors }}
+                        </td>
+                        
+                        {# 7. FACTURADOR #}
+                        <td>
+                            {# Facturador se asigna automaticamente o por admin #}
+                            {% if is_admin %}
                                 {{ form.facturador }}
                             {% else %}
-                                <input type="text" value="{{ request.user.username }}" readonly class="form-control">
-                                <input type="hidden" name="facturador" value="{{ request.user.username }}">
+                                <input type="text" value="{{ form.instance.facturador|default:'' }}" readonly class="form-control">
                             {% endif %}
                             {{ form.facturador.errors }}
                         </td>
 
-                        <td>{{ form.numero_factura }} {{ form.numero_factura.errors }}</td>
+                        {# 8. NUMERO FACTURA #}
+                        <td>
+                            {% if is_admin or is_facturador %}
+                                {{ form.numero_factura }}
+                            {% else %}
+                                <input type="text" class="form-control" value="{{ form.instance.numero_factura|default:'' }}" readonly>
+                            {% endif %}
+                            {{ form.numero_factura.errors }}
+                        </td>
 
-                        <!-- Celda Estado Transacción con color condicional -->
+                        {# 9. ESTADO TRANSACCION #}
                         <td class="
                             {% if form.instance.status == 'Facturado' %}bg-verde
                             {% elif form.instance.status == 'Anulado' %}bg-rojo
                             {% elif form.instance.status == 'Pendiente' %}bg-amarillo
                             {% endif %}
-                        ">{{ form.status }} {{ form.status.errors }}</td>
+                        ">
+                            {% if is_admin or is_facturador %}
+                                {{ form.status }}
+                            {% else %}
+                                {{ form.instance.status }}
+                                <input type="hidden" name="{{ form.status.name }}" value="{{ form.instance.status }}">
+                            {% endif %}
+                            {{ form.status.errors }}
+                        </td>
 
                     </tr>
                 </tbody>
@@ -111,7 +171,14 @@
             <div class="available-credits-list p-3 border rounded bg-light">
                 {% for credit in available_credits %}
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="apply_credit" value="{{ credit.pk }}" id="credit_{{ credit.pk }}">
+                    {# Todos pueden ver abonos, pero solo Admin y Digitador deberian poder aplicarlos activamente #}
+                    {# Aunque la logica original permitia a todos, vamos a restringirlo si es necesario. #}
+                    {# Por ahora, Admin y Digitador pueden aplicar. #}
+                    {% if request.user.is_superuser or 'Digitador' in user_groups %}
+                        <input class="form-check-input" type="checkbox" name="apply_credit" value="{{ credit.pk }}" id="credit_{{ credit.pk }}">
+                    {% else %}
+                        <input class="form-check-input" type="checkbox" disabled>
+                    {% endif %}
                     <label class="form-check-label" for="credit_{{ credit.pk }}">
                         id: {{ credit.pk }} | Fecha: {{ credit.fecha }}  | Comprobante: {{ credit.comprobante }} | Banco: {{ credit.banco_llegada }} | Valor: ${{ credit.valor|floatformat:2|intcomma }}
                     </label>
@@ -143,91 +210,146 @@
                         {% endif %}
 
                         <div class="receipt-form-fields">
-                            {% if request.user.is_superuser or 'Digitador' in user_groups %}
-                                <div class="receipt-field">
-                                    {{ form.origen_transaccion.label_tag }}
+                            
+                            {# --- LOGICA DE PERMISOS PARA RECIBOS --- #}
+                            
+                            {# ORIGEN TRANSACCION #}
+                            <div class="receipt-field">
+                                {{ form.origen_transaccion.label_tag }}
+                                {% if is_admin %}
                                     {{ form.origen_transaccion }}
-
-                                    <!-- 1. Mensaje para recibos ya guardados (desde el modelo) -->
-                                    {% if form.instance.pk and form.instance.effective_date_message %}
-                                        <small style="color: #007bff; display: block;">{{ form.instance.effective_date_message }}</small>
+                                {% elif is_digitador and not form.instance.pk %}
+                                    {# Digitador: Editable solo si es nuevo #}
+                                    {{ form.origen_transaccion }}
+                                {% else %}
+                                    {# Readonly para los demas casos #}
+                                    <input type="text" class="form-control" value="{{ form.instance.origen_transaccion }}" readonly>
+                                    {# Si es formset, necesitamos los hidden inputs para que Django no se queje de missing management form data o validation errors si el campo es required #}
+                                    {% if form.instance.pk %}
+                                        <input type="hidden" name="{{ form.origen_transaccion.html_name }}" value="{{ form.instance.origen_transaccion.id }}">
                                     {% endif %}
+                                {% endif %}
+                                {{ form.origen_transaccion.errors }}
+                                
+                                {% if form.instance.pk and form.instance.effective_date_message %}
+                                    <small style="color: #007bff; display: block;">{{ form.instance.effective_date_message }}</small>
+                                {% endif %}
+                                <span id="effective-date-message-{{ form.prefix }}" style="color: #007bff; font-size: 0.9em; display: block;"></span>
+                            </div>
 
-                                    <!-- 2. Placeholder para el mensaje dinámico de JavaScript -->
-                                    <span id="effective-date-message-{{ form.prefix }}" style="color: #007bff; font-size: 0.9em; display: block;"></span>
-
-                                    {{ form.origen_transaccion.errors }}
-                                </div>
-                                <td>
-                                <div class="receipt-field">
-                                    {{ form.fecha.label_tag }}
+                            {# FECHA #}
+                            <div class="receipt-field">
+                                {{ form.fecha.label_tag }}
+                                {% if is_admin %}
                                     {{ form.fecha }}
-                                    {{ form.fecha.errors }}
-                                </div>
-                                <div class="receipt-field">
-                                    {{ form.hora.label_tag }}
-                                    {{ form.hora }} {# Dejamos que Django renderice el campo principal #}
-                                    {% if form.hora.field.widget.attrs.readonly %}
-                                        <input type="hidden" name="{{ form.hora.name }}" value="{{ form.instance.hora|time:'H:i:s' }}">
+                                {% elif is_digitador and not form.instance.pk %}
+                                    {{ form.fecha }}
+                                {% else %}
+                                    <input type="date" class="form-control" value="{{ form.instance.fecha|date:'Y-m-d' }}" readonly>
+                                    {% if form.instance.pk %}
+                                        <input type="hidden" name="{{ form.fecha.html_name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}">
                                     {% endif %}
-                                    {{ form.hora.errors }}
-                                </div>
-                                <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
-                                <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
-                                <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
-                                <div class="receipt-field 
-                                    {% if form.instance.payment_status == 'Aprobado' %}bg-aprobado
-                                    {% elif form.instance.payment_status == 'Rechazado' %}bg-rechazado
-                                    {% elif form.instance.payment_status == 'Pendiente' %}bg-pendiente
-                                    {% endif %}">
-                                    {{ form.payment_status.label_tag }}{{ form.payment_status }}{{ form.payment_status.errors }}
-                                </div>
-                                {% comment %} <div class="receipt-delete-wrapper">    
-                                    {% if formset.can_delete %}
+                                {% endif %}
+                                {{ form.fecha.errors }}
+                            </div>
+
+                            {# HORA #}
+                            <div class="receipt-field">
+                                {{ form.hora.label_tag }}
+                                {% if is_admin %}
+                                    {{ form.hora }}
+                                {% elif is_digitador and not form.instance.pk %}
+                                    {{ form.hora }}
+                                {% else %}
+                                    <input type="time" class="form-control" value="{{ form.instance.hora|time:'H:i' }}" readonly>
+                                    {% if form.instance.pk %}
+                                        <input type="hidden" name="{{ form.hora.html_name }}" value="{{ form.instance.hora|time:'H:i' }}">
+                                    {% endif %}
+                                {% endif %}
+                                {{ form.hora.errors }}
+                            </div>
+
+                            {# COMPROBANTE #}
+                            <div class="receipt-field">
+                                {{ form.comprobante.label_tag }}
+                                {% if is_admin %}
+                                    {{ form.comprobante }}
+                                {% elif is_digitador and not form.instance.pk %}
+                                    {{ form.comprobante }}
+                                {% else %}
+                                    <input type="text" class="form-control" value="{{ form.instance.comprobante }}" readonly>
+                                    {% if form.instance.pk %}
+                                        <input type="hidden" name="{{ form.comprobante.html_name }}" value="{{ form.instance.comprobante }}">
+                                    {% endif %}
+                                {% endif %}
+                                {{ form.comprobante.errors }}
+                            </div>
+
+                            {# BANCO LLEGADA #}
+                            <div class="receipt-field">
+                                {{ form.banco_llegada.label_tag }}
+                                {% if is_admin %}
+                                    {{ form.banco_llegada }}
+                                {% elif is_digitador and not form.instance.pk %}
+                                    {{ form.banco_llegada }}
+                                {% else %}
+                                    <input type="text" class="form-control" value="{{ form.instance.banco_llegada }}" readonly>
+                                    {% if form.instance.pk %}
+                                        <input type="hidden" name="{{ form.banco_llegada.html_name }}" value="{{ form.instance.banco_llegada.id }}">
+                                    {% endif %}
+                                {% endif %}
+                                {{ form.banco_llegada.errors }}
+                            </div>
+
+                                    {# VALOR #}
+                                    <div class="receipt-field">
+                                        {{ form.valor.label_tag }}
+                                        {% if is_admin %}
+                                            {{ form.valor }}
+                                        {% elif is_digitador and not form.instance.pk %}
+                                            {{ form.valor }}
+                                        {% else %}
+                                            <input type="text" class="form-control" value="{{ form.instance.valor|stringformat:'.2f' }}" readonly>
+                                            {% if form.instance.pk %}
+                                                <input type="hidden" name="{{ form.valor.html_name }}" value="{{ form.instance.valor|stringformat:'.2f' }}">
+                                            {% endif %}
+                                        {% endif %}
+                                        {{ form.valor.errors }}
+                                    </div>
+
+                            {# ESTADO PAGO #}
+                            <div class="receipt-field 
+                                {% if form.instance.payment_status == 'Aprobado' %}bg-aprobado
+                                {% elif form.instance.payment_status == 'Rechazado' %}bg-rechazado
+                                {% elif form.instance.payment_status == 'Pendiente' %}bg-pendiente
+                                {% endif %}">
+                                {{ form.payment_status.label_tag }}
+                                {% if is_admin or is_validador %}
+                                    {# Validador puede editar status #}
+                                    {{ form.payment_status }}
+                                {% else %}
+                                    <input type="text" class="form-control" value="{{ form.instance.payment_status }}" readonly>
+                                    <input type="hidden" name="{{ form.payment_status.html_name }}" value="{{ form.instance.payment_status }}">
+                                {% endif %}
+                                {{ form.payment_status.errors }}
+                            </div>
+
+                            {# DELETE BUTTON #}
+                            {% comment %} <div class="receipt-delete-wrapper">
+                                {# Solo Admin puede borrar cualquier cosa #}
+                                {# Digitador puede borrar (no guardar) recibos NUEVOS que esta creando, pero no existentes #}
+                                {% if formset.can_delete %}
+                                    {% if is_admin %}
                                         <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
                                         <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
                                         <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
+                                    {% elif is_digitador and not form.instance.pk %}
+                                        {# Permitir eliminar filas nuevas que aun no se han guardado #}
+                                        <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
+                                        <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
                                     {% endif %}
-                                </div> {% endcomment %}
-                            {% else %}
-                                <div class="receipt-field">
-                                    {{ form.origen_transaccion.label_tag }}
-                                    {{ form.origen_transaccion }}
-
-                                    <!-- 1. Mensaje para recibos ya guardados (desde el modelo) -->
-                                    {% if form.instance.pk and form.instance.effective_date_message %}
-                                        <small style="color: #007bff; display: block;">{{ form.instance.effective_date_message }}</small>
-                                    {% endif %}
-
-                                    <!-- 2. Placeholder para el mensaje dinámico de JavaScript -->
-                                    <span id="effective-date-message-{{ form.prefix }}" style="color: #007bff; font-size: 0.9em; display: block;"></span>
-
-                                    {{ form.origen_transaccion.errors }}
-                                </div>
-                                <div class="receipt-field">
-                                    {{ form.fecha.label_tag }}
-                                    {{ form.fecha }}
-                                    {{ form.fecha.errors }}
-                                </div>
-                                <div class="receipt-field">
-                                    {{ form.hora.label_tag }}
-                                    {{ form.hora }}
-                                    {% if form.hora.field.widget.attrs.readonly %}
-                                        <input type="hidden" name="{{ form.hora.name }}" value="{{ form.instance.hora|time:'H:i:s' }}">
-                                    {% endif %}
-                                    {{ form.hora.errors }}
-                                </div>
-                                <div class="receipt-field">{{ form.comprobante.label_tag }}{{ form.comprobante }}{{ form.comprobante.errors }}</div>
-                                <div class="receipt-field">{{ form.banco_llegada.label_tag }}{{ form.banco_llegada }}{{ form.banco_llegada.errors }}</div>
-                                <div class="receipt-field">{{ form.valor.label_tag }}{{ form.valor }}{{ form.valor.errors }}</div>
-                                <div class="receipt-field 
-                                    {% if form.instance.payment_status == 'Aprobado' %}bg-aprobado
-                                    {% elif form.instance.payment_status == 'Rechazado' %}bg-rechazado
-                                    {% elif form.instance.payment_status == 'Pendiente' %}bg-pendiente
-                                    {% endif %}">
-                                    {{ form.payment_status.label_tag }}{{ form.payment_status }}{{ form.payment_status.errors }}
-                                </div>
-                            {% endif %}
+                                {% endif %}
+                            </div> {% endcomment %}
                         </div>
                         {{ form.id }}
                     </div>

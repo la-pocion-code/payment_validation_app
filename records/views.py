@@ -285,6 +285,7 @@ class CreditCreateView(LoginRequiredMixin, CreateView):
         
         return self.render_to_response(self.get_context_data(form=form))
 
+@method_decorator(group_required('Admin', 'Digitador',  'Validador'), name='dispatch')
 class CreditListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
     template_name = 'records/credit_list.html'
@@ -1057,8 +1058,13 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Transacción'
-        context['is_facturador'] = self.request.user.groups.filter(name='facturador').exists()
-        context['user_groups'] = list(self.request.user.groups.values_list('name', flat=True))
+        user_groups = list(self.request.user.groups.values_list('name', flat=True))
+        context['user_groups'] = user_groups
+        context['is_admin'] = self.request.user.is_superuser
+        context['is_digitador'] = 'Digitador' in user_groups
+        context['is_validador'] = 'Validador' in user_groups
+        context['is_facturador'] = 'Facturador' in user_groups
+
         
         transaction = self.get_object()
         total_receipts_amount = sum(receipt.valor for receipt in transaction.receipts.all() if receipt.valor)
