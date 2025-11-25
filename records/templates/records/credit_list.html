@@ -58,6 +58,11 @@
                     <a href="{% url 'credit_list' %}" class="btn btn-secondary" title="Limpiar Filtros">
                         Limpiar
                     </a>
+                    {% if user.is_superuser or 'Validador' in user_groups  %}
+                    <a href="{% url 'export_credits_csv' %}?{{ request.GET.urlencode }}" class="btn btn-info" title="Exportar a CSV">
+                        Exportar
+                    </a>
+                    {% endif %}
                 </div>
             </form>
         </div>
@@ -71,6 +76,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>ID</th>
+                             <th>Transacción ID</th>
                             <th>Cliente</th>
                             <th>Fecha Registro</th>
                             <th>Hora</th>
@@ -86,6 +92,7 @@
                         {% for credit in credits %}
                         <tr onclick="window.location='{% url 'credit_detail' credit.pk %}'" style="cursor:pointer;">
                             <td>{{ credit.id }}</td>
+                            <td>{{ credit.transaction.unique_transaction_id}}</td>
                             <td>{{ credit.display_client }}</td>
                             <td>{{ credit.fecha|date:"d/m/Y" }}</td> {# Cambié creado por fecha para coincidir con el filtro #}
                             <td>{{ credit.hora|time:"H:i:s" }}</td>

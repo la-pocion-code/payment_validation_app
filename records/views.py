@@ -2075,3 +2075,57 @@ class FinancialRecordFormSet(inlineformset_factory(Transaction, FinancialRecord,
                             f"No se puede eliminar el ajuste '{instance.comprobante}' porque su nota de crédito correspondiente "
                             f"ya fue aplicada en la transacción {instance.linked_credit_note.transaction.unique_transaction_id}."
                         )
+
+
+
+
+@login_required
+def export_credits_csv(request):
+    """
+    Exporta los recibos (créditos/abonos) a un archivo CSV,
+    respetando los filtros aplicados en la lista de recibos.
+    """
+    # 1. Obtenemos todos los recibos. Usamos select_related y prefetch_related
+    #    para optimizar la consulta y evitar múltiples accesos a la base de datos.
+    queryset = FinancialRecord.objects.select_related(
+        'banco_llegada', 'uploaded_by', 'cliente', 'transaction__cliente'
+    ).order_by('-fecha', '-hora')
+
+    # 2. Aplicamos el mismo filtro que en la vista de lista.
+    #    El filtro se inicializa con los parámetros GET de la solicitud (request.GET).
+    #    Esto es lo que conecta los filtros de la página con los datos a exportar.
+    credit_filter = CreditFilter(request.GET, queryset=queryset)
+    filtered_queryset = credit_filter.qs
+
+    # 3. Configuramos la respuesta HTTP para que sea un archivo CSV.
+    response = HttpResponse(
+        content_type='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="recibos.csv"'},
+    )
+    response.write(u'\ufeff'.encode('utf8')) # BOM para que Excel abra bien los caracteres especiales (UTF-8)
+
+    # 4. Creamos el escritor CSV y definimos las columnas.
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow([
+        'ID', 'Cliente', 'Fecha', 'Hora', 'Comprobante', 'Banco',
+        'Valor', 'Estado de Pago', 'Subido por', 'Asociado a Transacción ID'
+    ])
+
+    # 5. Iteramos sobre los recibos filtrados y escribimos cada fila en el CSV.
+    for credit in filtered_queryset:
+        writer.writerow([
+            credit.id,
+            credit.display_client(), # Usamos la propiedad que ya muestra el cliente correcto
+            credit.fecha,
+            credit.hora,
+            credit.comprobante,
+            credit.banco_llegada.name if credit.banco_llegada else '',
+            credit.valor,
+            credit.get_payment_status_display(), # Usamos el método para obtener el texto legible del estado
+            credit.uploaded_by.username if credit.uploaded_by else 'Sistema',
+            credit.transaction.unique_transaction_id if credit.transaction else 'N/A'
+        ])
+
+    # 6. Devolvemos la respuesta.
+    return response
+
