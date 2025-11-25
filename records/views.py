@@ -2054,7 +2054,7 @@ def create_credit_note_from_surplus(request, pk):
         return redirect('transaction_update', pk=pk)
 
 
-class FinancialRecordFormSet(inlineformset_factory(Transaction, FinancialRecord, form=FinancialRecordForm, extra=1, can_delete=True)):
+class FinancialRecordFormSet(inlineformset_factory(Transaction, FinancialRecord, form=FinancialRecordForm, extra=0, can_delete=True)):
     
     def clean(self):
         super().clean()

@@ -2,6 +2,8 @@ import django_filters
 from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client
 from django.contrib.auth.models import User
 from django import forms
+from django.db.models import Q
+    
 
 class FinancialRecordFilter(django_filters.FilterSet):
     creado__gte = django_filters.DateFilter(
