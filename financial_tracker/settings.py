@@ -29,7 +29,8 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 # DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
+
 
 ALLOWED_HOSTS = ['localhost','127.0.0.1','localhost','web-production-6b4c.up.railway.app', 'web-production-b0638.up.railway.app']
 
