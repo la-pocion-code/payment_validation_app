@@ -32,7 +32,10 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 
-ALLOWED_HOSTS = ['localhost','127.0.0.1','localhost','web-production-6b4c.up.railway.app', 'web-production-b0638.up.railway.app']
+ALLOWED_HOSTS = ['localhost',
+                 '127.0.0.1', # Mantener 127.0.0.1 para desarrollo local
+                 'web-production-6b4c.up.railway.app', 
+                 'web-production-b0638.up.railway.app']
 
 
 
@@ -252,9 +255,6 @@ if DEBUG:
 
 
 CSRF_TRUSTED_ORIGINS = [
-    'http://*','https://web-production-6b4c.up.railway.app',
-    'https://web-production-b0638.up.railway.app/'
-    
+    'https://web-production-6b4c.up.railway.app', # Sin barra final
+    'https://web-production-b0638.up.railway.app' # Sin barra final
     ]
-
-
