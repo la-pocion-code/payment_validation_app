@@ -219,7 +219,7 @@ SOCIAL_AUTH_PIPELINE = (
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
 
-ADMIN_EMAILS = ['jcorrea@lapocion.com', 'venriquez@lapocion.com', 'wcastro@lapocion.com', 'willcr32@gmail.com']
+ADMIN_EMAILS = ['jcorrea@lapocion.com', 'venriquez@lapocion.com', 'wcastro@lapocion.com']
 
 # Session timeout settings
 SESSION_COOKIE_AGE = 3600  # 1 hour in seconds
