@@ -391,33 +391,37 @@ class TransactionForm(forms.ModelForm):
         return expected_amount
 
     def clean(self):
-        cleaned_data = super().clean()
-        
-        # --- Validación y asignación para Cliente ---
-        cliente_id = cleaned_data.get('cliente_id')
-        if cliente_id:
-            # Solo validar si el campo no es de solo lectura (es decir, si es editable)
-            if not self.fields['client_search'].widget.attrs.get('readonly'):
-                try:
-                    cleaned_data['cliente'] = Client.objects.get(pk=cliente_id)
-                except Client.DoesNotExist:
-                    self.add_error('client_search', "El cliente seleccionado no es válido.")
-        elif cleaned_data.get('client_search') and not self.fields['client_search'].widget.attrs.get('readonly'):
-             self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
-        elif cleaned_data.get('client_search'): # Si hay texto pero no ID
-             self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
+            cleaned_data = super().clean()
+            is_readonly = self.fields['client_search'].widget.attrs.get('readonly', False)
 
-        # --- Validación y asignación para Vendedor ---
-        vendedor_id = cleaned_data.get('vendedor_id')
-        if vendedor_id:
-            try:
-                cleaned_data['vendedor'] = Seller.objects.get(pk=vendedor_id)
-            except Seller.DoesNotExist:
-                self.add_error('seller_search', "El vendedor seleccionado no es válido.")
-        elif cleaned_data.get('seller_search'): # Si hay texto pero no ID
-            self.add_error('seller_search', "Debe seleccionar un vendedor de la lista de sugerencias.")
+            # Si los campos son de solo lectura (ej. para el Facturador),
+            # debemos reasignar los valores desde la instancia original.
+            if is_readonly and self.instance and self.instance.pk:
+                cleaned_data['cliente'] = self.instance.cliente
+                cleaned_data['vendedor'] = self.instance.vendedor
+            else:
+                # --- Lógica original para cuando los campos son editables (Admin, Digitador) ---
+                # Validación y asignación para Cliente
+                cliente_id = cleaned_data.get('cliente_id')
+                if cliente_id:
+                    try:
+                        cleaned_data['cliente'] = Client.objects.get(pk=cliente_id)
+                    except Client.DoesNotExist:
+                        self.add_error('client_search', "El cliente seleccionado no es válido.")
+                elif cleaned_data.get('client_search'):
+                    self.add_error('client_search', "Debe seleccionar un cliente de la lista de sugerencias.")
 
-        return cleaned_data
+                # Validación y asignación para Vendedor
+                vendedor_id = cleaned_data.get('vendedor_id')
+                if vendedor_id:
+                    try:
+                        cleaned_data['vendedor'] = Seller.objects.get(pk=vendedor_id)
+                    except Seller.DoesNotExist:
+                        self.add_error('seller_search', "El vendedor seleccionado no es válido.")
+                elif cleaned_data.get('seller_search'):
+                    self.add_error('seller_search', "Debe seleccionar un vendedor de la lista de sugerencias.")
+
+            return cleaned_data
 
     class Meta:
         model = Transaction
