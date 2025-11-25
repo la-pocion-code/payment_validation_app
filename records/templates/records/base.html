@@ -35,7 +35,7 @@
         <nav>
             {% if user.is_authenticated %}
                 <a href="{% url 'record_list' %}">Transacciones</a>
-                {% if 'Digitador' in user_groups or 'Validador' in user_groups or user.is_superuser %}
+                {% if 'Digitador' in user_groups or 'Validador' in user_groups or user.is_superuser or 'Contabilidad' in user_groups %}
                     {% comment %} <a href="{% url 'record_create' %}">Añadir Registros</a> {% endcomment %}
                     {% comment %} <a href="{% url 'credit_create' %}">Registrar Abono</a> {% endcomment %}
                     <a href="{% url 'credit_list' %}">Recibos</a>

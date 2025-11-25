@@ -288,7 +288,7 @@ class CreditCreateView(LoginRequiredMixin, CreateView):
         
         return self.render_to_response(self.get_context_data(form=form))
 
-@method_decorator(group_required('Admin', 'Digitador',  'Validador'), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador', 'Validador', 'Contabilidad'), name='dispatch')
 class CreditListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
     template_name = 'records/credit_list.html'
@@ -316,7 +316,8 @@ class CreditListView(LoginRequiredMixin, FilterView):
         return context
     
 
-class CreditDetailView(LoginRequiredMixin, DetailView):
+@method_decorator(group_required('Admin', 'Digitador',  'Validador', 'Contabilidad'), name='dispatch')
+class CreditDetailView(LoginRequiredMixin, DetailView): # Añadido decorador de grupo
     model = FinancialRecord # Cambiado de Transaction a FinancialRecord
     template_name = 'records/credit_detail.html'
     context_object_name = 'credit' # Cambiado de 'transaction' a 'credit'
@@ -978,7 +979,7 @@ class TransactionTypeListView(LoginRequiredMixin, UserPassesTestMixin, ListView)
 
 
 
-@method_decorator(group_required('Admin', 'Digitador', 'Facturador', 'Validador'), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador', 'Facturador', 'Validador', 'Contabilidad'), name='dispatch')
 class TransactionListView(LoginRequiredMixin, FilterView):
     model = Transaction
     template_name = 'records/records_list.html'
@@ -1013,7 +1014,7 @@ class TransactionListView(LoginRequiredMixin, FilterView):
         # Devolvemos el queryset con optimización y orden
         return queryset.prefetch_related('receipts').order_by('-id')
 
-@method_decorator(group_required('Admin', 'Validador', 'Facturador','Digitador'), name='dispatch')
+@method_decorator(group_required('Admin', 'Validador', 'Facturador','Digitador', 'Contabilidad'), name='dispatch')
 class TransactionDetailView(LoginRequiredMixin, DetailView):
     model = Transaction
     template_name = 'records/transaction_detail.html'
@@ -2128,4 +2129,3 @@ def export_credits_csv(request):
 
     # 6. Devolvemos la respuesta.
     return response
-

@@ -58,7 +58,7 @@
                     <a href="{% url 'credit_list' %}" class="btn btn-secondary" title="Limpiar Filtros">
                         Limpiar
                     </a>
-                    {% if user.is_superuser or 'Validador' in user_groups  %}
+                    {% if user.is_superuser or 'Validador' in user_groups or 'Contabilidad' in user_groups %}
                     <a href="{% url 'export_credits_csv' %}?{{ request.GET.urlencode }}" class="btn btn-info" title="Exportar a CSV">
                         Exportar
                     </a>
