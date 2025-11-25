@@ -1013,7 +1013,7 @@ class TransactionListView(LoginRequiredMixin, FilterView):
         # Devolvemos el queryset con optimización y orden
         return queryset.prefetch_related('receipts').order_by('-id')
 
-@method_decorator(group_required('Admin'), name='dispatch')
+@method_decorator(group_required('Admin', 'Validador', 'Facturador','Digitador'), name='dispatch')
 class TransactionDetailView(LoginRequiredMixin, DetailView):
     model = Transaction
     template_name = 'records/transaction_detail.html'

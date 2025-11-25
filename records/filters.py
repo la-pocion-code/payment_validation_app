@@ -3,7 +3,7 @@ from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, 
 from django.contrib.auth.models import User
 from django import forms
 from django.db.models import Q
-    
+
 
 class FinancialRecordFilter(django_filters.FilterSet):
     creado__gte = django_filters.DateFilter(
@@ -105,10 +105,14 @@ class TransactionFilter(django_filters.FilterSet):
         choices=Transaction.STATUS_CHOICES,
         label='Estado'
     )
-
+    valor = django_filters.NumberFilter(
+        field_name='expected_amount',
+        lookup_expr='icontains',
+        label='Valor'
+    )
     class Meta:
         model = Transaction
-        fields = ['unique_transaction_id', 'date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status', 'transaction_type']
+        fields = ['unique_transaction_id', 'date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status', 'valor','transaction_type']
 
 
 

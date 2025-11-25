@@ -9,9 +9,11 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Transacciones</h2>
     <h3>{{ title }}</h3>
+    {% if user.is_superuser or "Digitador" in user_groups %}
     <a href="{% url 'record_create' %}" class="btn btn-success">
         <i class="fas fa-plus"></i> Nuevo Registro
     </a>
+    {% endif %}
 </div>
 
 
@@ -47,6 +49,10 @@
             <div class="filter-field">
                 {{ filter.form.numero_factura.label_tag }}
                 {{ filter.form.numero_factura }}
+            </div>
+            <div class="filter-field">
+                {{ filter.form.valor.label_tag }}
+                {{ filter.form.valor }}
             </div>
             <div class="filter-field">
                 {{ filter.form.status.label_tag }}
