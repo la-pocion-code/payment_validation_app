@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError
 from records.models import Client
 import os
+import re # Importar el módulo de expresiones regulares
 
 class Command(BaseCommand):
     help = 'Carga clientes desde un archivo CSV o Excel. El archivo debe tener las columnas "name" y "dni".'
@@ -52,11 +53,18 @@ class Command(BaseCommand):
         # 5. Iterar y crear clientes
         for index, row in df.iterrows():
             name = str(row['name']).strip()
-            dni = str(row['dni']).strip()
+            dni_raw = str(row['dni']).strip()
 
-            if not name or not dni:
+            if not name or not dni_raw:
                 skipped_count += 1
                 continue
+
+            # --- SOLUCIÓN: Limpiar el DNI aquí, ANTES de llamar a get_or_create ---
+            # Se aplica la misma lógica de limpieza que en el modelo Client.
+            dni = re.sub(r"[^A-Za-z0-9\-]", "", dni_raw)
+            
+            # Limpiamos también el nombre para que coincida con la lógica del modelo
+            name = re.sub(r"[^A-Z\s]", "", name.upper())
 
             # La lógica de no duplicados se maneja aquí:
             # get_or_create intenta obtener un cliente con ese DNI.
@@ -83,4 +91,3 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Clientes nuevos creados: {created_count}'))
         self.stdout.write(self.style.WARNING(f'Registros omitidos (duplicados o vacíos): {skipped_count}'))
         self.stdout.write(self.style.SUCCESS('¡Carga completada exitosamente!'))
-
