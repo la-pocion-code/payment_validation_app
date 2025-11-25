@@ -251,6 +251,10 @@ if DEBUG:
 
 
 
-CSRF_TRUSTED_ORIGINS = ['http://*','https://web-production-6b4c.up.railway.app']
+CSRF_TRUSTED_ORIGINS = [
+    'http://*','https://web-production-6b4c.up.railway.app',
+    'https://https://web-production-b0638.up.railway.app/'
+    
+    ]
 
 
