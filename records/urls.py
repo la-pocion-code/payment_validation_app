@@ -66,4 +66,5 @@ urlpatterns = [
     path('credit/nuevo/', views.CreditCreateView.as_view(), name='credit_create'),
     path('credits/<int:pk>/', views.CreditDetailView.as_view(), name='credit_detail'),
     path('credits/<int:pk>/update_status/', views.update_credit_status, name='update_credit_status'),
+    path('transaction/<int:pk>/create_credit_note/', views.create_credit_note_from_surplus, name='create_credit_note_from_surplus'),
 ]

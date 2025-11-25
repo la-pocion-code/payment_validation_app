@@ -225,6 +225,19 @@ class FinancialRecord(models.Model):
     creado = models.DateTimeField(auto_now_add=True)
     modificado = models.DateTimeField(auto_now=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_financial_records')
+    description = models.CharField(max_length=255, verbose_name="Descripción", blank=True, null=True)
+    # En records/models.py, dentro de la clase FinancialRecord:
+    linked_credit_note = models.OneToOneField(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='related_credit_note_pair',
+        help_text='Vincula esta nota de crédito con su contraparte (positiva o negativa).'
+    )
+
+
+
 
     class Meta:
         verbose_name = "Registro Financiero"
@@ -301,7 +314,3 @@ class AccessRequest(models.Model):
 
     def __str__(self):
         return f"Access request from {self.user.username}"
-
-
-
-

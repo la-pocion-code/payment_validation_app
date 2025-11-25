@@ -1973,3 +1973,105 @@ def update_credit_status(request, pk):
         return JsonResponse({'success': True, 'new_status': credit.get_payment_status_display(), 'message': 'Estado actualizado correctamente.'})
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@require_POST
+@login_required
+@group_required('Admin', 'Digitador')
+def create_credit_note_from_surplus(request, pk):
+    """
+    Crea una nota de crédito a partir del excedente de una transacción.
+    Implementa una lógica de doble entrada:
+    1. Crea un `FinancialRecord` positivo (saldo a favor) sin transacción asignada.
+    2. Crea un `FinancialRecord` negativo (ajuste) DENTRO de la transacción actual para balancearla.
+    3. Vincula ambos registros para mantener la trazabilidad.
+    """
+    try:
+        transaction_obj = get_object_or_404(Transaction, pk=pk)
+
+        # 1. Calcular la diferencia y asegurarse de que haya un excedente.
+        surplus = -transaction_obj.difference
+        if surplus <= 0:
+            messages.error(request, "No hay un excedente en esta transacción para generar una nota de crédito.")
+            return redirect('transaction_update', pk=transaction_obj.pk)
+
+        # 2. Iniciar una transacción atómica para garantizar la integridad.
+        with transaction.atomic():
+            # 2.1. Obtener o crear el Banco y Origen por defecto para las Notas de Crédito.
+            # Esto evita el error "NOT NULL constraint failed".
+            credit_note_bank, _ = Bank.objects.get_or_create(name="NOTA DE CREDITO")
+            credit_note_origin, _ = OrigenTransaccion.objects.get_or_create(name="NOTA DE CREDITO")
+
+            # 2.1. Crear el SALDO A FAVOR (positivo, sin transacción)
+            # Este es el abono que el cliente podrá usar en el futuro.
+            positive_credit = FinancialRecord.objects.create(
+                cliente=transaction_obj.cliente,
+                fecha=timezone.now().date(),
+                hora=timezone.now().time(),
+                banco_llegada=credit_note_bank,
+                origen_transaccion=credit_note_origin,
+                comprobante=f"NC-FAVOR-{transaction_obj.unique_transaction_id}",
+                valor=surplus,
+                payment_status='Aprobado',
+                uploaded_by=request.user,
+                transaction=None, # CLAVE: Esto lo convierte en un saldo a favor.
+                description=f"Saldo a favor generado por excedente en transacción {transaction_obj.unique_transaction_id}."
+            )
+
+            # 2.2. Crear el AJUSTE (negativo, DENTRO de la transacción)
+            # Esto balancea la transacción actual para que su diferencia sea cero.
+            negative_adjustment = FinancialRecord.objects.create(
+                cliente=transaction_obj.cliente,
+                fecha=timezone.now().date(),
+                hora=timezone.now().time(),
+                banco_llegada=credit_note_bank,
+                origen_transaccion=credit_note_origin,
+                comprobante=f"NC-AJUSTE-{transaction_obj.unique_transaction_id}",
+                valor=-surplus, # CLAVE: Valor negativo.
+                payment_status='Aprobado',
+                uploaded_by=request.user,
+                transaction=transaction_obj, # CLAVE: Se asocia a la transacción actual.
+                description=f"Ajuste para balancear excedente en transacción {transaction_obj.unique_transaction_id}."
+            )
+
+            # 2.3. Vincular ambos registros.
+            positive_credit.linked_credit_note = negative_adjustment
+            positive_credit.save()
+            negative_adjustment.linked_credit_note = positive_credit
+            negative_adjustment.save()
+
+        messages.success(
+            request, 
+            f"Nota de crédito por valor de ${surplus:,.2f} generada exitosamente. La transacción ha sido balanceada."
+        )
+        return redirect('transaction_update', pk=transaction_obj.pk)
+
+    except Transaction.DoesNotExist:
+        messages.error(request, "La transacción no existe.")
+        return redirect('record_list')
+    except Exception as e:
+        messages.error(request, f"Ocurrió un error inesperado: {e}")
+        return redirect('transaction_update', pk=pk)
+
+
+class FinancialRecordFormSet(inlineformset_factory(Transaction, FinancialRecord, form=FinancialRecordForm, extra=1, can_delete=True)):
+    
+    def clean(self):
+        super().clean()
+        for form in self.forms:
+            if not form.is_valid():
+                continue
+
+            # Lógica para impedir la eliminación de una nota de crédito en uso.
+            if form.cleaned_data.get('DELETE', False):
+                instance = form.instance
+                # Verificamos si es una nota de crédito de ajuste (valor negativo y vinculada)
+                if instance.pk and instance.valor < 0 and instance.linked_credit_note:
+                    # Verificamos si su contraparte positiva ya fue usada en otra transacción.
+                    if instance.linked_credit_note.transaction is not None:
+                        # Si ya fue usada, no se puede eliminar.
+                        form.add_error(
+                            None, # Error no asociado a un campo específico del formulario.
+                            f"No se puede eliminar el ajuste '{instance.comprobante}' porque su nota de crédito correspondiente "
+                            f"ya fue aplicada en la transacción {instance.linked_credit_note.transaction.unique_transaction_id}."
+                        )

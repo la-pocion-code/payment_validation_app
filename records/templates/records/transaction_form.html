@@ -32,6 +32,18 @@
         </div>
     </div>
 
+ 
+    {% if difference < 0 %}
+        <div class="alert alert-warning d-flex justify-content-between align-items-center mt-3">
+            <span>
+                <strong>¡Pago en Exceso!</strong> Hay un excedente de <strong>${{ difference|floatformat:2 }}</strong> en esta transacción.
+            </span>
+            <form action="{% url 'create_credit_note_from_surplus' transaction.pk %}" method="post" onsubmit="return confirm('¿Estás seguro de que deseas generar una nota de crédito por el excedente? Esta acción creará un nuevo recibo de ajuste en esta transacción y un saldo a favor para el cliente.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Generar Nota de Crédito</button>
+            </form>
+        </div>
+    {% endif %}
 
     <form method="post" id="transaction-form">
         {% csrf_token %}
