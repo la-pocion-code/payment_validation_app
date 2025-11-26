@@ -2,8 +2,8 @@ import csv
 from io import TextIOWrapper
 from datetime import datetime
 from django.db import transaction, IntegrityError
-from .models import FinancialRecord, Bank, OrigenTransaccion
-
+from .models import FinancialRecord, Bank, OrigenTransaccion, Client
+from decimal import Decimal
 
 class CSVProcessor:
     """
@@ -16,10 +16,9 @@ class CSVProcessor:
             'HORA': 'hora',
             '#COMPROBANTE': 'comprobante',
             'BANCO LLEGADA': 'banco_llegada',
-            'VALOR': 'valor',
-            # 'ORIGEN TRANSACCION' ya no es obligatorio en el archivo
+            'VALOR': 'valor'
         }
-        self.results = {
+        self.results = { # Corregido: self.results
             "processed": 0,
             "created": 0,
             "duplicates": 0,
@@ -31,14 +30,28 @@ class CSVProcessor:
 
     def _get_reader(self):
         """Prepara y devuelve un lector de CSV."""
-        decoded_file = TextIOWrapper(self.csv_file.file, encoding='utf-8-sig')
-        try:
-            dialect = csv.Sniffer().sniff(decoded_file.read(1024))
-            decoded_file.seek(0)
-            return csv.reader(decoded_file, dialect)
-        except csv.Error:
-            decoded_file.seek(0)
-            return csv.reader(decoded_file, delimiter=';')
+        # Lista de codificaciones a intentar
+        encodings_to_try = ['utf-8-sig', 'latin-1', 'utf-8']
+        
+        for encoding in encodings_to_try:
+            try:
+                # Volvemos al inicio del archivo en cada intento
+                self.csv_file.file.seek(0)
+                decoded_file = TextIOWrapper(self.csv_file.file, encoding=encoding)
+                
+                # Intentamos detectar el dialecto (separador)
+                try:
+                    dialect = csv.Sniffer().sniff(decoded_file.read(1024))
+                    decoded_file.seek(0)
+                    return csv.reader(decoded_file, dialect)
+                except csv.Error:
+                    decoded_file.seek(0)
+                    return csv.reader(decoded_file, delimiter=';') # Fallback a punto y coma
+            except (UnicodeDecodeError, AttributeError):
+                continue # Si falla la decodificación, prueba con la siguiente
+        
+        # Si ninguna codificación funcionó, lanzamos un error
+        raise ValueError("No se pudo decodificar el archivo. Asegúrate de que esté guardado en formato UTF-8 o Latin-1.")
 
     def _validate_header(self, header):
         """Valida que el header del CSV contenga las columnas requeridas (excepto origen_transaccion)."""
@@ -101,21 +114,30 @@ class CSVProcessor:
 
         if records_to_process:
             print(f"DEBUG: Intentando procesar {len(records_to_process)} registros.")
+            
+            # --- INICIO DE LA SOLUCIÓN ---
+            # 1. Eliminar duplicados DENTRO del propio archivo CSV antes de comparar con la BD.
+            unique_records_in_csv = {}
+            for data in records_to_process:
+                # Creamos una clave única para cada registro
+                key = (
+                    data['fecha'],
+                    data['hora'],
+                    data['comprobante'],
+                    data['banco_llegada'].id,
+                    Decimal(str(data['valor'])).quantize(Decimal('0.01'))
+                )
+                # Si la clave no está en el diccionario, la añadimos. Esto descarta duplicados.
+                if key not in unique_records_in_csv:
+                    unique_records_in_csv[key] = data
+            
+            # Ahora `records_to_process` solo contiene registros únicos del CSV.
+            records_to_process = list(unique_records_in_csv.values())
+            # --- FIN DE LA SOLUCIÓN ---
+
             try:
                 with transaction.atomic():
-                    # 1. Crear un conjunto de tuplas de identificación para los registros del CSV
-                    csv_record_keys = set()
-                    for data in records_to_process:
-                        key = (
-                            data['fecha'],
-                            data['hora'],
-                            data['comprobante'],
-                            data['banco_llegada'].id,
-                            data['valor']
-                        )
-                        csv_record_keys.add(key)
-
-                    # 2. Consultar la base de datos para encontrar qué registros ya existen
+                    # Consultar la base de datos para encontrar qué registros ya existen
                     existing_records = FinancialRecord.objects.filter(
                         fecha__in=[data['fecha'] for data in records_to_process],
                         comprobante__in=[data['comprobante'] for data in records_to_process]
@@ -123,18 +145,17 @@ class CSVProcessor:
 
                     existing_record_keys = set()
                     for record in existing_records:
-                        # Asegurarse de que la hora se maneje correctamente si es None
-                        hora = record[1] if record[1] else None
+                        # Convertimos el valor de la BD a Decimal para una comparación precisa
                         key = (
-                            record[0],
-                            hora,
-                            record[2],
-                            record[3],
-                            float(record[4])
+                            record[0], # fecha (date)
+                            record[1], # hora (time)
+                            record[2], # comprobante (str)
+                            record[3], # banco_llegada_id (int)
+                            Decimal(record[4]).quantize(Decimal('0.01')) # valor (Decimal)
                         )
                         existing_record_keys.add(key)
 
-                    # 3. Filtrar los registros que no existen en la base de datos
+                    # Filtrar los registros que no existen en la base de datos
                     records_to_create = []
                     for data in records_to_process:
                         key = (
@@ -142,12 +163,12 @@ class CSVProcessor:
                             data['hora'],
                             data['comprobante'],
                             data['banco_llegada'].id,
-                            data['valor']
+                            Decimal(str(data['valor'])).quantize(Decimal('0.01'))
                         )
                         if key not in existing_record_keys:
                             records_to_create.append(FinancialRecord(**data))
 
-                    # 4. Creación masiva de los nuevos registros
+                    # Creación masiva de los nuevos registros
                     if records_to_create:
                         created_objects = FinancialRecord.objects.bulk_create(records_to_create)
                         self.results['created'] = len(created_objects)
