@@ -40,7 +40,9 @@
                     {% comment %} <a href="{% url 'credit_create' %}">Registrar Abono</a> {% endcomment %}
                     <a href="{% url 'credit_list' %}">Recibos</a>
                 {% endif %}
-
+                {% if 'Digitador' in user_groups  or user.is_superuser  %}
+                <a href="{% url 'Client_list' %}">Clientes</a>
+                {% endif %}
                 <!-- <a href="{% url 'record_create' %}">Nuevo</a> -->
                 {% if user.is_superuser %}
                     {% comment %} <a href="{% url 'csv_upload' %}">Cargar</a> {% endcomment %}

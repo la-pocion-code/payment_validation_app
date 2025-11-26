@@ -10,12 +10,12 @@
         <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#Client-modal" data-url="{% url 'Client_create' %}">
             Nuevo Cliente
         </button>
-        {% comment %} <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#bulkUploadModal">
-            <i class="fas fa-upload"></i> Carga Masiva
-        </button> {% endcomment %}
+
+        {% if user.is_superuser %}
         <a href="{% url 'client_bulk_upload_page' %}" class="btn btn-warning">
             <i class="fas fa-upload"></i> Cargar Archivo
         </a> 
+        {% endif %}
     </div>
 
     {# --- SECCIÓN DE FILTROS --- #}
@@ -47,7 +47,9 @@
             <tr>
                 <th>Nombre del Cliente</th>
                 <th>Documento</th>
+                {% if user.is_superuser %}
                 <th>Acciones</th>
+                {% endif %}
             </tr>
         </thead>
         <tbody>
@@ -55,6 +57,7 @@
             <tr>
                 <td>{{ client.name }}</td>
                 <td>{{ client.dni }}</td>
+                {% if user.is_superuser %}
                 <td>
                     <button type="button" class="btn-accion-icono" title="Editar" data-bs-toggle="modal" data-bs-target="#Client-modal" data-url="{% url 'Client_update' client.pk %}">
                         <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
@@ -63,6 +66,7 @@
                         <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
                     </button>
                 </td>
+                {% endif %}
             </tr>
             {% empty %}
             <tr><td colspan="3" class="text-center">No se encontraron clientes con los filtros seleccionados.</td></tr>

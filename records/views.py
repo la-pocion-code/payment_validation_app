@@ -527,16 +527,17 @@ class ClientDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
                 return JsonResponse({'success': False, 'message': str(e)}, status=500)
         return super().post(request, *args, **kwargs)
 
-@method_decorator(group_required('Admin'), name='dispatch')
-class ClientListView(LoginRequiredMixin, UserPassesTestMixin, FilterView):
+@method_decorator(group_required('Admin', 'Digitador'), name='dispatch')
+# class ClientListView(LoginRequiredMixin, UserPassesTestMixin, FilterView):
+class ClientListView(LoginRequiredMixin, FilterView):
     model = Client
     template_name = 'records/Client_list.html'
     context_object_name = 'clients' # Cambiado a 'clients' para seguir convenciones
     filterset_class = ClientFilter
     paginate_by = 50 # Mostraremos 50 clientes por página
 
-    def test_func(self):
-        return self.request.user.is_superuser
+    # def test_func(self):
+    #     return self.request.user.is_superuser
     
     def get_queryset(self):
         # Ordenamos por nombre para una visualización consistente
@@ -616,7 +617,7 @@ def bulk_client_upload(request):
 
 
 
-@method_decorator(group_required('Admin' ), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador'), name='dispatch')
 class ClientCreateView(LoginRequiredMixin, CreateView):
     model = Client
     form_class = ClientForm
