@@ -134,7 +134,7 @@ class Transaction(models.Model):
         ('Facturado', 'Facturado'),
         ('Anulado', 'Anulado'),
     ]
-    date = models.DateField(default=timezone.now, verbose_name="Fecha Venta")
+    date = models.DateField(default=timezone.now, verbose_name="Fecha Pedido")
     cliente = models.ForeignKey(Client, on_delete=models.PROTECT, verbose_name="Cliente", null=True, blank=True)
     vendedor = models.ForeignKey(Seller,on_delete=models.PROTECT, verbose_name="Vendedor")
     transaction_type = models.ForeignKey(TransactionType, on_delete=models.PROTECT, verbose_name="Tipo de Transacción")
