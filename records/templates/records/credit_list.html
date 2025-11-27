@@ -50,6 +50,10 @@
                     <label class="form-label">Estado</label>
                     {{ filter.form.payment_status }}
                 </div>
+                <div class="col-md-3">
+                    <label class="form-label">Valor</label>
+                    {{ filter.form.valor }}
+                </div>
 
                 <div class="col-md-12 d-flex justify-content-end gap-2 mt-3">
                     <button type="submit" class="btn btn-primary">
@@ -76,7 +80,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>ID</th>
-                             <th>Transacción ID</th>
+                            <th>Transacción ID</th>
                             <th>Cliente</th>
                             <th>Fecha Registro</th>
                             <th>Hora</th>
@@ -84,7 +88,8 @@
                             <th>Banco Llegada</th>
                             <th>Valor</th>
                             <th>Fecha Efectiva</th>
-                            <th>Estado</th>
+                            <th>Estado Recibo</th>
+                            <th>Estado transacción</th>
                             <th>Subido por</th>
                         </tr>
                     </thead>
@@ -106,6 +111,11 @@
                             <td>
                                 <span class="badge {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
                                     {{ credit.payment_status }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge {% if credit.transaction.status == 'Facturado' %}bg-success{% elif credit.transaction.status == 'Pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                    {{ credit.transaction.status }}
                                 </span>
                             </td>
                             <td>{{ credit.uploaded_by.username|default:"Sistema" }}</td>

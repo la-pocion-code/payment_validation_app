@@ -154,6 +154,12 @@ class CreditFilter(django_filters.FilterSet):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre o DNI del cliente...'})
     )
 
+    valor = django_filters.NumberFilter(
+        field_name='valor',
+        lookup_expr='icontains', # 'exact' es mejor para números que 'icontains'
+        label='Valor',
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Valor del recibo...'})
+    )
     def filter_by_client(self, queryset, name, value):
         """
         Este método personalizado filtra el queryset de FinancialRecord
@@ -168,7 +174,7 @@ class CreditFilter(django_filters.FilterSet):
 
     class Meta:
         model = FinancialRecord
-        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'banco_llegada', 'payment_status', 'display_client']
+        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'banco_llegada', 'payment_status', 'display_client', 'valor']
 
 
 class ClientFilter(django_filters.FilterSet):
