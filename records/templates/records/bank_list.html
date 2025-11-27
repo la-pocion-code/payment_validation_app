@@ -4,12 +4,15 @@
 {% block title %}Gestionar Bancos{% endblock %}
 
 {% block content %}
+<div class="container mt-4">
     <h2>Gestionar Bancos</h2>
 
-    <a href="{% url 'bank_create' %}" id="open-bank-create-modal" class="btn btn-success">Nuevo Banco</a>
+    <button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#bank-modal" data-url="{% url 'bank_create' %}">
+        Nuevo Banco
+    </button>
 
-    <table border="1">
-        <thead>
+    <table class="table table-striped table-hover">
+        <thead class="table-light">
             <tr>
                 <th>Nombre del Banco</th>
                 <th>Acciones</th>
@@ -20,131 +23,103 @@
             <tr>
                 <td>{{ bank.name }}</td>
                 <td>
-                    <a href="{% url 'bank_update' bank.pk %}" class="open-bank-edit-modal btn-accion-icono" title="Editar" data-bank-id="{{ bank.pk }}">
+                    <button type="button" class="btn-accion-icono" title="Editar" data-bs-toggle="modal" data-bs-target="#bank-modal" data-url="{% url 'bank_update' bank.pk %}">
                         <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
-                    </a> 
-                    <a href="{% url 'bank_delete' bank.pk %}" class="open-bank-delete-modal btn-accion-icono" title="Eliminar">
+                    </button> 
+                    <button type="button" class="btn-accion-icono" title="Eliminar" data-bs-toggle="modal" data-bs-target="#bank-modal" data-url="{% url 'bank_delete' bank.pk %}">
                         <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
-                    </a>
+                    </button>
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="2">No hay bancos registrados.</td></tr>
+            <tr><td colspan="2" class="text-center">No hay bancos registrados.</td></tr>
             {% endfor %}
         </tbody>
     </table>
-
-    {# Modal Structure #}
-    <div id="bank-modal" class="custom-modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>     
-            <div id="bank-form-container">
-                {# Bank form will be loaded here via AJAX #}
+ </div>
+    {# Modal Structure for Create/Edit/Delete #}
+    <div class="modal fade" id="bank-modal" tabindex="-1" aria-labelledby="bankModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bankModalLabel">Gestionar Banco</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="bank-form-container">
+                    {# Bank form will be loaded here via AJAX #}
+                </div>
             </div>
         </div>
     </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const bankModal = document.getElementById('bank-modal');
-        const closeButton = bankModal.querySelector('.close-button');
-        const bankFormContainer = document.getElementById('bank-form-container');
+document.addEventListener('DOMContentLoaded', function() {
+    const bankModalElement = document.getElementById('bank-modal');
+    const bankFormContainer = document.getElementById('bank-form-container');
+    const bankModal = new bootstrap.Modal(bankModalElement);
 
-        // Function to open the modal and load the form
-        function openBankModal(url) {
-            bankModal.style.display = 'flex'; // Show the modal
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest' // Important for Django to detect AJAX
-                }
-            })
+    bankModalElement.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const url = button.getAttribute('data-url');
+
+        bankFormContainer.innerHTML = '<p class="text-center">Cargando...</p>';
+        
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(response => response.text())
             .then(html => {
                 bankFormContainer.innerHTML = html;
-                attachBankFormSubmitHandler(); // Attach handler after form is loaded
+                attachBankFormSubmitHandler();
             })
-            .catch(error => console.error('Error loading bank form:', error));
-        }
-
-        // Function to close the modal
-        function closeModal() {
-            bankModal.style.display = 'none';
-            bankFormContainer.innerHTML = ''; // Clear form content
-        }
-
-        closeButton.addEventListener('click', closeModal);
-
-        // Close modal if clicked outside content
-        window.addEventListener('click', function(event) {
-            if (event.target.classList.contains('custom-modal')) {
-                closeModal();
-            }
-        });
-
-        // Handle "Create New Bank" button click
-        document.getElementById('open-bank-create-modal').addEventListener('click', function(e) {
-            e.preventDefault();
-            openBankModal(this.href);
-        });
-
-        // Handle "Edit" button click
-        document.querySelectorAll('.open-bank-edit-modal').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                openBankModal(this.href);
+            .catch(error => {
+                bankFormContainer.innerHTML = '<p class="text-center text-danger">Error al cargar el contenido.</p>';
+                console.error('Error loading bank form:', error);
             });
-        });
+    });
 
-        // Handle "Delete" button click
-        document.querySelectorAll('.open-bank-delete-modal').forEach(button => {
-            button.addEventListener('click', function(e) {
+    function attachBankFormSubmitHandler() {
+        const bankForm = bankFormContainer.querySelector('form');
+        if (bankForm) {
+            bankForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                openBankModal(this.href);
-            });
-        });
-
-        // Function to attach submit handler to the dynamically loaded form
-        function attachBankFormSubmitHandler() {
-            const bankForm = bankFormContainer.querySelector('form');
-            if (bankForm) {
-                bankForm.addEventListener('submit', function(e) {
-                    e.preventDefault(); // Prevent default form submission
-
-                    const formData = new FormData(bankForm);
-                    
-                    fetch(bankForm.action, {
-                        method: 'POST',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                        },
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert(data.message || 'Operación exitosa!');
-                            closeModal();
-                            location.reload(); // Reload the page to show updated list
-                        } else {
-                            // Display errors by re-rendering the form HTML
+                const formData = new FormData(bankForm);
+                fetch(bankForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message || 'Operación exitosa!');
+                        bankModal.hide();
+                        location.reload();
+                    } else {
+                        // This handles form validation errors from the server
+                        if (data.form_html) {
                             bankFormContainer.innerHTML = data.form_html;
                             attachBankFormSubmitHandler(); // Re-attach handler for the new form
+                        } else {
+                            alert(data.message || 'Ocurrió un error.');
                         }
-                    })
-                    .catch(error => console.error('Error submitting bank form:', error));
-                });
+                    }
+                })
+                .catch(error => console.error('Error submitting bank form:', error));
+            });
 
-                // Add event listener for the new cancel button in the form
-                const cancelButton = bankForm.querySelector('.btn-cancel');
-                if (cancelButton) {
-                    cancelButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        closeModal();
-                    });
-                }
+            const cancelButton = bankForm.querySelector('.btn-cancel');
+            if (cancelButton) {
+                cancelButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    bankModal.hide();
+                });
             }
         }
-    });
+    }
+});
 </script>
 {% endblock %}

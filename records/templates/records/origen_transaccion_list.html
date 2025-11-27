@@ -4,12 +4,15 @@
 {% block title %}Gestionar Origenes de Transacción{% endblock %}
 
 {% block content %}
+<div class="container mt-4">
     <h2>Gestionar Origenes de Transacción</h2>
 
-    <a href="{% url 'origen_transaccion_create' %}" id="open-OrigenTransaccion-create-modal" class="btn btn-success">Nuevo Origen</a>
+    <button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#origen-modal" data-url="{% url 'origen_transaccion_create' %}">
+        Nuevo Origen
+    </button>
 
-    <table border="1">
-        <thead>
+    <table class="table table-striped table-hover">
+        <thead class="table-light">
             <tr>
                 <th>Nombre del Origen de Transacción</th>
                 <th>Días Efectivo</th>
@@ -17,136 +20,108 @@
             </tr>
         </thead>
         <tbody>
-            {% for OrigenTransaccion in origen_transacciones %}
+            {% for origen in origen_transacciones %}
             <tr>
-                <td>{{ OrigenTransaccion.name }}</td>
-                <td>{{ OrigenTransaccion.dias_efectivo }}</td>
+                <td>{{ origen.name }}</td>
+                <td>{{ origen.dias_efectivo }}</td>
                 <td>
-                    <a href="{% url 'origen_transaccion_update' OrigenTransaccion.pk %}" class="open-OrigenTransaccion-edit-modal btn-accion-icono" title="Editar" data-OrigenTransaccion-id="{{ OrigenTransaccion.pk }}">
+                    <button type="button" class="btn-accion-icono" title="Editar" data-bs-toggle="modal" data-bs-target="#origen-modal" data-url="{% url 'origen_transaccion_update' origen.pk %}">
                         <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
-                    </a> 
-                    <a href="{% url 'origen_transaccion_delete' OrigenTransaccion.pk %}" class="open-OrigenTransaccion-delete-modal btn-accion-icono" title="Eliminar">
+                    </button> 
+                    <button type="button" class="btn-accion-icono" title="Eliminar" data-bs-toggle="modal" data-bs-target="#origen-modal" data-url="{% url 'origen_transaccion_delete' origen.pk %}">
                         <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
-                    </a>
+                    </button>
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="2">No hay origenes de transacción registrados.</td></tr>
+            <tr><td colspan="3" class="text-center">No hay origenes de transacción registrados.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 
-    {# Modal Structure #}
-    <div id="OrigenTransaccion-modal" class="custom-modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>     
-            <div id="OrigenTransaccion-form-container">
-                {# OrigenTransaccion form will be loaded here via AJAX #}
+    {# Modal Structure for Create/Edit/Delete #}
+    <div class="modal fade" id="origen-modal" tabindex="-1" aria-labelledby="origenModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="origenModalLabel">Gestionar Origen de Transacción</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="origen-form-container">
+                    {# Origen form will be loaded here via AJAX #}
+                </div>
             </div>
         </div>
     </div>
+</div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const OrigenTransaccionModal = document.getElementById('OrigenTransaccion-modal');
-        const closeButton = OrigenTransaccionModal.querySelector('.close-button');
-        const OrigenTransaccionFormContainer = document.getElementById('OrigenTransaccion-form-container');
+document.addEventListener('DOMContentLoaded', function() {
+    const origenModalElement = document.getElementById('origen-modal');
+    const origenFormContainer = document.getElementById('origen-form-container');
+    const origenModal = new bootstrap.Modal(origenModalElement);
 
-        // Function to open the modal and load the form
-        function openOrigenTransaccionModal(url) {
-            OrigenTransaccionModal.style.display = 'flex'; // Show the modal
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest' // Important for Django to detect AJAX
-                }
-            })
+    origenModalElement.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const url = button.getAttribute('data-url');
+
+        origenFormContainer.innerHTML = '<p class="text-center">Cargando...</p>';
+        
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(response => response.text())
             .then(html => {
-                OrigenTransaccionFormContainer.innerHTML = html;
-                attachOrigenTransaccionFormSubmitHandler(); // Attach handler after form is loaded
+                origenFormContainer.innerHTML = html;
+                attachOrigenFormSubmitHandler();
             })
-            .catch(error => console.error('Error loading OrigenTransaccion form:', error));
-        }
-
-        // Function to close the modal
-        function closeModal() {
-            OrigenTransaccionModal.style.display = 'none';
-            OrigenTransaccionFormContainer.innerHTML = ''; // Clear form content
-        }
-
-        closeButton.addEventListener('click', closeModal);
-
-        // Close modal if clicked outside content
-        window.addEventListener('click', function(event) {
-            if (event.target.classList.contains('custom-modal')) {
-                closeModal();
-            }
-        });
-
-        // Handle "Create New OrigenTransaccion" button click
-        document.getElementById('open-OrigenTransaccion-create-modal').addEventListener('click', function(e) {
-            e.preventDefault();
-            openOrigenTransaccionModal(this.href);
-        });
-
-        // Handle "Edit" button click
-        document.querySelectorAll('.open-OrigenTransaccion-edit-modal').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                openOrigenTransaccionModal(this.href);
+            .catch(error => {
+                origenFormContainer.innerHTML = '<p class="text-center text-danger">Error al cargar el contenido.</p>';
+                console.error('Error loading Origen de Transacción form:', error);
             });
-        });
-
-        // Handle "Delete" button click
-        document.querySelectorAll('.open-OrigenTransaccion-delete-modal').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                openOrigenTransaccionModal(this.href);
-            });
-        });
-
-        // Function to attach submit handler to the dynamically loaded form
-        function attachOrigenTransaccionFormSubmitHandler() {
-            const OrigenTransaccionForm = OrigenTransaccionFormContainer.querySelector('form');
-            if (OrigenTransaccionForm) {
-                OrigenTransaccionForm.addEventListener('submit', function(e) {
-                    e.preventDefault(); // Prevent default form submission
-
-                    const formData = new FormData(OrigenTransaccionForm);
-                    
-                    fetch(OrigenTransaccionForm.action, {
-                        method: 'POST',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                        },
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert(data.message || 'Operación exitosa!');
-                            closeModal();
-                            location.reload(); // Reload the page to show updated list
-                        } else {
-                            // Display errors by re-rendering the form HTML
-                            OrigenTransaccionFormContainer.innerHTML = data.form_html;
-                            attachOrigenTransaccionFormSubmitHandler(); // Re-attach handler for the new form
-                        }
-                    })
-                    .catch(error => console.error('Error submitting OrigenTransaccion form:', error));
-                });
-
-                // Add event listener for the new cancel button in the form
-                const cancelButton = OrigenTransaccionForm.querySelector('.btn-cancel');
-                if (cancelButton) {
-                    cancelButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        closeModal();
-                    });
-                }
-            }
-        }
     });
+
+    function attachOrigenFormSubmitHandler() {
+        const origenForm = origenFormContainer.querySelector('form');
+        if (origenForm) {
+            origenForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(origenForm);
+                fetch(origenForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message || 'Operación exitosa!');
+                        origenModal.hide();
+                        location.reload();
+                    } else {
+                        if (data.form_html) {
+                            origenFormContainer.innerHTML = data.form_html;
+                            attachOrigenFormSubmitHandler();
+                        } else {
+                            alert(data.message || 'Ocurrió un error.');
+                        }
+                    }
+                })
+                .catch(error => console.error('Error submitting Origen de Transacción form:', error));
+            });
+
+            const cancelButton = origenForm.querySelector('.btn-cancel');
+            if (cancelButton) {
+                cancelButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    origenModal.hide();
+                });
+            }
+        }
+    }
+});
 </script>
 {% endblock %}
