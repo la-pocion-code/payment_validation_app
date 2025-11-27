@@ -24,39 +24,40 @@
     {# --- SECCIÓN DE FILTROS --- #}
     <div class="card mb-4">
         <div class="card-body">
-            <form method="get" action="" class="row g-3">
+            <form method="get" action="">
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Fecha Desde</label>
+                        {{ filter.form.fecha__gte }}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Fecha Hasta</label>
+                        {{ filter.form.fecha__lte }}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Cliente</label>
+                        {{ filter.form.display_client }}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Comprobante</label>
+                        {{ filter.form.comprobante }}
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Banco</label>
+                        {{ filter.form.banco_llegada }}
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Estado</label>
+                        {{ filter.form.payment_status }}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Valor</label>
+                        {{ filter.form.valor }}
+                    </div>
+                </div>
                 
-                <div class="col-md-3">
-                    <label class="form-label">Fecha Desde</label>
-                    {{ filter.form.fecha__gte }}
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Fecha Hasta</label>
-                    {{ filter.form.fecha__lte }}
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Cliente</label>
-                    {{ filter.form.display_client }}
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Comprobante</label>
-                    {{ filter.form.comprobante }}
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Banco</label>
-                    {{ filter.form.banco_llegada }}
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Estado</label>
-                    {{ filter.form.payment_status }}
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Valor</label>
-                    {{ filter.form.valor }}
-                </div>
-
-                <div class="col-md-12 d-flex justify-content-end gap-2 mt-3">
-                    <button type="submit" class="btn btn-primary">
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="submit" class="btn btn-primary" title="Filtrar">
                         <i class="fas fa-filter"></i> Filtrar
                     </button>
                     <a href="{% url 'credit_list' %}" class="btn btn-secondary" title="Limpiar Filtros">
