@@ -32,7 +32,10 @@
                     </ul>
                 </td>
                 <td>
-                    <a href="{% url 'resolve_duplicate_attempt' attempt.pk %}">Marcar como Resuelto</a>
+                    <form action="{% url 'resolve_duplicate_attempt' attempt.pk %}" method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-success">Marcar como Resuelto</button>
+                    </form>
                 </td>
             </tr>
             {% empty %}

@@ -1653,16 +1653,16 @@ class DuplicateAttemptsListView(LoginRequiredMixin, UserPassesTestMixin, ListVie
     def get_queryset(self):
         return DuplicateRecordAttempt.objects.filter(is_resolved=False).order_by('-timestamp')
 
-@method_decorator(group_required('Admin'), name='dispatch')
+@login_required
+@group_required('Admin')
+@require_POST # Asegura que esta vista solo acepte peticiones POST
 def resolve_duplicate_attempt(request, pk):
-    if not request.user.is_superuser:
-        messages.error(request, 'No tienes permisos para realizar esta acción.')
-        return redirect('record_list')
+    # La verificación de superusuario o grupo 'Admin' ya la hacen los decoradores.
     
     attempt = get_object_or_404(DuplicateRecordAttempt, pk=pk)
     attempt.is_resolved = True
     attempt.resolved_by = request.user
-    attempt.resolved_at = datetime.now()
+    attempt.resolved_at = timezone.now() # Usar timezone.now() es mejor práctica
     attempt.save()
     messages.success(request, 'El intento de registro duplicado ha sido marcado como resuelto.')
     return redirect('duplicate_attempts_list')
