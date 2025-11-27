@@ -268,6 +268,19 @@ class ClientForm(forms.ModelForm):
     class Meta:
         model = Client
         fields = ['name', 'dni']
+    
+    def clean_dni(self):
+        """Validación solo para nuevos registros o ediciones"""
+        dni = self.cleaned_data.get('dni', '').strip()
+        
+        if not dni:
+            raise forms.ValidationError('El campo DNI es obligatorio.')
+        
+        # Validar que solo contenga números y guiones
+        if not all(c.isdigit() or c == '-' for c in dni):
+            raise forms.ValidationError('El DNI solo puede contener números y guiones (-).')
+        
+        return dni
 
 
 class CSVUploadForm(forms.Form):

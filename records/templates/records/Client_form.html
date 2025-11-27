@@ -31,3 +31,112 @@
         <a href="#" class="btn-cancel">Cancelar</a>
     </div>
 </form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dniField = document.getElementById('id_dni');
+    
+    // Validación en tiempo real: solo permite números y guiones
+    if (dniField) {
+        // Bloquear teclas no permitidas
+        dniField.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which || e.keyCode);
+            // Solo permitir números, guiones y teclas de control
+            if (!/[0-9-]/.test(char) && e.which !== 0 && e.charCode !== 0) {
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        // Limpiar si se pega texto inválido
+        dniField.addEventListener('input', function(e) {
+            const cursorPos = e.target.selectionStart;
+            const oldValue = e.target.value;
+            const newValue = oldValue.replace(/[^0-9-]/g, '');
+            
+            if (oldValue !== newValue) {
+                e.target.value = newValue;
+                e.target.setSelectionRange(cursorPos - 1, cursorPos - 1);
+            }
+        });
+
+        // Limpiar texto pegado
+        dniField.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+            const cleanText = pastedText.replace(/[^0-9-]/g, '');
+            
+            const start = e.target.selectionStart;
+            const end = e.target.selectionEnd;
+            const currentValue = e.target.value;
+            e.target.value = currentValue.substring(0, start) + cleanText + currentValue.substring(end);
+            
+            const newPos = start + cleanText.length;
+            e.target.setSelectionRange(newPos, newPos);
+        });
+    }
+
+    // Validación al enviar el formulario
+    const form = document.querySelector('form.filter-form');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            const nameField = document.getElementById('id_name');
+            const dniField = document.getElementById('id_dni');
+
+            // Eliminar mensajes de error anteriores
+            const errorMessages = form.querySelectorAll('.custom-error-message');
+            errorMessages.forEach(e => e.remove());
+            
+            // Limpiar estilos de error
+            if (nameField) nameField.style.borderColor = '';
+            if (dniField) dniField.style.borderColor = '';
+
+            let errors = [];
+
+            // Validación del campo Nombre
+            if (!nameField || nameField.value.trim() === '') {
+                errors.push({ field: nameField, message: 'El campo Nombre es obligatorio.' });
+            }
+
+            // Validaciones para el campo DNI
+            if (!dniField || dniField.value.trim() === '') {
+                errors.push({ field: dniField, message: 'El campo DNI es obligatorio.' });
+            } else {
+                // Verificar caracteres inválidos
+                const invalidChars = dniField.value.split('').filter(c => !/[0-9-]/.test(c));
+                if (invalidChars.length > 0) {
+                    errors.push({ 
+                        field: dniField, 
+                        message: 'El DNI solo puede contener números y guiones (-).' 
+                    });
+                }
+            }
+
+            if (errors.length > 0) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                let alertMessage = 'Por favor, corrija los siguientes errores:\n';
+                errors.forEach(error => {
+                    alertMessage += `\n- ${error.message}`;
+
+                    const errorElement = document.createElement('div');
+                    errorElement.className = 'custom-error-message';
+                    errorElement.style.color = 'red';
+                    errorElement.style.fontSize = '0.9em';
+                    errorElement.style.marginTop = '5px';
+                    errorElement.textContent = error.message;
+                    
+                    if (error.field && error.field.parentNode) {
+                        error.field.parentNode.insertBefore(errorElement, error.field.nextSibling);
+                        error.field.style.borderColor = 'red';
+                    }
+                });
+                
+                alert(alertMessage);
+                return false;
+            }
+        });
+    }
+});
+</script>
