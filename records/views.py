@@ -426,11 +426,7 @@ class BankDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
             self.object = self.get_object()
             context = self.get_context_data(object=self.object)
             html_form = render_to_string(self.template_name, context, request=request)
-            # Devolvemos tanto el HTML del formulario como la URL a la que debe apuntar.
-            return JsonResponse({
-                'html_form': html_form,
-                'form_url': reverse_lazy('Client_delete', kwargs={'pk': self.object.pk})
-            })
+            return HttpResponse(html_form)
         return super().get(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
