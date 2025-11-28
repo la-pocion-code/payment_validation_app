@@ -160,6 +160,15 @@ class CreditFilter(django_filters.FilterSet):
         label='Valor',
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Valor del recibo...'})
     )
+
+    uploaded_by = django_filters.ModelChoiceFilter(
+        queryset=User.objects.all(),
+        field_name='uploaded_by',
+        label='Subido por',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+
     def filter_by_client(self, queryset, name, value):
         """
         Este método personalizado filtra el queryset de FinancialRecord
@@ -174,7 +183,7 @@ class CreditFilter(django_filters.FilterSet):
 
     class Meta:
         model = FinancialRecord
-        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'banco_llegada', 'payment_status', 'display_client', 'valor']
+        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'banco_llegada', 'payment_status', 'display_client', 'valor', 'uploaded_by']
 
 
 class ClientFilter(django_filters.FilterSet):

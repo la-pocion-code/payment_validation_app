@@ -50,9 +50,13 @@
                         <label class="form-label">Estado</label>
                         {{ filter.form.payment_status }}
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-1">
                         <label class="form-label">Valor</label>
                         {{ filter.form.valor }}
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Subido por</label>
+                        {{ filter.form.uploaded_by }}
                     </div>
                 </div>
                 
@@ -111,9 +115,12 @@
                             </td>
                             <td>
                                 {% if user.is_superuser or 'Validador' in user_groups %}
-                                    <select name="payment_status" 
-                                            class="form-select badge-select status-select" 
+                                    <select name="payment_status"
+                                            class="form-select badge-select status-select"
                                             data-update-url="{% url 'update_credit_status' credit.pk %}"
+                                            data-client="{{ credit.display_client }}"
+                                            data-value="{{ credit.valor|intcomma }}"
+                                            data-receipt="{{ credit.comprobante }}"
                                             onclick="event.stopPropagation();">
                                         {% for status_key, status_value in credit.APROVED_CHOICES %}
                                             <option value="{{ status_key }}" {% if credit.payment_status == status_key %}selected{% endif %}>
@@ -195,37 +202,61 @@ document.addEventListener('DOMContentLoaded', function() {
 
     statusSelects.forEach(select => {
         updateSelectColor(select, select.value);
+        let originalStatus;
+
+        select.addEventListener('focus', function() {
+            originalStatus = this.value;
+        });
 
         select.addEventListener('change', function(event) {
             const selectElement = event.target;
             const url = selectElement.dataset.updateUrl;
             const newStatus = selectElement.value;
+            const newStatusDisplay = selectElement.options[selectElement.selectedIndex].text;
 
-            const formData = new FormData();
-            formData.append('payment_status', newStatus);
+            const client = selectElement.dataset.client;
+            const value = selectElement.dataset.value;
+            const receipt = selectElement.dataset.receipt;
+            
+            const confirmationMessage = `¿Seguro que quieres cambiar el estado del recibo ${receipt} (Cliente: ${client}, Valor: $${value}) a "${newStatusDisplay}"?`;
 
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken ? csrfToken.value : '',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    updateSelectColor(selectElement, newStatus);
-                } else {
-                    alert(`Error: ${data.message}`);
-                    selectElement.value = selectElement.querySelector('option[selected]').value;
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error de red al intentar actualizar.');
-                selectElement.value = selectElement.querySelector('option[selected]').value;
-            });
+            if (confirm(confirmationMessage)) {
+                const formData = new FormData();
+                formData.append('payment_status', newStatus);
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken ? csrfToken.value : '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw err; });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        updateSelectColor(selectElement, newStatus);
+                    } else {
+                        alert(`Error al actualizar: ${data.message}`);
+                        selectElement.value = originalStatus;
+                        updateSelectColor(selectElement, originalStatus);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    const errorMessage = error.message ? `Error: ${error.message}` : 'Error de red al intentar actualizar. Intente de nuevo.';
+                    alert(errorMessage);
+                    selectElement.value = originalStatus;
+                    updateSelectColor(selectElement, originalStatus);
+                });
+            } else {
+                selectElement.value = originalStatus;
+            }
         });
     });
 
