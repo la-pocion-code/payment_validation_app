@@ -332,9 +332,10 @@ class CreditDetailView(LoginRequiredMixin, DetailView): # Añadido decorador de 
                 h.delta = h.diff_against(h.prev_record)
         context['history'] = history
         
-        # Añadir información del cliente al contexto si existe
-        if self.object.cliente:
-            context['client'] = self.object.cliente
+        # Obtener el cliente usando el método display_client para asegurar que siempre se muestre
+        client = self.object.display_client()
+        if client and client != "N/A":
+            context['client'] = client
         
         return context
 
