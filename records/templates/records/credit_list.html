@@ -110,14 +110,27 @@
                                 <small class="text-info">{{ credit.effective_date_message }}</small>
                             </td>
                             <td>
-                                <span class="badge {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
-                                    {{ credit.payment_status }}
-                                </span>
+                                {% if user.is_superuser or 'Validador' in user_groups %}
+                                    <select name="payment_status" 
+                                            class="form-select badge-select status-select" 
+                                            data-update-url="{% url 'update_credit_status' credit.pk %}"
+                                            onclick="event.stopPropagation();">
+                                        {% for status_key, status_value in credit.APROVED_CHOICES %}
+                                            <option value="{{ status_key }}" {% if credit.payment_status == status_key %}selected{% endif %}>
+                                                {{ status_value }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                {% else %}
+                                    <span class="badge {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                        {{ credit.payment_status }}
+                                    </span>
+                                {% endif %}
                             </td>
                             <td>
                                 <span class="badge {% if credit.transaction.status == 'Facturado' %}bg-success{% elif credit.transaction.status == 'Pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
                                     {{ credit.transaction.status }}
-                                </span>
+                                </span> 
                             </td>
                             <td>{{ credit.uploaded_by.username|default:"Sistema" }}</td>
                         </tr>
@@ -155,4 +168,77 @@
         </div>
     </div>
 </div>
+{% endblock %}
+{% block extra_js %}
+<style>
+    .badge-select {
+        border: 0;
+        padding: 0.5em 2.5em 0.5em 0.75em;
+        font-weight: 700;
+        line-height: 1;
+        color: #fff;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        background-position: right 0.75rem center;
+    }
+    .badge-select.bg-success { background-color: #198754 !important; color: white; }
+    .badge-select.bg-danger { background-color: #dc3545 !important; color: white; }
+    .badge-select.bg-warning { background-color: #ffc107 !important; color: black; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelects = document.querySelectorAll('.status-select');
+    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]');
+
+    statusSelects.forEach(select => {
+        updateSelectColor(select, select.value);
+
+        select.addEventListener('change', function(event) {
+            const selectElement = event.target;
+            const url = selectElement.dataset.updateUrl;
+            const newStatus = selectElement.value;
+
+            const formData = new FormData();
+            formData.append('payment_status', newStatus);
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken ? csrfToken.value : '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateSelectColor(selectElement, newStatus);
+                } else {
+                    alert(`Error: ${data.message}`);
+                    selectElement.value = selectElement.querySelector('option[selected]').value;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error de red al intentar actualizar.');
+                selectElement.value = selectElement.querySelector('option[selected]').value;
+            });
+        });
+    });
+
+    function updateSelectColor(selectElement, status) {
+        selectElement.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'text-dark');
+        if (status === 'Aprobado') {
+            selectElement.classList.add('bg-success');
+        } else if (status === 'Rechazado') {
+            selectElement.classList.add('bg-danger');
+        } else {
+            selectElement.classList.add('bg-warning', 'text-dark');
+        }
+    }
+});
+</script>
 {% endblock %}

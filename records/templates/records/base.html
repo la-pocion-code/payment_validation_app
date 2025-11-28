@@ -23,6 +23,7 @@
 {% endblock %}
 </head>
 <body>
+    {% csrf_token %}
     {% if user.is_authenticated %}
     <div class="bienvenida-superior">
         <span class="texto-bienvenida">Bienvenido, {{ user.username }}</span>
