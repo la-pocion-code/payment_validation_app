@@ -84,6 +84,7 @@
             <th></th> {# For expand/collapse button #}
             <th>ID</th>
             <th>Fecha</th>
+            <th>Tipo Transacción</th>
             <th>Cliente</th>
             <th>Vendedor</th>
             <th>Facturador</th>
@@ -101,6 +102,7 @@
             <td><button class="toggle-receipts-btn" data-transaction-id="{{ transaction.pk }}">+</button></td>
             <td>{{ transaction.unique_transaction_id }}</td>
             <td>{{ transaction.date|date:"d/m/Y" }}</td>
+            <td>{{ transaction.transaction_type.name }}</td>
             <td>{{ transaction.cliente }}</td>
             <td>{{ transaction.vendedor }}</td>
             <td>{{ transaction.facturador }}</td>

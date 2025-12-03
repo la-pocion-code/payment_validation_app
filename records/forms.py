@@ -427,6 +427,16 @@ class TransactionForm(forms.ModelForm):
 
     def clean(self):
             cleaned_data = super().clean()
+            
+            # Primero, obtener el tipo de transacción de los datos limpios
+            transaction_type = cleaned_data.get('transaction_type')
+            
+            # Luego, verificar si el tipo de transacción es 'FLETE'
+            if transaction_type:
+                if transaction_type.name == 'FLETE':
+                    # Si es 'FLETE', establecer el estado a 'No Facturable'
+                    cleaned_data['status'] = 'No Facturable'
+
             is_readonly = self.fields['client_search'].widget.attrs.get('readonly', False)
 
             # Si los campos son de solo lectura (ej. para el Facturador),

@@ -1746,7 +1746,7 @@ def create_bulk_receipts(request):
                     transaction_type=transaction_form.cleaned_data['transaction_type'],
                     expected_amount = transaction_form.cleaned_data['expected_amount'],
                     description=transaction_form.cleaned_data['description'],
-                    status='Pendiente',
+                    status=transaction_form.cleaned_data['status'], # <-- CAMBIO: Usar el estado validado del formulario
                     numero_factura=transaction_form.cleaned_data['numero_factura'],
                     facturador=transaction_form.cleaned_data['facturador'],
                     created_by=request.user

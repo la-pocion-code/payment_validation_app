@@ -717,6 +717,33 @@ document.addEventListener('DOMContentLoaded', function() {
     // 3. Calcular los totales una vez al cargar la página (para formularios existentes)
     updateTotals(); 
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+    const transactionTypeSelect = document.getElementById('id_transaction_type');
+    const statusInput = document.getElementById('id_status');
+
+    if (!transactionTypeSelect || !statusInput) {
+        console.error('No se encontraron los campos de tipo de transacción o estado.');
+        return;
+    }
+
+    transactionTypeSelect.addEventListener('change', function() {
+        // Obtenemos el texto de la opción seleccionada y lo pasamos a mayúsculas
+        const selectedOptionText = this.options[this.selectedIndex].text.toUpperCase();
+
+        // Comparamos con 'FLETE'
+        if (selectedOptionText === 'FLETE') {
+            // Si es FLETE, cambiamos el valor del campo de estado a 'No Facturable'
+            statusInput.value = 'No Facturable';
+            console.log("Estado cambiado a: No Facturable");
+        } else {
+            // Si se selecciona cualquier otra cosa, lo volvemos a poner en 'Pendiente'
+            // Esto es importante si el usuario se equivoca y cambia de opinión
+            statusInput.value = 'Pendiente';
+            console.log("Estado cambiado a: Pendiente");
+        }
+    });
+});
 </script>
 
 {% endblock %}
