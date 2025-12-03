@@ -110,9 +110,21 @@ class TransactionFilter(django_filters.FilterSet):
         lookup_expr='icontains',
         label='Valor'
     )
+    # --- INICIO: Nuevo filtro para estado de recibos ---
+    receipt_status = django_filters.ChoiceFilter(
+        field_name='receipts__payment_status',
+        choices=FinancialRecord.APROVED_CHOICES,
+        label='Estado Recibos',
+        # distinct=True es crucial para evitar transacciones duplicadas en los resultados
+        # si una transacción tiene múltiples recibos que coinciden con el estado.
+        distinct=True
+    )
+    # --- FIN: Nuevo filtro para estado de recibos ---
+
+    
     class Meta:
         model = Transaction
-        fields = ['unique_transaction_id', 'date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status', 'valor','transaction_type']
+        fields = ['unique_transaction_id', 'date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status', 'valor','transaction_type', 'receipt_status']
 
 
 

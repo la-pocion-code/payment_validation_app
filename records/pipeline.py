@@ -8,7 +8,7 @@ from django.contrib.auth.models import Group
 def require_email_domain(backend, details, response, *args, **kwargs):
     request = kwargs.get('request')
     email = details.get('email')
-    if not email.endswith(('@lapocion.com')):
+    if not email.endswith(('@lapocion.com', '@gmail.com')):  # eliminar gmail.com despues
         messages.error(request, 'No tienes un correo corporativo de La Poción y no puedes usar nuestra app. Contacta con La Poción si necesitas acceso.')
         return redirect('access_denied')
     # if not details.get('email', '').endswith('@lapocion.com'): # eliminar gmail.com despues
@@ -35,7 +35,7 @@ def validate_email_domain(backend, details, response, *args, **kwargs):
     email = details.get('email')
     
     # Verifica que el email no sea vacío y que termine con el dominio permitido
-    if not email or not email.endswith(('@lapocion.com',)):  # Eliminar '@gmail.com' después
+    if not email or not email.endswith(('@lapocion.com','@gmail.com')):  # Eliminar '@gmail.com' después
         raise PermissionError("Solo se permiten correos de lapocion.com")
     
     # Verifica que el email esté en la tabla de usuarios autorizados
