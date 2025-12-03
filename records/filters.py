@@ -112,14 +112,27 @@ class TransactionFilter(django_filters.FilterSet):
     )
     # --- INICIO: Nuevo filtro para estado de recibos ---
     receipt_status = django_filters.ChoiceFilter(
-        field_name='receipts__payment_status',
         choices=FinancialRecord.APROVED_CHOICES,
         label='Estado Recibos',
-        # distinct=True es crucial para evitar transacciones duplicadas en los resultados
-        # si una transacción tiene múltiples recibos que coinciden con el estado.
-        distinct=True
+        method='filter_receipt_status'
     )
-    # --- FIN: Nuevo filtro para estado de recibos ---
+
+    def filter_receipt_status(self, queryset, name, value):
+        # If the value is 'Aprobado', we want transactions where ALL receipts are approved.
+        if value == 'Aprobado':
+            # We exclude transactions that have pending or rejected receipts.
+            # Additionally, we ensure that the transaction has at least one receipt.
+            return queryset.filter(receipts__isnull=False).exclude(
+                Q(receipts__payment_status='Pendiente') | Q(receipts__payment_status='Rechazado')
+            ).distinct()
+        
+        # For other statuses like 'Pendiente' or 'Rechazado', the default behavior is sufficient:
+        # show transactions that have AT LEAST ONE receipt with that status.
+        elif value in [choice[0] for choice in FinancialRecord.APROVED_CHOICES if choice[0] != 'Aprobado']:
+            return queryset.filter(receipts__payment_status=value).distinct()
+
+        # If no value is selected, return the queryset without changes.
+        return queryset
 
     
     class Meta:
