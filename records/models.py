@@ -133,6 +133,7 @@ class Transaction(models.Model):
         ('Pendiente', 'Pendiente'),
         ('Facturado', 'Facturado'),
         ('Anulado', 'Anulado'),
+        ('No Pedido', 'No Pedido'),
     ]
     date = models.DateField(default=timezone.now, verbose_name="Fecha Pedido")
     cliente = models.ForeignKey(Client, on_delete=models.PROTECT, verbose_name="Cliente", null=True, blank=True)

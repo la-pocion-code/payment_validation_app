@@ -8,6 +8,7 @@ from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserChangeForm
 from django.utils.html import format_html
 from django.utils import timezone
+from dateutil.relativedelta import relativedelta
 
 class AccessRequestApprovalForm(forms.ModelForm):
     ACTION_CHOICES = [
@@ -55,7 +56,14 @@ class FinancialRecordForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super(FinancialRecordForm, self).__init__(*args, **kwargs)
         self.similar_records = None
-
+        
+        # --- Lógica de fecha mínima y máxima ---
+        today = timezone.now().date()
+        one_month_ago = today - relativedelta(months=1)
+        self.fields['fecha'].widget.attrs['max'] = today.strftime('%Y-%m-%d')
+        # Aplicamos la fecha mínima solo para nuevos registros en el frontend
+        if not self.instance.pk:
+            self.fields['fecha'].widget.attrs['min'] = one_month_ago.strftime('%Y-%m-%d')
 
         # --- INICIO DE LA LÓGICA DE ROLES ---
         user = self.request.user if self.request else None
@@ -99,6 +107,13 @@ class FinancialRecordForm(forms.ModelForm):
             cleaned_data['comprobante'] = comprobante.strip()
 
         fecha = cleaned_data.get('fecha')
+        # --- Backend: Validación de rango de fecha para NUEVOS recibos ---
+        if fecha and not self.instance.pk: # Solo para nuevos registros
+            today = timezone.now().date()
+            one_month_ago = today - relativedelta(months=1)
+            if not (one_month_ago <= fecha <= today):
+                self.add_error('fecha', f"La fecha debe estar entre {one_month_ago.strftime('%d-%m-%Y')} y {today.strftime('%d-%m-%Y')}.")
+
         hora = cleaned_data.get('hora')
         banco_llegada = cleaned_data.get('banco_llegada')
         valor = cleaned_data.get('valor')
@@ -211,6 +226,13 @@ class CreditForm(FinancialRecordForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # --- Lógica de fecha mínima y máxima para NUEVOS abonos ---
+        today = timezone.now().date()
+        one_month_ago = today - relativedelta(months=1)
+        self.fields['fecha'].widget.attrs['max'] = today.strftime('%Y-%m-%d')
+        # Como este formulario es solo para crear, siempre aplicamos la fecha mínima.
+        self.fields['fecha'].widget.attrs['min'] = one_month_ago.strftime('%Y-%m-%d')
         
         # Si estamos editando un registro existente, precargamos el nombre del cliente
         if self.instance and self.instance.pk and self.instance.cliente:

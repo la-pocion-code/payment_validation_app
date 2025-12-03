@@ -33,7 +33,7 @@
     </div>
 
     {# Lineas comentadas de la funcionalidad de notas credito#}
-    {% comment %} {% if difference < 0 %}
+    {% if difference < 0 %}
         <div class="alert alert-warning d-flex justify-content-between align-items-center mt-3">
             <span>
                 <strong>¡Pago en Exceso!</strong> Hay un excedente de <strong>${{ difference|floatformat:2 }}</strong> en esta transacción.
@@ -43,7 +43,7 @@
                 <button type="submit" class="btn btn-primary">Generar Nota de Crédito</button>
             </form>
         </div>
-    {% endif %} {% endcomment %}
+    {% endif %} 
 
     <form method="post" id="transaction-form">
         {% csrf_token %}
@@ -88,7 +88,7 @@
                         {# 2. FECHA #}
                         <td>
                             {% if is_admin %}
-                                <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" id="{{ form.date.id_for_label }}">
+                                <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" id="{{ form.date.id_for_label }}" max="{% now "Y-m-d" %}">
                             {% else %}
                                 <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" readonly>
                             {% endif %}
@@ -464,7 +464,9 @@
                 </div>
                 <div class="receipt-field">
                     {{ formset.empty_form.fecha.label_tag }}
-                    {{ formset.empty_form.fecha }}
+                    {# Añadimos el widget con el atributo max directamente aquí para los nuevos formularios #}
+                    <input type="date" name="{{ formset.empty_form.fecha.name }}" id="id_{{ formset.empty_form.prefix }}-fecha" class="form-control" max="{% now "Y-m-d" %}" min="{% now "Y-m-d" as today %}{{ today|date:"Y-m-d"|add:"-1 month"|date:"Y-m-d" }}">
+
                 </div>
                 <div class="receipt-field">{{ formset.empty_form.hora.label_tag }}{{ formset.empty_form.hora }}</div>
                 <div class="receipt-field">{{ formset.empty_form.comprobante.label_tag }}{{ formset.empty_form.comprobante }}</div>
