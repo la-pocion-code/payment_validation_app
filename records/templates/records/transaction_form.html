@@ -282,9 +282,12 @@
                             {# FECHA #}
                             <div class="receipt-field">
                                 {{ form.fecha.label_tag }}
-                                {% if is_admin  or is_digitador and not form.instance.pk %}
-                                    {# Admin y Digitador pueden editar la fecha SOLO en un recibo NUEVO #}
-                                    {{ form.fecha }}
+                                {% if is_admin or is_digitador and not form.instance.pk %}
+                                    <input type="date" 
+                                           name="{{ form.fecha.html_name }}" 
+                                           value="{{ form.instance.fecha|date:'Y-m-d' }}" 
+                                           class="form-control" 
+                                           id="{{ form.fecha.id_for_label }}">
                                 {% else %}
                                     {# Para recibos existentes, TODOS (incluido el Admin) ven un campo de solo lectura #}
                                     <input type="date" class="form-control" value="{{ form.instance.fecha|date:'Y-m-d' }}" readonly>
@@ -1023,23 +1026,4 @@
     });
     </script>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Itera sobre cada formulario del formset
-        {% for form in formset %}
-            // Obtiene el campo de fecha por su ID único
-            const dateInput = document.getElementById('{{ form.fecha.id_for_label }}');
-            
-            // Verifica si el campo existe y si tiene un valor inicial desde la base de datos
-            {% if form.instance.fecha %}
-                if (dateInput) {
-                    // Crea un objeto Date a partir de la fecha de la instancia
-                    const dateObj = new Date('{{ form.instance.fecha|date:"Y-m-d" }}T00:00:00');
-                    // Formatea la fecha a YYYY-MM-DD y la asigna al valor del input
-                    dateInput.value = dateObj.toISOString().split('T')[0];
-                }
-            {% endif %}
-        {% endfor %}
-    });
-    </script>
 {% endblock %}
