@@ -33,17 +33,17 @@
     </div>
 
     {# Lineas comentadas de la funcionalidad de notas credito#}
-    {% if difference < 0 %}
+    {% comment %} {% if difference < 0 %}
         <div class="alert alert-warning d-flex justify-content-between align-items-center mt-3">
             <span>
                 <strong>¡Pago en Exceso!</strong> Hay un excedente de <strong>${{ difference|floatformat:2 }}</strong> en esta transacción.
             </span>
             <form action="{% url 'create_credit_note_from_surplus' transaction.pk %}" method="post" onsubmit="return confirm('¿Estás seguro de que deseas generar una nota de crédito por el excedente? Esta acción creará un nuevo recibo de ajuste en esta transacción y un saldo a favor para el cliente.');">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-primary">Generar Saldo a favor</button>
+                <button type="submit" class="btn btn-primary">Generar Nota de Crédito</button>
             </form>
         </div>
-    {% endif %} 
+    {% endif %} {% endcomment %}
 
     <form method="post" id="transaction-form">
         {% csrf_token %}
@@ -88,7 +88,7 @@
                         {# 2. FECHA #}
                         <td>
                             {% if is_admin %}
-                                <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" id="{{ form.date.id_for_label }}" max="{% now "Y-m-d" %}">
+                                <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" id="{{ form.date.id_for_label }}">
                             {% else %}
                                 <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" readonly>
                             {% endif %}
@@ -283,11 +283,14 @@
                             <div class="receipt-field">
                                 {{ form.fecha.label_tag }}
                                 {% if is_admin  or is_digitador and not form.instance.pk %}
-                                    {# Admin y Digitador (en nuevos) pueden editar. Renderizamos explícitamente con el valor. #}
-                                    <input type="date" name="{{ form.fecha.html_name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}" class="form-control" id="{{ form.fecha.id_for_label }}" max="{% now "Y-m-d" %}">
+                                    {# Admin y Digitador pueden editar la fecha SOLO en un recibo NUEVO #}
+                                    {{ form.fecha }}
                                 {% else %}
                                     {# Para recibos existentes, TODOS (incluido el Admin) ven un campo de solo lectura #}
                                     <input type="date" class="form-control" value="{{ form.instance.fecha|date:'Y-m-d' }}" readonly>
+                                    {% if form.instance.pk %}
+                                        <input type="hidden" name="{{ form.fecha.html_name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}">
+                                    {% endif %}
                                 {% endif %}
                                 {{ form.fecha.errors }}
                             </div>
@@ -461,9 +464,7 @@
                 </div>
                 <div class="receipt-field">
                     {{ formset.empty_form.fecha.label_tag }}
-                    {# Añadimos el widget con el atributo max directamente aquí para los nuevos formularios #}
-                    <input type="date" name="{{ formset.empty_form.fecha.name }}" id="id_{{ formset.empty_form.prefix }}-fecha" class="form-control" max="{% now "Y-m-d" %}" value="{{ form.instance.date|date:'Y-m-d' }}">
-
+                    {{ formset.empty_form.fecha }}
                 </div>
                 <div class="receipt-field">{{ formset.empty_form.hora.label_tag }}{{ formset.empty_form.hora }}</div>
                 <div class="receipt-field">{{ formset.empty_form.comprobante.label_tag }}{{ formset.empty_form.comprobante }}</div>
@@ -1022,4 +1023,23 @@
     });
     </script>
 
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Itera sobre cada formulario del formset
+        {% for form in formset %}
+            // Obtiene el campo de fecha por su ID único
+            const dateInput = document.getElementById('{{ form.fecha.id_for_label }}');
+            
+            // Verifica si el campo existe y si tiene un valor inicial desde la base de datos
+            {% if form.instance.fecha %}
+                if (dateInput) {
+                    // Crea un objeto Date a partir de la fecha de la instancia
+                    const dateObj = new Date('{{ form.instance.fecha|date:"Y-m-d" }}T00:00:00');
+                    // Formatea la fecha a YYYY-MM-DD y la asigna al valor del input
+                    dateInput.value = dateObj.toISOString().split('T')[0];
+                }
+            {% endif %}
+        {% endfor %}
+    });
+    </script>
 {% endblock %}
