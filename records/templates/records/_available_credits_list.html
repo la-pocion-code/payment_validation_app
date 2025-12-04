@@ -1,3 +1,4 @@
+{% load humanize %}
 {% if credits %}
 <fieldset class="mt-4">
     <legend>Abonos Disponibles para Aplicar</legend>
@@ -13,7 +14,7 @@
                    data-value="{{ credit.valor|stringformat:'f' }}"
                    id="apply_credit_{{ credit.pk }}">
             <label class="form-check-label" for="apply_credit_{{ credit.pk }}">
-                Aplicar Abono: {{ credit.fecha }} - {{ credit.comprobante }} - Valor: ${{ credit.valor|floatformat:2 }}
+                Aplicar Abono: {{ credit.fecha }} - {{ credit.comprobante }} - Valor: ${{ credit.valor|floatformat:2|intcomma }}
             </label>
         </div>
         {% endfor %}

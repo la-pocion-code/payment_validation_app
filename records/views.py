@@ -33,6 +33,8 @@ from .forms import BulkClientUploadForm
 from datetime import datetime
 from django.utils import timezone
 from django.db.models import Q
+import json
+from decimal import Decimal, InvalidOperation
 
 
 
@@ -336,6 +338,11 @@ class CreditDetailView(LoginRequiredMixin, DetailView): # Añadido decorador de 
         client = self.object.display_client()
         if client and client != "N/A":
             context['client'] = client
+
+        # Añadir la lista de bancos para el menú desplegable de edición en línea
+        if self.request.user.is_superuser:
+            context['banks'] = Bank.objects.all()
+            context['origenes'] = OrigenTransaccion.objects.all()
         
         return context
 
@@ -1942,6 +1949,72 @@ def search_sellers(request):
             })
     return JsonResponse(results, safe=False)
 
+
+
+@require_POST
+@login_required
+def update_credit_field(request, pk):
+    """
+    Vista genérica para actualizar un campo de un abono (FinancialRecord) vía AJAX.
+    """
+    # Solo los superusuarios pueden editar todos los campos.
+    # Los validadores solo pueden cambiar 'payment_status'.
+    is_validator = request.user.groups.filter(name='Validador').exists()
+
+    try:
+        data = json.loads(request.body)
+        field = data.get('field')
+        value = data.get('value')
+        credit = get_object_or_404(FinancialRecord, pk=pk)
+
+        # --- Lista blanca y permisos ---
+        allowed_fields_superuser = [
+            'fecha', 'hora', 'comprobante', 'banco_llegada', 
+            'valor', 'origen_transaccion', 'payment_status'
+        ]
+        allowed_fields_validator = ['payment_status']
+
+        if request.user.is_superuser:
+            if field not in allowed_fields_superuser:
+                return JsonResponse({'success': False, 'message': f'El campo "{field}" no es editable.'}, status=400)
+        elif is_validator:
+            if field not in allowed_fields_validator:
+                return JsonResponse({'success': False, 'message': 'No tienes permiso para editar este campo.'}, status=403)
+        else:
+            return JsonResponse({'success': False, 'message': 'No tienes permiso para realizar esta acción.'}, status=403)
+
+
+        # --- Validación y conversión de datos ---
+        original_value = getattr(credit, field)
+        try:
+            if field == 'fecha':
+                value = datetime.strptime(value, '%d/%m/%Y').date()
+            elif field == 'hora':
+                value = datetime.strptime(value, '%H:%M:%S').time()
+            elif field == 'valor':
+                # Limpia el valor de símbolos de moneda y comas de miles (punto)
+                cleaned_value = value.replace('$', '').replace('.', '').replace(',', '.')
+                value = Decimal(cleaned_value)
+            elif field == 'banco_llegada':
+                value = get_object_or_404(Bank, pk=value)
+            elif field == 'origen_transaccion':
+                value = get_object_or_404(OrigenTransaccion, pk=value)
+            elif field == 'payment_status':
+                if value not in [k for k, v in FinancialRecord.APROVED_CHOICES]:
+                    raise ValueError('Estado de pago no válido.')
+        except (ValueError, InvalidOperation, Bank.DoesNotExist, OrigenTransaccion.DoesNotExist) as e:
+            return JsonResponse({'success': False, 'message': f'Valor no válido para {field}: {str(e)}'}, status=400)
+        
+        # --- Actualizar, guardar y devolver respuesta ---
+        setattr(credit, field, value)
+        credit.save()
+
+        return JsonResponse({'success': True, 'message': f'Campo "{field}" actualizado correctamente.'})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Error en el formato de la solicitud (JSON).'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error inesperado: {str(e)}'}, status=500)
 
 
 @require_POST
