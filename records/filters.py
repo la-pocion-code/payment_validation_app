@@ -82,9 +82,8 @@ class TransactionFilter(django_filters.FilterSet):
         widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
     )
     cliente = django_filters.CharFilter(
-        field_name='cliente__name',
-        lookup_expr='icontains',
-        label='Cliente'
+        method='filter_by_client_name_or_dni',
+        label='Cliente (Nombre o ID)'
     )
     vendedor = django_filters.CharFilter(
         field_name='vendedor__name',
@@ -133,6 +132,11 @@ class TransactionFilter(django_filters.FilterSet):
 
         # If no value is selected, return the queryset without changes.
         return queryset
+
+    def filter_by_client_name_or_dni(self, queryset, name, value):
+        return queryset.filter(
+            Q(cliente__name__icontains=value) | Q(cliente__dni__icontains=value)
+        ).distinct()
 
     
     class Meta:
