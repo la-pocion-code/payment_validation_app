@@ -234,7 +234,7 @@ class FinancialRecord(models.Model):
         null=True,
         blank=True,
         related_name='related_credit_note_pair',
-        help_text='Vincula esta nota de crédito con su contraparte (positiva o negativa).'
+        help_text='Vincula este saldo a favor con su contraparte (positiva o negativa).'
     )
 
 

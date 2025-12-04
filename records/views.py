@@ -2052,7 +2052,7 @@ def update_credit_status(request, pk):
 @group_required('Admin', 'Digitador')
 def create_credit_note_from_surplus(request, pk):
     """
-    Crea una nota de crédito a partir del excedente de una transacción.
+    Genera un saldo a favor a partir del excedente de una transacción.
     Implementa una lógica de doble entrada:
     1. Crea un `FinancialRecord` positivo (saldo a favor) sin transacción asignada.
     2. Crea un `FinancialRecord` negativo (ajuste) DENTRO de la transacción actual para balancearla.
@@ -2064,15 +2064,15 @@ def create_credit_note_from_surplus(request, pk):
         # 1. Calcular la diferencia y asegurarse de que haya un excedente.
         surplus = -transaction_obj.difference
         if surplus <= 0:
-            messages.error(request, "No hay un excedente en esta transacción para generar una nota de crédito.")
+            messages.error(request, "No hay un excedente en esta transacción para generar un saldo a favor.")
             return redirect('transaction_update', pk=transaction_obj.pk)
 
         # 2. Iniciar una transacción atómica para garantizar la integridad.
         with transaction.atomic():
-            # 2.1. Obtener o crear el Banco y Origen por defecto para las Notas de Crédito.
+            # 2.1. Obtener o crear el Banco y Origen por defecto para los Saldos a Favor.
             # Esto evita el error "NOT NULL constraint failed".
-            credit_note_bank, _ = Bank.objects.get_or_create(name="NOTA DE CREDITO")
-            credit_note_origin, _ = OrigenTransaccion.objects.get_or_create(name="NOTA DE CREDITO")
+            saldo_favor_bank, _ = Bank.objects.get_or_create(name="SALDO A FAVOR")
+            saldo_favor_origin, _ = OrigenTransaccion.objects.get_or_create(name="SALDO A FAVOR")
 
             # 2.1. Crear el SALDO A FAVOR (positivo, sin transacción)
             # Este es el abono que el cliente podrá usar en el futuro.
@@ -2080,9 +2080,9 @@ def create_credit_note_from_surplus(request, pk):
                 cliente=transaction_obj.cliente,
                 fecha=timezone.now().date(),
                 hora=timezone.now().time(),
-                banco_llegada=credit_note_bank,
-                origen_transaccion=credit_note_origin,
-                comprobante=f"NC-FAVOR-{transaction_obj.unique_transaction_id}",
+                banco_llegada=saldo_favor_bank,
+                origen_transaccion=saldo_favor_origin,
+                comprobante=f"SF-FAVOR-{transaction_obj.unique_transaction_id}",
                 valor=surplus,
                 payment_status='Aprobado',
                 uploaded_by=request.user,
@@ -2096,9 +2096,9 @@ def create_credit_note_from_surplus(request, pk):
                 cliente=transaction_obj.cliente,
                 fecha=timezone.now().date(),
                 hora=timezone.now().time(),
-                banco_llegada=credit_note_bank,
-                origen_transaccion=credit_note_origin,
-                comprobante=f"NC-AJUSTE-{transaction_obj.unique_transaction_id}",
+                banco_llegada=saldo_favor_bank,
+                origen_transaccion=saldo_favor_origin,
+                comprobante=f"SF-AJUSTE-{transaction_obj.unique_transaction_id}",
                 valor=-surplus, # CLAVE: Valor negativo.
                 payment_status='Aprobado',
                 uploaded_by=request.user,
@@ -2114,7 +2114,7 @@ def create_credit_note_from_surplus(request, pk):
 
         messages.success(
             request, 
-            f"Nota de crédito por valor de ${surplus:,.2f} generada exitosamente. La transacción ha sido balanceada."
+            f"Saldo a favor por valor de ${surplus:,.2f} generado exitosamente. La transacción ha sido balanceada."
         )
         return redirect('transaction_update', pk=transaction_obj.pk)
 
@@ -2134,17 +2134,17 @@ class FinancialRecordFormSet(inlineformset_factory(Transaction, FinancialRecord,
             if not form.is_valid():
                 continue
 
-            # Lógica para impedir la eliminación de una nota de crédito en uso.
+            # Lógica para impedir la eliminación de un ajuste de saldo a favor en uso.
             if form.cleaned_data.get('DELETE', False):
                 instance = form.instance
-                # Verificamos si es una nota de crédito de ajuste (valor negativo y vinculada)
+                # Verificamos si es un ajuste de saldo a favor (valor negativo y vinculado)
                 if instance.pk and instance.valor < 0 and instance.linked_credit_note:
-                    # Verificamos si su contraparte positiva ya fue usada en otra transacción.
+                    # Verificamos si su contraparte positiva (el saldo a favor) ya fue usada en otra transacción.
                     if instance.linked_credit_note.transaction is not None:
                         # Si ya fue usada, no se puede eliminar.
                         form.add_error(
                             None, # Error no asociado a un campo específico del formulario.
-                            f"No se puede eliminar el ajuste '{instance.comprobante}' porque su nota de crédito correspondiente "
+                            f"No se puede eliminar el ajuste '{instance.comprobante}' porque el saldo a favor correspondiente "
                             f"ya fue aplicada en la transacción {instance.linked_credit_note.transaction.unique_transaction_id}."
                         )
 

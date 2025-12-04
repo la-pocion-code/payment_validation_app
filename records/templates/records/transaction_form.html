@@ -38,7 +38,7 @@
             <span>
                 <strong>¡Pago en Exceso!</strong> Hay un excedente de <strong>${{ difference|floatformat:2|intcomma }}</strong> en esta transacción.
             </span>
-            <form action="{% url 'create_credit_note_from_surplus' transaction.pk %}" method="post" onsubmit="return confirm('¿Estás seguro de que deseas generar una nota de crédito por el excedente? Esta acción creará un nuevo recibo de ajuste en esta transacción y un saldo a favor para el cliente.');">
+            <form action="{% url 'create_credit_note_from_surplus' transaction.pk %}" method="post" onsubmit="return confirm('¿Estás seguro de que deseas generar un saldo a favor por el excedente? Esta acción creará un nuevo recibo de ajuste en esta transacción y un saldo a favor para el cliente.');">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary">Generar Saldo a Favor</button>
             </form>
