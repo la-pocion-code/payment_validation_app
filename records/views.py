@@ -1000,7 +1000,9 @@ class TransactionListView(LoginRequiredMixin, FilterView):
         """
         queryset = super().get_queryset()
         user = self.request.user
-
+        
+        # Aseguramos que solo se muestren transacciones pendientes como requisito global.
+        queryset = queryset.filter(status='Pendiente')
         # Lógica específica para el rol 'Facturador'
         if user.groups.filter(name='Facturador').exists() and not user.is_superuser:
             queryset = queryset.annotate(
@@ -1010,11 +1012,11 @@ class TransactionListView(LoginRequiredMixin, FilterView):
 
         # Lógica de filtrado por defecto si no se están usando los filtros
         # `self.request.GET` contendrá los parámetros de filtro si el usuario los usa.
-        elif not self.request.GET:
-            queryset = queryset.filter(
-                Q(status='Pendiente') | 
-                Q(receipts__payment_status__in=['Pendiente', 'Rechazado'])
-            ).distinct()
+        # elif not self.request.GET:
+        #     queryset = queryset.filter(
+        #         Q(status='Pendiente') | 
+        #         Q(receipts__payment_status__in=['Pendiente', 'Rechazado'])
+        #     ).distinct()
 
         # Devolvemos el queryset con optimización y orden
         return queryset.prefetch_related('receipts').order_by('-id')
