@@ -1103,11 +1103,10 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
         if transaction.cliente:
             available_credits = FinancialRecord.objects.filter(
                 cliente=transaction.cliente,
-                payment_status='Aprobado',
+                payment_status__in=['Aprobado', 'Pendiente'],
                 transaction__isnull=True
             )
         context['available_credits'] = available_credits
-
 
         if self.request.POST:
             context['formset'] = FinancialRecordInlineFormSet(self.request.POST, instance=self.object, form_kwargs={'request': self.request})
@@ -1882,7 +1881,7 @@ def get_available_credits(request):
         try:
             credits = FinancialRecord.objects.filter(
                 cliente_id=client_id,
-                payment_status='Aprobado',
+                payment_status__in=['Aprobado', 'Pendiente'],
                 transaction__isnull=True
             )
         except (ValueError, TypeError):

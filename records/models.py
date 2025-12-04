@@ -43,7 +43,7 @@ class Client(models.Model):
         3. No están asociados a ninguna transacción (transaction is NULL).
         """
         total = self.financialrecord_set.filter(
-            payment_status='Aprobado',
+            payment_status__in=['Aprobado', 'Pendiente'],
             transaction__isnull=True
         ).aggregate(
             total_balance=Sum('valor')
