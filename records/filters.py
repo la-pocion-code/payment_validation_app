@@ -1,5 +1,5 @@
 import django_filters
-from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client
+from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client, OrigenTransaccion
 from django.contrib.auth.models import User
 from django import forms
 from django.db.models import Q
@@ -85,6 +85,12 @@ class TransactionFilter(django_filters.FilterSet):
         method='filter_by_client_name_or_dni',
         label='Cliente (Nombre o ID)'
     )
+
+    def filter_by_client_name_or_dni(self, queryset, name, value):
+        return queryset.filter(
+            Q(cliente__name__icontains=value) | Q(cliente__dni__icontains=value)
+        ).distinct()
+
     vendedor = django_filters.CharFilter(
         field_name='vendedor__name',
         lookup_expr='icontains',
@@ -132,17 +138,18 @@ class TransactionFilter(django_filters.FilterSet):
 
         # If no value is selected, return the queryset without changes.
         return queryset
-
-    def filter_by_client_name_or_dni(self, queryset, name, value):
-        return queryset.filter(
-            Q(cliente__name__icontains=value) | Q(cliente__dni__icontains=value)
-        ).distinct()
-
     
+    origen_transaccion = django_filters.ModelChoiceFilter(
+        field_name='receipts__origen_transaccion',
+        queryset=OrigenTransaccion.objects.all(),
+        label='Origen Transacción'
+    )
+
     class Meta:
         model = Transaction
-        fields = ['unique_transaction_id', 'date__gte', 'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status', 'valor','transaction_type', 'receipt_status']
-
+        fields = ['unique_transaction_id', 'date__gte', 
+                  'date__lte', 'cliente', 'vendedor', 'facturador', 'numero_factura', 'status',
+                    'valor','transaction_type', 'receipt_status', 'origen_transaccion']
 
 
 
@@ -210,9 +217,24 @@ class CreditFilter(django_filters.FilterSet):
             Q(transaction__cliente__name__icontains=value) | Q(transaction__cliente__dni__icontains=value)
         ).distinct()
 
+    vendedor = django_filters.CharFilter(
+        field_name='transaction__vendedor__name',
+        lookup_expr='icontains',
+        label='Vendedor',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del vendedor...'})
+    )
+
+    facturador = django_filters.CharFilter(
+        field_name='transaction__facturador', 
+        lookup_expr='icontains',
+        label='Facturador',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del facturador...'})
+    )
+
     class Meta:
         model = FinancialRecord
-        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'banco_llegada', 'payment_status', 'display_client', 'valor', 'uploaded_by']
+        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'banco_llegada', 'payment_status', 
+                  'display_client', 'valor', 'uploaded_by', 'vendedor', 'facturador']
 
 
 class ClientFilter(django_filters.FilterSet):
