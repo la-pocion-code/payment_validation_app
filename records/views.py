@@ -1135,13 +1135,17 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
             with transaction.atomic():
                 self.object = form.save(commit=False)
 
-                # 🔹 Asegurar que facturador siempre sea texto válido
-                if not self.object.facturador:  
-                    # Si el campo viene vacío, lo llenamos con el username del usuario actual
+                # ------------------- INICIO: Nueva lógica para asignar facturador -------------------
+                # Verificamos si el estado cambió a 'Facturado' o si se añadió un número de factura.
+                # 'form.changed_data' nos dice qué campos del formulario han cambiado.
+                
+                status_changed_to_billed = 'status' in form.changed_data and form.cleaned_data.get('status') == 'Facturado'
+                invoice_number_added = 'numero_factura' in form.changed_data and form.cleaned_data.get('numero_factura')
+
+                # Si se cumple alguna de las condiciones, el usuario actual es el facturador.
+                if status_changed_to_billed or invoice_number_added:
                     self.object.facturador = self.request.user.username
-                elif hasattr(self.object.facturador, 'username'):
-                    # Si por alguna razón facturador es un objeto User
-                    self.object.facturador = self.object.facturador.username
+                # -------------------- FIN: Nueva lógica para asignar facturador ---------------------
 
                 self.object.save()
 
