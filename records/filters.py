@@ -1,5 +1,5 @@
 import django_filters
-from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client, OrigenTransaccion
+from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client, OrigenTransaccion, Seller
 from django.contrib.auth.models import User
 from django import forms
 from django.db.models import Q
@@ -217,18 +217,18 @@ class CreditFilter(django_filters.FilterSet):
             Q(transaction__cliente__name__icontains=value) | Q(transaction__cliente__dni__icontains=value)
         ).distinct()
 
-    vendedor = django_filters.CharFilter(
-        field_name='transaction__vendedor__name',
-        lookup_expr='icontains',
+    vendedor = django_filters.ModelChoiceFilter(
+        field_name='transaction__vendedor',
+        queryset=Seller.objects.all(),
         label='Vendedor',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del vendedor...'})
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
 
-    facturador = django_filters.CharFilter(
-        field_name='transaction__facturador', 
-        lookup_expr='icontains',
+    facturador = django_filters.ChoiceFilter(
+        field_name='transaction__facturador',
+        choices=lambda:  list(Transaction.objects.exclude(facturador__isnull=True).exclude(facturador__exact='').values_list('facturador', 'facturador').distinct().order_by('facturador')),
         label='Facturador',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del facturador...'})
+        widget=forms.Select(attrs={'class': 'form-select'})
     )
 
     class Meta:
