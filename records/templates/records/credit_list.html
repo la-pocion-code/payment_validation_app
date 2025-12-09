@@ -101,10 +101,10 @@
                             <th>Comprobante</th>
                             <th>Banco Llegada</th>
                             <th>Valor</th>
-                            <th>Fecha Efectiva</th>
                             <th>Estado Recibo</th>
                             <th>Estado transacción</th>
                             <th>Subido por</th>
+                            <th>Subido el</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -118,10 +118,6 @@
                             <td>{{ credit.comprobante }}</td>
                             <td>{{ credit.banco_llegada.name }}</td>
                             <td>${{ credit.valor|intcomma }}</td>
-                            <td>
-                                {# Usamos la propiedad del modelo que acabamos de crear #}
-                                <small class="text-info">{{ credit.effective_date_message }}</small>
-                            </td>
                             <td>
                                 {% if user.is_superuser or 'Validador' in user_groups %}
                                     <select name="payment_status"
@@ -149,6 +145,7 @@
                                 </span> 
                             </td>
                             <td>{{ credit.uploaded_by.username|default:"Sistema" }}</td>
+                            <td>{{ credit.creado|date:"d/m/Y H:i:s"}}</td>
                         </tr>
                         {% empty %}
                         <tr>
