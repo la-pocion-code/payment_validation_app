@@ -18,7 +18,7 @@ from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter, CreditFilter, ClientFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
-from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm, ClientForm, CreditForm
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm, ClientForm, CreditForm, NoteUpdateForm
 from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType, Client
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
@@ -327,6 +327,9 @@ class CreditDetailView(LoginRequiredMixin, DetailView): # Añadido decorador de 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
+        if 'note_form' not in kwargs:
+            context['note_form'] = NoteUpdateForm(instance=self.object)
+        
         # Historial de cambios para el FinancialRecord (abono)
         history = self.object.history.all()
         for h in history:
@@ -343,9 +346,21 @@ class CreditDetailView(LoginRequiredMixin, DetailView): # Añadido decorador de 
         if self.request.user.is_superuser:
             context['banks'] = Bank.objects.all()
             context['origenes'] = OrigenTransaccion.objects.all()
-            context['clients'] = Client.objects.all().order_by('name') # <-- AÑADIR ESTA LÍNEA
+            context['clients'] = Client.objects.all().order_by('name')
         
         return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        note_form = NoteUpdateForm(request.POST, instance=self.object)
+
+        if note_form.is_valid():
+            note_form.save()
+            messages.success(request, 'Nota actualizada correctamente.')
+            return redirect('credit_detail', pk=self.object.pk)
+        else:
+            context = self.get_context_data(note_form=note_form)
+            return self.render_to_response(context)
 
 @method_decorator(group_required('Admin'), name='dispatch')
 class BankCreateView(LoginRequiredMixin, CreateView):

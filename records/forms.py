@@ -203,12 +203,14 @@ class CreditForm(FinancialRecordForm):
             'banco_llegada', 
             'valor',
             'payment_status',
+            'note',
         ]
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
-            'cliente': forms.HiddenInput(), # <-- AÑADIR ESTA LÍNEA
-            'payment_status': forms.HiddenInput(), # Ocultamos el estado
+            'cliente': forms.HiddenInput(),
+            'payment_status': forms.HiddenInput(),
+            'note': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Añada una nota sobre el abono...'}),
         }
 
     # Campo visible para la búsqueda y autocompletado del cliente
@@ -512,4 +514,15 @@ class TransactionTypeForm(forms.ModelForm):
         labels = {
             'name' : 'Tipo de Transacción'
         
+        }
+
+class NoteUpdateForm(forms.ModelForm):
+    class Meta:
+        model = FinancialRecord
+        fields = ['note']
+        widgets = {
+            'note': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+        }
+        labels = {
+            'note': ''  # Opcional: Ocultar la etiqueta si el contexto es claro
         }

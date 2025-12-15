@@ -214,6 +214,7 @@ class FinancialRecord(models.Model):
     origen_transaccion = models.ForeignKey('OrigenTransaccion', on_delete=models.PROTECT, verbose_name="Origen de Transacción")
     valor = models.DecimalField(max_digits=12, decimal_places=2)
     payment_status = models.CharField(max_length=20, choices=APROVED_CHOICES, default='Pendiente', verbose_name="Estado de pago")
+    note = models.TextField(max_length=200, verbose_name="Nota", blank=True, null=True)
     transaction = models.ForeignKey(
         'Transaction', 
         on_delete=models.SET_NULL, 

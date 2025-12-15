@@ -30,6 +30,7 @@
                             <th>Valor</th>
                             <th>Origen Transacción</th>                  
                             <th>Estado</th>
+                        
                         </tr>
                     </thead>
                     <tbody>
@@ -115,6 +116,20 @@
             </div>
         </div>
     </div>
+
+    <div class="card mt-4 mb-4">
+        <div class="card-header">
+            <h5>Nota</h5>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                {{ note_form.note }}
+                <button type="submit" class="btn btn-primary mt-2">Guardar Nota</button>
+            </form>
+        </div>
+    </div>
+  
 
     <h3>Historial de Cambios del Abono</h3>
     {% if history %}

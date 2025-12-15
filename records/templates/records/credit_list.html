@@ -101,6 +101,7 @@
                             <th>Comprobante</th>
                             <th>Banco Llegada</th>
                             <th>Valor</th>
+                            <th>Nota</th>
                             <th>Estado Recibo</th>
                             <th>Estado transacción</th>
                             <th>Subido por</th>
@@ -118,6 +119,9 @@
                             <td>{{ credit.comprobante }}</td>
                             <td>{{ credit.banco_llegada.name }}</td>
                             <td>${{ credit.valor|intcomma }}</td>
+                            <td title="{{ credit.note|default:'' }}">
+                                {{ credit.note|truncatechars:20|default:"-" }}
+                            </td>
                             <td>
                                 {% if user.is_superuser or 'Validador' in user_groups %}
                                     <select name="payment_status"
@@ -149,8 +153,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="9" class="text-center">No se encontraron abonos con los filtros seleccionados.</td>
-                            <td colspan="10" class="text-center">No se encontraron abonos con los filtros seleccionados.</td>
+                            <td colspan="13" class="text-center">No se encontraron abonos con los filtros seleccionados.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

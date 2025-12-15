@@ -102,6 +102,18 @@
                     </div>
                 </div>
 
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label for="{{ form.note.id_for_label }}" class="form-label">{{ form.note.label|default:"Nota" }}</label>
+                        {{ form.note }}
+                        {% if form.note.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.note.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
                 {# --- 2. Lógica para el Checkbox de Confirmación (POSIBLE DUPLICADO) --- #}
                 {# Esta es la sección que muestra el checkbox cuando la vista lo indica. #}
                 {% if show_confirm_duplicate %}
@@ -183,7 +195,7 @@ $(document).ready(function() {
     const creditForm = document.getElementById('credit-form');
 
     // Aplicar estilos de Bootstrap a todos los inputs/selects generados por Django
-    $('input, select').not('[type=hidden], [type=checkbox], [type=radio]').addClass('form-control');
+    $('input, select, textarea').not('[type=hidden], [type=checkbox], [type=radio]').addClass('form-control');
     
     // A. Configuración inicial del campo valor
     if (valorInput) {
