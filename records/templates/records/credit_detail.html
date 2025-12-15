@@ -22,6 +22,7 @@
                 <table class="table table-striped table-hover">
                     <thead class="table-light">
                         <tr>
+                            <th>Cliente</th>
                             <th>Fecha de Recibo</th>
                             <th>Hora</th>
                             <th>Comprobante</th>
@@ -34,7 +35,24 @@
                     <tbody>
                         <tr>
                             {% if user.is_superuser %}
-                                <td class="editable-cell" contenteditable="true" data-credit-id="{{ credit.pk }}" data-field="fecha">{{ credit.fecha|date:"d/m/Y" }}</td>
+                                <td {% if credit.transaction %}
+                                        data-bs-toggle="tooltip"
+                                        title="No se puede cambiar el cliente de un recibo asociado a una transacción."
+                                    {% endif %}>
+                                    {% if credit.transaction %}
+                                        <span class="text-muted">{{ credit.display_client }}</span>
+                                    {% else %}
+                                        <input type="text"
+                                            id="client-autocomplete"
+                                            class="form-control"
+                                            value="{{ credit.display_client.name|default:'SIN ASIGNAR' }}"
+                                            data-credit-id="{{ credit.pk }}">
+
+                                        <!-- Campo oculto para guardar el ID del cliente seleccionado -->
+                                        <input type="hidden" id="selected-client-id" value="{{ credit.display_client.pk|default:'' }}">
+                                    {% endif %}
+                                </td>
+                              <td class="editable-cell" contenteditable="true" data-credit-id="{{ credit.pk }}" data-field="fecha">{{ credit.fecha|date:"d/m/Y" }}</td>
                                 <td class="editable-cell" contenteditable="true" data-credit-id="{{ credit.pk }}" data-field="hora">{{ credit.hora|time:"H:i:s" }}</td>
                                 <td class="editable-cell" contenteditable="true" data-credit-id="{{ credit.pk }}" data-field="comprobante">{{ credit.comprobante }}</td>
                                 <td>
@@ -163,21 +181,26 @@
 {% if user.is_superuser or 'Validador' in user_groups %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
     const feedbackContainer = document.getElementById('feedback-container');
 
     function showFeedback(message, isSuccess) {
         const feedbackDiv = document.createElement('div');
         feedbackDiv.textContent = message;
-        feedbackDiv.className = isSuccess ? 'feedback-message feedback-success' : 'feedback-message feedback-error';
-        feedbackContainer.innerHTML = ''; // Limpiar mensajes anteriores
+        feedbackDiv.className = isSuccess
+            ? 'feedback-message feedback-success'
+            : 'feedback-message feedback-error';
+
+        feedbackContainer.innerHTML = '';
         feedbackContainer.appendChild(feedbackDiv);
-        setTimeout(() => feedbackDiv.remove(), 4000); // El mensaje desaparece después de 4 segundos
+
+        setTimeout(() => feedbackDiv.remove(), 4000);
     }
 
     function handleUpdate(creditId, field, value, element) {
         const url = `/records/credit/${creditId}/update_field/`;
-        
+
         showFeedback(`Guardando cambio en "${element.dataset.field}"...`, true);
 
         fetch(url, {
@@ -193,6 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 showFeedback(data.message || `Campo "${field}" actualizado correctamente.`, true);
+
                 if (field === 'payment_status') {
                     element.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'text-dark');
                     if (value === 'Aprobado') element.classList.add('bg-success');
@@ -201,40 +225,114 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 showFeedback(data.message || `Error al actualizar "${field}".`, false);
-                // Opcional: revertir el cambio en el frontend si falla la actualización
-                // location.reload(); 
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            showFeedback('Error de red al intentar actualizar. Revisa la consola para más detalles.', false);
+            showFeedback('Error de red al intentar actualizar.', false);
         });
     }
 
-    // Para campos <select>
-    document.querySelectorAll('.editable-field').forEach(selectElement => {
-        selectElement.addEventListener('change', function(event) {
-            const creditId = this.dataset.creditId;
-            const field = this.dataset.field;
-            const value = this.value;
-            handleUpdate(creditId, field, value, this);
+    function handleClientUpdate(creditId, clientId) {
+    // CORRECCIÓN: La URL correcta no lleva el prefijo '/records/'
+        const url = `/credit/${creditId}/update_client/`; 
+    
+        showFeedback(`Reasignando recibo...`, true);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ client_id: clientId })
+        })
+        .then(response => {
+            if (!response.ok) {
+                // Si la respuesta no es 2xx, la convertimos en un error para que la capture el .catch
+                return response.json().then(err => { throw err; });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                showFeedback(data.message, true);
+
+                const clientInfoDiv = document.querySelector('.detail-section');
+                if (clientInfoDiv) {
+                    clientInfoDiv.querySelector('p:nth-of-type(1)').innerHTML = `<strong>Nombre:</strong> ${`data.new_client_name`}`;
+                    clientInfoDiv.querySelector('p:nth-of-type(2)').innerHTML = `<strong>DNI:</strong> ${`data.new_client_dni`}`;
+                    clientInfoDiv.querySelector('p:nth-of-type(3)').innerHTML = `<strong>Saldo a Favor:</strong> $${`data.new_client_balance`}`;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Usamos el mensaje de error del servidor si está disponible
+            const errorMessage = error.message || 'Error de red al intentar reasignar el cliente.';
+            showFeedback(errorMessage, false);
+            setTimeout(() => location.reload(), 2000); 
+        });
+    }
+
+    // Selects editables
+    document.querySelectorAll('.editable-field').forEach(select => {
+        select.addEventListener('change', function() {
+            handleUpdate(this.dataset.creditId, this.dataset.field, this.value, this);
         });
     });
 
-    // Para celdas contenteditable
+    // Celdas contenteditable
     document.querySelectorAll('.editable-cell').forEach(cell => {
         let originalValue = cell.textContent.trim();
         cell.addEventListener('blur', function() {
             const currentValue = this.textContent.trim();
             if (originalValue !== currentValue) {
-                const creditId = this.dataset.creditId;
-                const field = this.dataset.field;
-                handleUpdate(creditId, field, currentValue, this);
-                originalValue = currentValue; // Actualizar el valor original para la próxima edición
+                handleUpdate(this.dataset.creditId, this.dataset.field, currentValue, this);
+                originalValue = currentValue;
             }
         });
     });
+
+    // Select cliente
+    const clientSelect = document.getElementById('client-select');
+    if (clientSelect) {
+        clientSelect.addEventListener('change', function() {
+            handleClientUpdate(this.dataset.creditId, this.value);
+        });
+    }
+    // Inicializar el widget de autocompletado de jQuery UI
+    $('#client-autocomplete').autocomplete({
+        source: "{% url 'client_search_ajax' %}", // URL de la vista de búsqueda
+        minLength: 2, // Empezar a buscar después de 2 caracteres
+        select: function(event, ui) {
+            event.preventDefault(); // Prevenir el comportamiento por defecto
+
+            // 1. Poner el nombre del cliente en el campo visible
+            this.value = ui.item.label.split(' (')[0]; // Extrae solo el nombre
+
+            // 2. Guardar el ID del cliente en el campo oculto
+            $('#selected-client-id').val(ui.item.id);
+
+            // 3. Obtener el ID del crédito desde el atributo data-*
+            const creditId = $(this).data('credit-id');
+
+            // 4. Llamar a nuestra función para actualizar el cliente en el backend
+            handleClientUpdate(creditId, ui.item.id);
+        },
+        // Opcional: Si el usuario borra el campo, limpiar el ID oculto
+        change: function(event, ui) {
+            if (!ui.item) {
+                this.value = '';
+                $('#selected-client-id').val('');
+            }
+        }
+    });
 });
+
+
 </script>
+
 {% endif %}
 {% endblock %}

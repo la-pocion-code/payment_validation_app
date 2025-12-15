@@ -343,6 +343,7 @@ class CreditDetailView(LoginRequiredMixin, DetailView): # Añadido decorador de 
         if self.request.user.is_superuser:
             context['banks'] = Bank.objects.all()
             context['origenes'] = OrigenTransaccion.objects.all()
+            context['clients'] = Client.objects.all().order_by('name') # <-- AÑADIR ESTA LÍNEA
         
         return context
 
@@ -2198,3 +2199,44 @@ def export_credits_csv(request):
 
     # 6. Devolvemos la respuesta.
     return response
+
+
+@require_POST
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def update_credit_client(request, pk):
+    """
+    Vista AJAX para actualizar el cliente de un abono (FinancialRecord).
+    """
+    try:
+        credit = get_object_or_404(FinancialRecord, pk=pk)
+        data = json.loads(request.body)
+        client_id = data.get('client_id')
+
+        # Verificación CRUCIAL: No cambiar el cliente si el recibo está en una transacción.
+        if credit.transaction is not None:
+            return JsonResponse({
+                'success': False, 
+                'message': 'No se puede cambiar el cliente de un recibo que ya está asociado a una transacción.'
+            }, status=400)
+
+        new_client = get_object_or_404(Client, pk=client_id)
+        
+        credit.cliente = new_client
+        credit.save()
+
+        return JsonResponse({
+            'success': True, 
+            'message': f'El recibo ha sido reasignado a {new_client.name}.',
+            'new_client_name': new_client.name,
+            'new_client_dni': new_client.dni,
+            'new_client_balance': f'{new_client.available_balance:,.2f}'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Error en el formato de la solicitud.'}, status=400)
+    except Client.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'El cliente seleccionado no existe.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error inesperado: {str(e)}'}, status=500)
+
