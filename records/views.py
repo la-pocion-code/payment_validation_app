@@ -290,7 +290,7 @@ class CreditCreateView(LoginRequiredMixin, CreateView):
         
         return self.render_to_response(self.get_context_data(form=form))
 
-@method_decorator(group_required('Admin', 'Digitador', 'Validador', 'Contabilidad'), name='dispatch')
+@method_decorator(group_required('Admin', 'Digitador', 'Validador', 'Contabilidad', 'Facturador'), name='dispatch')
 class CreditListView(LoginRequiredMixin, FilterView):
     model = FinancialRecord
     template_name = 'records/credit_list.html'

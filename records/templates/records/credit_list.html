@@ -95,6 +95,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Transacción ID</th>
+                            <th>Tipo Transacción</th>
                             <th>Cliente</th>
                             <th>Fecha Registro</th>
                             <th>Hora</th>
@@ -113,6 +114,7 @@
                         <tr onclick="window.location='{% url 'credit_detail' credit.pk %}'" style="cursor:pointer;">
                             <td>{{ credit.id }}</td>
                             <td>{{ credit.transaction.unique_transaction_id}}</td>
+                            <td>{{ credit.transaction.transaction_type }}</td>
                             <td>{{ credit.display_client }}</td>
                             <td>{{ credit.fecha|date:"d/m/Y" }}</td> {# Cambié creado por fecha para coincidir con el filtro #}
                             <td>{{ credit.hora|time:"H:i:s" }}</td>
