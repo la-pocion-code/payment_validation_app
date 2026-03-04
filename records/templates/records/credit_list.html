@@ -1,286 +1,343 @@
-{% extends "records/base.html" %}
-{% load humanize %}
-{% load static %}
-{% block title %}{{ title }}{% endblock %}
+{% extends "records/base.html" %} {% load humanize %} {% load static %} 
+{% block title %}{{ title }}{% endblock %} {% block content %}
 
-{% block content %}
 <div class="container-fluid mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3>{{ title }}</h3>
-        <div>
-            {% if user.is_superuser %}
-            <a href="{% url 'csv_upload' %}" class="btn btn-warning">
-                <i class="fas fa-upload"></i> Cargar Archivo
-            </a> 
-            {% endif %}
-            {% if user.is_superuser or "Digitador" in user_groups %}
-            <a href="{% url 'credit_create' %}" class="btn btn-success">
-                <i class="fas fa-plus"></i> Nuevo Abono
-            </a>
-            {% endif %}
-        </div>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>{{ title }}</h3>
+    <div>
+      {% if user.is_superuser %}
+      <a href="{% url 'csv_upload' %}" class="btn btn-warning">
+        <i class="fas fa-upload"></i> Cargar Archivo
+      </a>
+      {% endif %} {% if user.is_superuser or "Digitador" in user_groups %}
+      <a href="{% url 'credit_create' %}" class="btn btn-success">
+        <i class="fas fa-plus"></i> Nuevo Abono
+      </a>
+      {% endif %}
     </div>
+  </div>
 
-    {# --- SECCIÓN DE FILTROS --- #}
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="get" action="">
-                <div class="row g-2 align-items-end mb-3">
-                    <div class="filter-field">
-                        <label class="form-label">Fecha Desde</label>
-                        {{ filter.form.fecha__gte }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Fecha Hasta</label>
-                        {{ filter.form.fecha__lte }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Cliente</label>
-                        {{ filter.form.display_client }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Comprobante</label>
-                        {{ filter.form.comprobante }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Banco</label>
-                        {{ filter.form.banco_llegada }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Estado</label>
-                        {{ filter.form.payment_status }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Valor</label>
-                        {{ filter.form.valor }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Subido por</label>
-                        {{ filter.form.uploaded_by }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Vendedor</label>
-                        {{ filter.form.vendedor }}
-                    </div>
-                    <div class="filter-field">
-                        <label class="form-label">Facturador</label>
-                        {{ filter.form.facturador }}
-                    </div>
-                    
-                </div>
-                
-                <div class="d-flex justify-content-end gap-2">
-                    <button type="submit" class="btn btn-primary" title="Filtrar">
-                        <i class="fas fa-filter"></i> Filtrar
-                    </button>
-                    <a href="{% url 'credit_list' %}" class="btn btn-secondary" title="Limpiar Filtros">
-                        Limpiar
-                    </a>
-                    {% if user.is_superuser or 'Validador' in user_groups or 'Contabilidad' in user_groups %}
-                    <a href="{% url 'export_credits_csv' %}?{{ request.GET.urlencode }}" class="btn btn-info" title="Exportar a CSV">
-                        Exportar
-                    </a>
-                    {% endif %}
-                </div>
-            </form>
+  {# --- SECCIÓN DE FILTROS --- #}
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" action="">
+        <div class="row g-2 align-items-end mb-3">
+          <div class="filter-field">
+            <label class="form-label">Fecha Desde</label>
+            {{ filter.form.fecha__gte }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Fecha Hasta</label>
+            {{ filter.form.fecha__lte }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Cliente</label>
+            {{ filter.form.display_client }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Comprobante</label>
+            {{ filter.form.comprobante }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Banco</label>
+            {{ filter.form.banco_llegada }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Estado</label>
+            {{ filter.form.payment_status }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Valor</label>
+            {{ filter.form.valor }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Subido por</label>
+            {{ filter.form.uploaded_by }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Vendedor</label>
+            {{ filter.form.vendedor }}
+          </div>
+          <div class="filter-field">
+            <label class="form-label">Facturador</label>
+            {{ filter.form.facturador }}
+          </div>
         </div>
-    </div>
-    {# --- FIN SECCIÓN DE FILTROS --- #}
 
-    <div class="card">
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>ID</th>
-                            <th>Transacción ID</th>
-                            <th>Tipo Transacción</th>
-                            <th>Cliente</th>
-                            <th>Fecha Registro</th>
-                            <th>Hora</th>
-                            <th>Comprobante</th>
-                            <th>Banco Llegada</th>
-                            <th>Valor</th>
-                            <th>Nota</th>
-                            <th>Estado Recibo</th>
-                            <th>Estado transacción</th>
-                            <th>Subido por</th>
-                            <th>Subido el</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for credit in credits %}
-                        <tr onclick="window.location='{% url 'credit_detail' credit.pk %}'" style="cursor:pointer;">
-                            <td>{{ credit.id }}</td>
-                            <td>{{ credit.transaction.unique_transaction_id}}</td>
-                            <td>{{ credit.transaction.transaction_type }}</td>
-                            <td>{{ credit.display_client }}</td>
-                            <td>{{ credit.fecha|date:"d/m/Y" }}</td> {# Cambié creado por fecha para coincidir con el filtro #}
-                            <td>{{ credit.hora|time:"H:i:s" }}</td>
-                            <td>{{ credit.comprobante }}</td>
-                            <td>{{ credit.banco_llegada.name }}</td>
-                            <td>${{ credit.valor|intcomma }}</td>
-                            <td title="{{ credit.note|default:'' }}">
-                                {{ credit.note|truncatechars:20|default:"-" }}
-                            </td>
-                            <td>
-                                {% if user.is_superuser or 'Validador' in user_groups %}
-                                    <select name="payment_status"
-                                            class="form-select badge-select status-select"
-                                            data-update-url="{% url 'update_credit_status' credit.pk %}"
-                                            data-client="{{ credit.display_client }}"
-                                            data-value="{{ credit.valor|intcomma }}"
-                                            data-receipt="{{ credit.comprobante }}"
-                                            onclick="event.stopPropagation();">
-                                        {% for status_key, status_value in credit.APROVED_CHOICES %}
-                                            <option value="{{ status_key }}" {% if credit.payment_status == status_key %}selected{% endif %}>
-                                                {{ status_value }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                {% else %}
-                                    <span class="badge {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
-                                        {{ credit.payment_status }}
-                                    </span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <span class="badge {% if credit.transaction.status == 'Facturado' %}bg-success{% elif credit.transaction.status == 'Pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
-                                    {{ credit.transaction.status }}
-                                </span> 
-                            </td>
-                            <td>{{ credit.uploaded_by.username|default:"Sistema" }}</td>
-                            <td>{{ credit.creado|date:"d/m/Y H:i:s"}}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="13" class="text-center">No se encontraron abonos con los filtros seleccionados.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            {# Paginación (se mantiene igual) #}
-            {% if is_paginated %}
-            <nav aria-label="Page navigation" class="mt-3">
-                <ul class="pagination justify-content-center">
-                    {% if page_obj.has_previous %}
-                        <li class="page-item">
-                            {# Importante: preservar los parámetros GET al paginar #}
-                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">Anterior</a>
-                        </li>
-                    {% endif %}
-                    
-                    <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
-                    
-                    {% if page_obj.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">Siguiente</a>
-                        </li>
-                    {% endif %}
-                </ul>
-            </nav>
-            {% endif %}
+        <div class="d-flex justify-content-end gap-2">
+          <button type="submit" class="btn btn-primary" title="Filtrar">
+            <i class="fas fa-filter"></i> Filtrar
+          </button>
+          <a
+            href="{% url 'credit_list' %}"
+            class="btn btn-secondary"
+            title="Limpiar Filtros"
+          >
+            Limpiar
+          </a>
+          {% if user.is_superuser or 'Validador' in user_groups or 'Contabilidad' in user_groups %}
+          <a
+            href="{% url 'export_credits_csv' %}?{{ request.GET.urlencode }}"
+            class="btn btn-info"
+            title="Exportar a CSV"
+          >
+            Exportar
+          </a>
+          {% endif %}
         </div>
+      </form>
     </div>
+  </div>
+  {# --- FIN SECCIÓN DE FILTROS --- #}
+
+  <div class="card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Transacción ID</th>
+              <th>Tipo Transacción</th>
+              <th>Cliente</th>
+              <th>Fecha Registro</th>
+              <th>Hora</th>
+              <th>Comprobante</th>
+              <th>Documento de Pago</th>
+              <th>Banco Llegada</th>
+              <th>Valor</th>
+              <th>Nota</th>
+              <th>Estado Recibo</th>
+              <th>Estado transacción</th>
+              <th>Subido por</th>
+              <th>Subido el</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for credit in credits %}
+            <tr
+              onclick="window.location='{% url 'credit_detail' credit.pk %}'"
+              style="cursor: pointer"
+            >
+              <td>{{ credit.id }}</td>
+              <td>{{ credit.transaction.unique_transaction_id}}</td>
+              <td>{{ credit.transaction.transaction_type }}</td>
+              <td>{{ credit.display_client }}</td>
+              <td>{{ credit.fecha|date:"d/m/Y" }}</td>
+              <td>{{ credit.hora|time:"H:i:s" }}</td>
+              <td>{{ credit.comprobante }}</td>
+              <td>{{ credit.payment_document.name|default:"-" }}</td>
+              <td>{{ credit.banco_llegada.name }}</td>
+              <td>${{ credit.valor|intcomma }}</td>
+              <td title="{{ credit.note|default:'' }}">
+                {{ credit.note|truncatechars:20|default:"-" }}
+              </td>
+              <td>
+                {% if user.is_superuser or 'Validador' in user_groups %}
+                <select
+                  name="payment_status"
+                  class="form-select badge-select status-select"
+                  data-update-url="{% url 'update_credit_status' credit.pk %}"
+                  data-client="{{ credit.display_client }}"
+                  data-value="{{ credit.valor|intcomma }}"
+                  data-receipt="{{ credit.comprobante }}"
+                  onclick="event.stopPropagation()"
+                >
+                  {% for status_key, status_value in credit.APROVED_CHOICES %}
+                  <option
+                    value="{{ status_key }}"
+                    {%
+                    if
+                    credit.payment_status=""
+                    ="status_key"
+                    %}selected{%
+                    endif
+                    %}
+                  >
+                    {{ status_value }}
+                  </option>
+                  {% endfor %}
+                </select>
+                {% else %}
+                <span
+                  class="badge {% if credit.payment_status == 'Aprobado' %}bg-success{% elif credit.payment_status == 'Rechazado' %}bg-danger{% else %}bg-warning text-dark{% endif %}"
+                >
+                  {{ credit.payment_status }}
+                </span>
+                {% endif %}
+              </td>
+              <td>
+                <span
+                  class="badge {% if credit.transaction.status == 'Facturado' %}bg-success{% elif credit.transaction.status == 'Pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}"
+                >
+                  {{ credit.transaction.status }}
+                </span>
+              </td>
+              <td>{{ credit.uploaded_by.username|default:"Sistema" }}</td>
+              <td>{{ credit.creado|date:"d/m/Y H:i:s"}}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="13" class="text-center">
+                No se encontraron abonos con los filtros seleccionados.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {# Paginación (se mantiene igual) #} {% if is_paginated %}
+      <nav aria-label="Page navigation" class="mt-3">
+        <ul class="pagination justify-content-center">
+          {% if page_obj.has_previous %}
+          <li class="page-item">
+            {# Importante: preservar los parámetros GET al paginar #}
+            <a
+              class="page-link"
+              href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}"
+              >Anterior</a
+            >
+          </li>
+          {% endif %}
+
+          <li class="page-item disabled">
+            <span class="page-link"
+              >Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages
+              }}</span
+            >
+          </li>
+
+          {% if page_obj.has_next %}
+          <li class="page-item">
+            <a
+              class="page-link"
+              href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}"
+              >Siguiente</a
+            >
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+    </div>
+  </div>
 </div>
-{% endblock %}
-{% block extra_js %}
+{% endblock %} {% block extra_js %}
 <style>
-    .badge-select {
-        border: 0;
-        padding: 0.5em 2.5em 0.5em 0.75em;
-        font-weight: 700;
-        line-height: 1;
-        color: #fff;
-        white-space: nowrap;
-        vertical-align: baseline;
-        border-radius: 0.25rem;
-        cursor: pointer;
-        background-position: right 0.75rem center;
-    }
-    .badge-select.bg-success { background-color: #198754 !important; color: white; }
-    .badge-select.bg-danger { background-color: #dc3545 !important; color: white; }
-    .badge-select.bg-warning { background-color: #ffc107 !important; color: black; }
+  .badge-select {
+    border: 0;
+    padding: 0.5em 2.5em 0.5em 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    background-position: right 0.75rem center;
+  }
+  .badge-select.bg-success {
+    background-color: #198754 !important;
+    color: white;
+  }
+  .badge-select.bg-danger {
+    background-color: #dc3545 !important;
+    color: white;
+  }
+  .badge-select.bg-warning {
+    background-color: #ffc107 !important;
+    color: black;
+  }
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const statusSelects = document.querySelectorAll('.status-select');
-    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]');
+  document.addEventListener("DOMContentLoaded", function () {
+    const statusSelects = document.querySelectorAll(".status-select");
+    const csrfToken = document.querySelector(
+      'input[name="csrfmiddlewaretoken"]',
+    );
 
-    statusSelects.forEach(select => {
-        updateSelectColor(select, select.value);
-        let originalStatus;
+    statusSelects.forEach((select) => {
+      updateSelectColor(select, select.value);
+      let originalStatus;
 
-        select.addEventListener('focus', function() {
-            originalStatus = this.value;
-        });
+      select.addEventListener("focus", function () {
+        originalStatus = this.value;
+      });
 
-        select.addEventListener('change', function(event) {
-            const selectElement = event.target;
-            const url = selectElement.dataset.updateUrl;
-            const newStatus = selectElement.value;
-            const newStatusDisplay = selectElement.options[selectElement.selectedIndex].text;
+      select.addEventListener("change", function (event) {
+        const selectElement = event.target;
+        const url = selectElement.dataset.updateUrl;
+        const newStatus = selectElement.value;
+        const newStatusDisplay =
+          selectElement.options[selectElement.selectedIndex].text;
 
-            const client = selectElement.dataset.client;
-            const value = selectElement.dataset.value;
-            const receipt = selectElement.dataset.receipt;
-            
-            const confirmationMessage = `¿Seguro que quieres cambiar el estado del recibo ${receipt} (Cliente: ${client}, Valor: $${value}) a "${newStatusDisplay}"?`;
+        const client = selectElement.dataset.client;
+        const value = selectElement.dataset.value;
+        const receipt = selectElement.dataset.receipt;
 
-            if (confirm(confirmationMessage)) {
-                const formData = new FormData();
-                formData.append('payment_status', newStatus);
+        const confirmationMessage = `¿Seguro que quieres cambiar el estado del recibo ${receipt} (Cliente: ${client}, Valor: $${value}) a "${newStatusDisplay}"?`;
 
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken ? csrfToken.value : '',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: formData
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(err => { throw err; });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        updateSelectColor(selectElement, newStatus);
-                    } else {
-                        alert(`Error al actualizar: ${data.message}`);
-                        selectElement.value = originalStatus;
-                        updateSelectColor(selectElement, originalStatus);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    const errorMessage = error.message ? `Error: ${error.message}` : 'Error de red al intentar actualizar. Intente de nuevo.';
-                    alert(errorMessage);
-                    selectElement.value = originalStatus;
-                    updateSelectColor(selectElement, originalStatus);
+        if (confirm(confirmationMessage)) {
+          const formData = new FormData();
+          formData.append("payment_status", newStatus);
+
+          fetch(url, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": csrfToken ? csrfToken.value : "",
+              "X-Requested-With": "XMLHttpRequest",
+            },
+            body: formData,
+          })
+            .then((response) => {
+              if (!response.ok) {
+                return response.json().then((err) => {
+                  throw err;
                 });
-            } else {
+              }
+              return response.json();
+            })
+            .then((data) => {
+              if (data.success) {
+                updateSelectColor(selectElement, newStatus);
+              } else {
+                alert(`Error al actualizar: ${data.message}`);
                 selectElement.value = originalStatus;
-            }
-        });
+                updateSelectColor(selectElement, originalStatus);
+              }
+            })
+            .catch((error) => {
+              console.error("Error:", error);
+              const errorMessage = error.message
+                ? `Error: ${error.message}`
+                : "Error de red al intentar actualizar. Intente de nuevo.";
+              alert(errorMessage);
+              selectElement.value = originalStatus;
+              updateSelectColor(selectElement, originalStatus);
+            });
+        } else {
+          selectElement.value = originalStatus;
+        }
+      });
     });
 
     function updateSelectColor(selectElement, status) {
-        selectElement.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'text-dark');
-        if (status === 'Aprobado') {
-            selectElement.classList.add('bg-success');
-        } else if (status === 'Rechazado') {
-            selectElement.classList.add('bg-danger');
-        } else {
-            selectElement.classList.add('bg-warning', 'text-dark');
-        }
+      selectElement.classList.remove(
+        "bg-success",
+        "bg-danger",
+        "bg-warning",
+        "text-dark",
+      );
+      if (status === "Aprobado") {
+        selectElement.classList.add("bg-success");
+      } else if (status === "Rechazado") {
+        selectElement.classList.add("bg-danger");
+      } else {
+        selectElement.classList.add("bg-warning", "text-dark");
+      }
     }
-});
+  });
 </script>
 {% endblock %}

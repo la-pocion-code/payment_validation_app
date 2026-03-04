@@ -1,6 +1,5 @@
 # records/urls.py
 
-
 from django.urls import path
 from . import views
 
@@ -70,6 +69,9 @@ urlpatterns = [
     path('credits/<int:pk>/update_status/', views.update_credit_status, name='update_credit_status'),
     path('transaction/<int:pk>/create_credit_note/', views.create_credit_note_from_surplus, name='create_credit_note_from_surplus'),
     path('credit/<int:pk>/update_client/', views.update_credit_client, name='update_credit_client'),
-
+    path('payment_documents/', views.PaymentDocumentListView.as_view(), name='payment_document_list'),
+    path('payment_document/new/', views.PaymentDocumentCreateView.as_view(), name='payment_document_create'),
+    path('payment_document/<int:pk>/edit/', views.PaymentDocumentUpdateView.as_view(), name='payment_document_update'),
+    path('payment_document/<int:pk>/delete/', views.PaymentDocumentDeleteView.as_view(), name='payment_document_delete'),
 
 ]

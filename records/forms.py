@@ -2,7 +2,7 @@
 
 from django import forms
 from django.forms import modelformset_factory, BaseModelFormSet
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType, Client
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType, Client, PaymentDocument
 import json
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.forms import UserChangeForm
@@ -80,7 +80,8 @@ class FinancialRecordForm(forms.ModelForm):
                 # Si es Validador, solo puede editar el estado de pago
                 # Quitamos 'readonly' del campo de estado para que sea editable.
                 del self.fields['payment_status'].widget.attrs['readonly']
-  
+            elif user.groups.filter(name='Facturador').exists():
+                del self.fields['payment_document'].widget.attrs['readonly']
 
         # Lógica original del formulario para valores por defecto y campos ocultos
         self.fields['payment_status'].required = False
@@ -93,11 +94,15 @@ class FinancialRecordForm(forms.ModelForm):
 
     class Meta:
         model = FinancialRecord
-        fields = ['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor', 'payment_status']
+        fields = ['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'payment_status', 'payment_document']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
             'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
             'valor': forms.TextInput(),
+            'payment_document': forms.TextInput(attrs={
+                'placeholder': 'Ej: BNK4...',
+                'autocomplete': 'off',
+            }),
         }
 
     def clean(self):
@@ -181,6 +186,34 @@ class FinancialRecordForm(forms.ModelForm):
         if not self.instance.pk and not cleaned_data.get('payment_status'):
             cleaned_data['payment_status'] = 'Pendiente'
 
+        # --- VALIDACIÓN DE PREFIJO DEL DOCUMENTO DE PAGO (solo para rol Facturador) ---
+        # El Facturador escribe manualmente el número (ej: "BAN-25154").
+        # La validación comprueba que inicie con el prefijo del PaymentDocument
+        # asociado al banco del recibo. Solo aplica si el campo tiene contenido.
+        user = self.request.user if self.request else None
+        is_facturador = user and (
+            user.groups.filter(name='Facturador').exists() or user.is_superuser
+        )
+
+        if is_facturador:
+            banco = cleaned_data.get('banco_llegada')
+            payment_document_value = (cleaned_data.get('payment_document') or '').strip()
+
+            # La validación SOLO aplica si:
+            # 1. El campo payment_document tiene contenido (no se fuerza si está vacío)
+            # 2. El banco tiene un PaymentDocument configurado
+            if banco and payment_document_value:
+                payment_doc = PaymentDocument.objects.filter(bank=banco).first()
+                if payment_doc:
+                    expected_prefix = payment_doc.get_prefix()
+                    if not payment_document_value.upper().startswith(expected_prefix):
+                        self.add_error(
+                            'payment_document',
+                            f'El documento de pago debe iniciar con "{expected_prefix}" '
+
+                        )
+        # --- FIN VALIDACIÓN ---
+
         return cleaned_data
 
 
@@ -203,6 +236,7 @@ class CreditForm(FinancialRecordForm):
             'banco_llegada', 
             'valor',
             'payment_status',
+            'payment_document',
             'note',
         ]
         widgets = {
@@ -210,6 +244,7 @@ class CreditForm(FinancialRecordForm):
             'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
             'cliente': forms.HiddenInput(),
             'payment_status': forms.HiddenInput(),
+            'payment_document': forms.HiddenInput(),
             'note': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Añada una nota sobre el abono...'}),
         }
 
@@ -282,6 +317,11 @@ class BankForm(forms.ModelForm):
     class Meta:
         model = Bank
         fields = ['name']
+
+class PaymentDocumentForm(forms.ModelForm):
+    class Meta:
+        model = PaymentDocument
+        fields = ['name', 'bank']
 
 class OrigenTransaccionForm(forms.ModelForm):
     class Meta:
@@ -487,7 +527,7 @@ FinancialRecordFormSet = modelformset_factory(
     FinancialRecord,
     form=FinancialRecordForm,
     formset=BaseFinancialRecordFormSet,
-    fields=['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada',  'valor', 'payment_status'],
+    fields=['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'payment_status', 'payment_document'],
     extra=0,
     can_delete=True
 )

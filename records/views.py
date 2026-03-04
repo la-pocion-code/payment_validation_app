@@ -18,8 +18,8 @@ from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter, CreditFilter, ClientFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
-from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm, ClientForm, CreditForm, NoteUpdateForm
-from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType, Client
+from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm, ClientForm, CreditForm, NoteUpdateForm, PaymentDocumentForm
+from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType, Client, PaymentDocument
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
@@ -27,10 +27,8 @@ from django.utils.decorators import method_decorator
 from .services import CSVProcessor 
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm 
-from django.template.loader import render_to_string
 from .utils import calculate_effective_date
 from .forms import BulkClientUploadForm
-from datetime import datetime
 from django.utils import timezone
 from django.db.models import Q
 import json
@@ -361,6 +359,118 @@ class CreditDetailView(LoginRequiredMixin, DetailView): # Añadido decorador de 
         else:
             context = self.get_context_data(note_form=note_form)
             return self.render_to_response(context)
+##
+@method_decorator(group_required('Admin'), name='dispatch')
+class PaymentDocumentCreateView(LoginRequiredMixin, CreateView):
+    model = PaymentDocument
+    form_class = PaymentDocumentForm
+    template_name = 'records/payment_document_form.html'
+    success_url = reverse_lazy('payment_document_list')
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            form = self.get_form()
+            html_form = render_to_string('records/payment_document_form.html', {'form': form, 'title': 'Crear Nuevo Documento de Pago'}, request=request)
+            return HttpResponse(html_form)
+        
+        self.template_name = 'records/payment_document_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            payment_document = form.save()
+            return JsonResponse({'success': True, 'id': payment_document.id, 'name': payment_document.name, 'message': 'Documento de Pago creado exitosamente!'})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/payment_document_form.html', {'form': form, 'title': 'Crear Nuevo Documento de Pago'}, request=self.request)})
+        
+        self.template_name = 'records/payment_document_form_standalone.html'
+        return super().form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Nuevo Documento de Pago'
+        return context
+
+@method_decorator(group_required('Admin'), name='dispatch')
+class PaymentDocumentUpdateView(LoginRequiredMixin, UserPassesTestMixin, SuccessMessageMixin, UpdateView):
+    model = PaymentDocument
+    form_class = PaymentDocumentForm
+    template_name = 'records/payment_document_form.html'
+    success_url = reverse_lazy('payment_document_list')
+    success_message = "¡Banco actualizado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            form = self.get_form()
+            html_form = render_to_string('records/payment_document_form.html', {'form': form, 'title': 'Editar Banco'}, request=request)
+            return HttpResponse(html_form)
+        
+        self.template_name = 'records/payment_document_form_standalone.html'
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Banco'
+        return context
+
+    def form_valid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            payment_document = form.save()
+            return JsonResponse({'success': True, 'id': payment_document.id, 'name': payment_document.name, 'message': self.success_message})
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'form_html': render_to_string('records/payment_document_form.html', {'form': form, 'title': self.get_context_data()['title']}, request=self.request)})
+        
+        self.template_name = 'records/payment_document_form_standalone.html'
+        return super().form_invalid(form)
+
+@method_decorator(group_required('Admin'), name='dispatch')
+class PaymentDocumentDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = PaymentDocument
+    template_name = 'records/payment_document_confirm_delete.html'
+    success_url = reverse_lazy('payment_document_list')
+    success_message = "¡Banco eliminado exitosamente!"
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            context = self.get_context_data(object=self.object)
+            html_form = render_to_string(self.template_name, context, request=request)
+            return HttpResponse(html_form)
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            self.object = self.get_object()
+            self.object.delete()
+            messages.success(self.request, self.success_message)
+            return JsonResponse({'success': True, 'message': self.success_message})
+        return super().post(request, *args, **kwargs)
+
+
+class PaymentDocumentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = PaymentDocument
+    template_name = 'records/payment_document_list.html'
+    context_object_name = 'payment_documents'
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+
+
+
 
 @method_decorator(group_required('Admin'), name='dispatch')
 class BankCreateView(LoginRequiredMixin, CreateView):
@@ -1185,8 +1295,26 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                             credit.transaction = self.object
                             credit.save()
 
-                # 🔹 Solo guardamos formset si NO es facturador o si es superuser
-                if not is_facturador or is_superuser:
+                # 🔹 Lógica de guardado del formset según rol
+                if is_facturador and not is_superuser:
+                    # El Facturador SOLO puede actualizar 'comprobante' y 'payment_document'
+                    # en recibos EXISTENTES. No puede crear ni borrar recibos.
+                    for receipt_form in formset:
+                        if receipt_form.instance.pk and receipt_form.has_changed():
+                            update_fields = {}
+                            new_comprobante = receipt_form.cleaned_data.get('comprobante', '').strip()
+                            if new_comprobante:
+                                update_fields['comprobante'] = new_comprobante
+                            new_payment_doc = receipt_form.cleaned_data.get('payment_document')
+                            # El campo es nullable, permitimos asignar None para borrar la selección
+                            if 'payment_document' in receipt_form.changed_data:
+                                update_fields['payment_document'] = new_payment_doc
+                            if update_fields:
+                                FinancialRecord.objects.filter(
+                                    pk=receipt_form.instance.pk
+                                ).update(**update_fields)
+                elif not is_facturador or is_superuser:
+                    # Admin / Digitador: acceso completo al formset
                     formset.instance = self.object
                     
                     for receipt_form in formset:

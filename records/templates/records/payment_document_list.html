@@ -1,0 +1,182 @@
+{% extends "records/base.html" %} {% load static %} {% block title %}Gestionar
+Documentos de Pago{% endblock %} {% block content %}
+<div class="container mt-4">
+  <h2>Gestionar Documentos de Pago</h2>
+
+  <button
+    type="button"
+    class="btn btn-success mb-3"
+    data-bs-toggle="modal"
+    data-bs-target="#payment_document-modal"
+    data-url="{% url 'payment_document_create' %}"
+  >
+    Nuevo Documento de Pago
+  </button>
+
+  <table class="table table-striped table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Documento de Pago</th>
+        <th>Bancos Asociados</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for payment_document in payment_documents %}
+      <tr>
+        <td>{{ payment_document.name }}</td>
+        <td>{{ payment_document.bank.name }}</td>
+        <td>
+          <button
+            type="button"
+            class="btn-accion-icono"
+            title="Editar"
+            data-bs-toggle="modal"
+            data-bs-target="#payment_document-modal"
+            data-url="{% url 'payment_document_update' payment_document.pk %}"
+          >
+            <img
+              src="{% static 'images/pen-solid-full.svg' %}"
+              alt="Editar"
+              width="20"
+              height="20"
+            />
+          </button>
+          <button
+            type="button"
+            class="btn-accion-icono"
+            title="Eliminar"
+            data-bs-toggle="modal"
+            data-bs-target="#payment_document-modal"
+            data-url="{% url 'payment_document_delete' payment_document.pk %}"
+          >
+            <img
+              src="{% static 'images/trash-solid-full.svg' %}"
+              alt="Eliminar"
+              width="20"
+              height="20"
+            />
+          </button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="2" class="text-center">
+          No hay documentos de pago registrados.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{# Modal Structure for Create/Edit/Delete #}
+<div
+  class="modal fade"
+  id="payment_document-modal"
+  tabindex="-1"
+  aria-labelledby="payment_documentModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="payment_documentModalLabel">
+          Gestionar Documento de Pago
+        </h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body" id="payment_document-form-container">
+        {# Payment Document form will be loaded here via AJAX #}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const payment_documentModalElement = document.getElementById(
+      "payment_document-modal",
+    );
+    const payment_documentFormContainer = document.getElementById(
+      "payment_document-form-container",
+    );
+    const payment_documentModal = new bootstrap.Modal(
+      payment_documentModalElement,
+    );
+
+    payment_documentModalElement.addEventListener(
+      "show.bs.modal",
+      function (event) {
+        const button = event.relatedTarget;
+        const url = button.getAttribute("data-url");
+
+        payment_documentFormContainer.innerHTML =
+          '<p class="text-center">Cargando...</p>';
+
+        fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+          .then((response) => response.text())
+          .then((html) => {
+            payment_documentFormContainer.innerHTML = html;
+            attachpayment_documentFormSubmitHandler();
+          })
+          .catch((error) => {
+            payment_documentFormContainer.innerHTML =
+              '<p class="text-center text-danger">Error al cargar el contenido.</p>';
+            console.error("Error loading payment_document form:", error);
+          });
+      },
+    );
+
+    function attachpayment_documentFormSubmitHandler() {
+      const payment_documentForm =
+        payment_documentFormContainer.querySelector("form");
+      if (payment_documentForm) {
+        payment_documentForm.addEventListener("submit", function (e) {
+          e.preventDefault();
+          const formData = new FormData(payment_documentForm);
+          fetch(payment_documentForm.action, {
+            method: "POST",
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+              "X-CSRFToken": formData.get("csrfmiddlewaretoken"),
+            },
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.success) {
+                alert(data.message || "Operación exitosa!");
+                payment_documentModal.hide();
+                location.reload();
+              } else {
+                // This handles form validation errors from the server
+                if (data.form_html) {
+                  payment_documentFormContainer.innerHTML = data.form_html;
+                  attachpayment_documentFormSubmitHandler(); // Re-attach handler for the new form
+                } else {
+                  alert(data.message || "Ocurrió un error.");
+                }
+              }
+            })
+            .catch((error) =>
+              console.error("Error submitting payment_document form:", error),
+            );
+        });
+
+        const cancelButton = payment_documentForm.querySelector(".btn-cancel");
+        if (cancelButton) {
+          cancelButton.addEventListener("click", function (e) {
+            e.preventDefault();
+            payment_documentModal.hide();
+          });
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}

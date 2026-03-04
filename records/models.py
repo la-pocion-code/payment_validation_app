@@ -104,6 +104,7 @@ class Seller(models.Model):
 
 class Bank(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    
 
     def __str__(self):
         return self.name
@@ -111,6 +112,25 @@ class Bank(models.Model):
     def save(self, *args, **kwargs):
         self.name = self.name.upper()
         super(Bank, self).save(*args, **kwargs)
+
+class PaymentDocument(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    bank = models.ForeignKey(Bank, on_delete=models.PROTECT, verbose_name="Banco", null=True, blank=True)
+
+    
+    def __str__(self):
+        return self.name
+
+    def get_prefix(self):
+        return self.name[:4].upper()
+
+    def save(self, *args, **kwargs):
+        self.name = self.name.upper()
+        super(PaymentDocument, self).save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Documento de Pago"
+        verbose_name_plural = "Documentos de Pago"
 
 class OrigenTransaccion(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -214,6 +234,13 @@ class FinancialRecord(models.Model):
     origen_transaccion = models.ForeignKey('OrigenTransaccion', on_delete=models.PROTECT, verbose_name="Origen de Transacción")
     valor = models.DecimalField(max_digits=12, decimal_places=2)
     payment_status = models.CharField(max_length=20, choices=APROVED_CHOICES, default='Pendiente', verbose_name="Estado de pago")
+    payment_document = models.CharField(
+        max_length=200,
+        verbose_name="Documento de Pago",
+        blank=True,
+        null=True,
+        help_text="Número del documento de pago. Debe iniciar con el prefijo del banco (ej: BAN-25154)."
+    )
     note = models.TextField(max_length=200, verbose_name="Nota", blank=True, null=True)
     transaction = models.ForeignKey(
         'Transaction', 
