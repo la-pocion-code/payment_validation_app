@@ -32,11 +32,14 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 
-ALLOWED_HOSTS = ['localhost',
-                 '127.0.0.1', # Mantener 127.0.0.1 para desarrollo local
-                 'web-production-6b4c.up.railway.app', 
-                 'web-production-b0638.up.railway.app']
-
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'web-production-6b4c.up.railway.app', 
+    'web-production-b0638.up.railway.app',
+    '.railway.app',
+    '.up.railway.app'
+]
 
 
 
@@ -164,8 +167,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
+# STATIC_URL = '/static/'
+# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'records', 'static')]
 
 # Asegúrate de que solo haya una ubicación para archivos estáticos
 STATICFILES_DIRS = [
@@ -179,7 +186,7 @@ STATICFILES_FINDERS = [
 ]
 
 # Configuración para WhiteNoise (servir archivos estáticos en producción)
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.StaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -222,9 +229,9 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
 ADMIN_EMAILS = ['jcorrea@lapocion.com', 'venriquez@lapocion.com', 'wcastro@lapocion.com']
 
 # Session timeout settings
-SESSION_COOKIE_AGE = 3600  # 1 hour in seconds
-SESSION_SAVE_EVERY_REQUEST = True
-
+# Cambiado de True a False para estabilizar el login
+SESSION_SAVE_EVERY_REQUEST = False 
+SESSION_COOKIE_AGE = 3600
 # Configuraciones de seguridad para producción
 # if not DEBUG:
 #     SECURE_BROWSER_XSS_FILTER = True
@@ -258,3 +265,25 @@ CSRF_TRUSTED_ORIGINS = [
     'https://web-production-6b4c.up.railway.app', # Sin barra final
     'https://web-production-b0638.up.railway.app' # Sin barra final
     ]
+
+if not DEBUG:
+    # Esto le dice a Django que confíe en el Proxy de Railway para el protocolo HTTPS
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    
+    # Cookies seguras (solo viajan por HTTPS)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+    # Ayuda a que Chrome no bloquee el "state" de Google
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    
+    # Fuerza a que las URLs de retorno de Google sean https://
+    SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
+    
+    # Redirección automática de HTTP a HTTPS
+    SECURE_SSL_REDIRECT = True
+    
+    # HSTS para mayor seguridad
+    SECURE_HSTS_SECONDS = 31536000 # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True

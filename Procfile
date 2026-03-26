@@ -1,1 +1,1 @@
-web: python manage.py collectstatic --noinput && python manage.py migrate && gunicorn financial_tracker.wsgi:application --bind 0.0.0.0:$PORT
+web: gunicorn financial_tracker.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --worker-tmp-dir /dev/shm
