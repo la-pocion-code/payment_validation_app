@@ -119,25 +119,40 @@ WSGI_APPLICATION = 'financial_tracker.wsgi.application'
 #     'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
 # }
 
-DATABASE_URL = os.getenv('DATABASE_URL')
+# DATABASE_URL = os.getenv('DATABASE_URL')
 
-if DATABASE_URL:
+# if DATABASE_URL:
+#     DATABASES = {
+#         'default': dj_database_url.config(
+#             default=DATABASE_URL,
+#             conn_max_age=600,
+#             conn_health_checks=True,
+#         )
+#     }
+# else:
+#     # Fallback para desarrollo local
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.sqlite3',
+#             'NAME': BASE_DIR / 'db.sqlite3',
+#         }
+#     }
+if os.getenv('DATABASE_URL') and not DEBUG:
     DATABASES = {
         'default': dj_database_url.config(
-            default=DATABASE_URL,
+            default=os.getenv('DATABASE_URL'),
             conn_max_age=600,
-            conn_health_checks=True,
+            ssl_require=True
         )
     }
 else:
-    # Fallback para desarrollo local
+    # Esto te permitirá ejecutar 'runserver' sin errores de red
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
