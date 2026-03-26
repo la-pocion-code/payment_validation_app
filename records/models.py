@@ -266,7 +266,7 @@ class FinancialRecord(models.Model):
     )
 
 
-
+#####
 
     class Meta:
         verbose_name = "Registro Financiero"
