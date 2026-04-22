@@ -258,6 +258,6 @@ if DEBUG:
 
 CSRF_TRUSTED_ORIGINS = [
     'https://web-production-6b4c.up.railway.app', # Sin barra final
-    'https://web-production-b0638.up.railway.app' # Sin barra final
+    'https://web-production-b0638.up.railway.app', # Sin barra final
     'https://web-staging-d62c.up.railway.app'
     ]
