@@ -35,7 +35,7 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ['localhost',
                  '127.0.0.1', # Mantener 127.0.0.1 para desarrollo local
                  'web-production-6b4c.up.railway.app', 
-                 'web-production-b0638.up.railway.app'
+                 'web-production-b0638.up.railway.app',
                  'web-staging-d62c.up.railway.app'
                  ]
 
