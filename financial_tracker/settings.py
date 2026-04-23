@@ -32,27 +32,10 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 
-ALLOWED_HOSTS = ['localhost',
-                 '127.0.0.1', # Mantener 127.0.0.1 para desarrollo local
-                 'web-production-6b4c.up.railway.app', 
-                 'web-production-b0638.up.railway.app',
-                 'web-staging-d62c.up.railway.app'
-                 ]
-
-
-
-
-# # Configuración de ALLOWED_HOSTS más robusta
-# ALLOWED_HOSTS = []
-# if os.environ.get("ALLOWED_HOSTS"):
-#     ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS").split(",") if host.strip()]
-# elif DEBUG:
-#     ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'web-production-6b4c.up.railway.app']
-
-# # Para Railway específicamente
-# if os.environ.get("RAILWAY_ENVIRONMENT"):
-#     ALLOWED_HOSTS.append("*.railway.app")
-#     ALLOWED_HOSTS.append("*.up.railway.app")
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+_railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+if _railway_domain:
+    ALLOWED_HOSTS.append(_railway_domain)
 
 # Application definition
 INSTALLED_APPS = [
@@ -169,10 +152,8 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Asegúrate de que solo haya una ubicación para archivos estáticos
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'records', 'static'),
-]
+# AppDirectoriesFinder ya incluye records/static/ — no duplicar en STATICFILES_DIRS
+STATICFILES_DIRS = []
 
 # Configuración mejorada para evitar duplicados
 STATICFILES_FINDERS = [
@@ -246,26 +227,29 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
-# Logging para debugging (solo en desarrollo)
-if DEBUG:
-    LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'handlers': {
-            'console': {
-                'class': 'logging.StreamHandler',
-            },
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
         },
-        'root': {
-            'handlers': ['console'],
-            'level': 'INFO',
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
         },
-    }
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO' if DEBUG else 'WARNING',
+    },
+}
 
 
 
-CSRF_TRUSTED_ORIGINS = [
-    'https://web-production-6b4c.up.railway.app', # Sin barra final
-    'https://web-production-b0638.up.railway.app', # Sin barra final
-    'https://web-staging-d62c.up.railway.app'
-    ]
+CSRF_TRUSTED_ORIGINS = []
+if _railway_domain:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{_railway_domain}')
