@@ -35,7 +35,9 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ['localhost',
                  '127.0.0.1', # Mantener 127.0.0.1 para desarrollo local
                  'web-production-6b4c.up.railway.app', 
-                 'web-production-b0638.up.railway.app']
+                 'web-production-b0638.up.railway.app',
+                 'web-staging-d62c.up.railway.app'
+                 ]
 
 
 
@@ -59,8 +61,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
     'whitenoise.runserver_nostatic',
+    'django.contrib.staticfiles',
     'django.contrib.humanize',
     'records',
     'social_django',
@@ -179,7 +181,15 @@ STATICFILES_FINDERS = [
 ]
 
 # Configuración para WhiteNoise (servir archivos estáticos en producción)
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Django 5.x requiere STORAGES dict en lugar de STATICFILES_STORAGE (eliminado en 5.1)
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -226,15 +236,15 @@ SESSION_COOKIE_AGE = 3600  # 1 hour in seconds
 SESSION_SAVE_EVERY_REQUEST = True
 
 # Configuraciones de seguridad para producción
-# if not DEBUG:
-#     SECURE_BROWSER_XSS_FILTER = True
-#     SECURE_CONTENT_TYPE_NOSNIFF = True
-#     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-#     SECURE_HSTS_SECONDS = 3600
-#     SECURE_REDIRECT_EXEMPT = []
-#     SECURE_SSL_REDIRECT = True
-#     SESSION_COOKIE_SECURE = True
-#     CSRF_COOKIE_SECURE = True
+if not DEBUG:
+    # Railway termina SSL en su proxy — este header evita redirect loops
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 3600
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Logging para debugging (solo en desarrollo)
 if DEBUG:
@@ -256,5 +266,6 @@ if DEBUG:
 
 CSRF_TRUSTED_ORIGINS = [
     'https://web-production-6b4c.up.railway.app', # Sin barra final
-    'https://web-production-b0638.up.railway.app' # Sin barra final
+    'https://web-production-b0638.up.railway.app', # Sin barra final
+    'https://web-staging-d62c.up.railway.app'
     ]
