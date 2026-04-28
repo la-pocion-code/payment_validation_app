@@ -97,7 +97,7 @@ class FinancialRecordForm(forms.ModelForm):
         fields = ['origen_transaccion', 'fecha', 'hora', 'comprobante', 'banco_llegada', 'valor', 'payment_status', 'payment_document']
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
-            'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
+            'hora': forms.TextInput(attrs={'placeholder': 'HH:MM:SS', 'autocomplete': 'off', 'class': 'hora-input', 'maxlength': '8'}),
             'valor': forms.TextInput(),
             'payment_document': forms.TextInput(attrs={
                 'placeholder': 'Ej: BNK4...',
@@ -241,7 +241,7 @@ class CreditForm(FinancialRecordForm):
         ]
         widgets = {
             'fecha': forms.DateInput(attrs={'type': 'date'}),
-            'hora': forms.TimeInput(attrs={'type': 'time', 'step': '1'}),
+            'hora': forms.TextInput(attrs={'placeholder': 'HH:MM:SS', 'autocomplete': 'off', 'class': 'hora-input', 'maxlength': '8'}),
             'cliente': forms.HiddenInput(),
             'payment_status': forms.HiddenInput(),
             'payment_document': forms.HiddenInput(),

@@ -1,4 +1,4 @@
-{% extends "records/base.html" %}
+﻿{% extends "records/base.html" %}
 {% load humanize %}
 {% load static %}
 
@@ -711,6 +711,38 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+
+    // --- Máscara automática HH:MM:SS para campos de hora ---
+    function applyTimeMask(input) {
+        let digits = input.value.replace(/\D/g, '').slice(0, 6);
+        let out = digits;
+        if (digits.length > 4) {
+            out = digits.slice(0, 2) + ':' + digits.slice(2, 4) + ':' + digits.slice(4, 6);
+        } else if (digits.length > 2) {
+            out = digits.slice(0, 2) + ':' + digits.slice(2);
+        }
+        input.value = out;
+    }
+
+    function validateTimeInput(input) {
+        const parts = input.value.split(':');
+        if (parts.length !== 3) return;
+        const [hh, mm, ss] = parts.map(Number);
+        if (hh > 23 || mm > 59 || ss > 59) {
+            input.setCustomValidity('Hora inválida. Use formato HH:MM:SS (00:00:00 – 23:59:59).');
+            input.reportValidity();
+        } else {
+            input.setCustomValidity('');
+        }
+    }
+
+    container.addEventListener('input', function(e) {
+        if (e.target.classList.contains('hora-input')) applyTimeMask(e.target);
+    });
+
+    container.addEventListener('blur', function(e) {
+        if (e.target.classList.contains('hora-input')) validateTimeInput(e.target);
+    }, true);
     // --- Inicialización al cargar la página ---
     document.querySelectorAll('.receipt-form-instance').forEach(syncReceiptDate);
 
