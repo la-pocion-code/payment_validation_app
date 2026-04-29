@@ -33,6 +33,7 @@ from django.utils import timezone
 from django.db.models import Q
 import json
 from decimal import Decimal, InvalidOperation
+import zoneinfo
 
 
 
@@ -2221,7 +2222,7 @@ def create_credit_note_from_surplus(request, pk):
             positive_credit = FinancialRecord.objects.create(
                 cliente=transaction_obj.cliente,
                 fecha=timezone.now().date(),
-                hora=timezone.now().time(),
+                hora=timezone.now().astimezone(zoneinfo.ZoneInfo("America/Bogota")).time().replace(microsecond=0),
                 banco_llegada=saldo_favor_bank,
                 origen_transaccion=saldo_favor_origin,
                 comprobante=f"SF-FAVOR-{transaction_obj.unique_transaction_id}",
@@ -2237,7 +2238,7 @@ def create_credit_note_from_surplus(request, pk):
             negative_adjustment = FinancialRecord.objects.create(
                 cliente=transaction_obj.cliente,
                 fecha=timezone.now().date(),
-                hora=timezone.now().time(),
+                hora=timezone.now().astimezone(zoneinfo.ZoneInfo("America/Bogota")).time().replace(microsecond=0),
                 banco_llegada=saldo_favor_bank,
                 origen_transaccion=saldo_favor_origin,
                 comprobante=f"SF-AJUSTE-{transaction_obj.unique_transaction_id}",
