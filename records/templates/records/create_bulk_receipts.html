@@ -247,6 +247,7 @@
 
             <div class="add-receipt-button-container">
                 <button type="button" id="add-form" class="btn btn-secondary btn-sm">Añadir otro recibo</button>
+                <small id="add-form-hint" class="text-danger d-block mt-1" style="display: none;"></small>
             </div>
         </fieldset>
         
@@ -396,7 +397,26 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function addForm() {
+    function isOrderDateFilled() {
+        return !!(transactionDateField && transactionDateField.value.trim() !== '');
+    }
+
+    function updateAddReceiptState() {
+        const filled = isOrderDateFilled();
+        const hint = document.getElementById('add-form-hint');
+        if (addFormBtn) {
+            addFormBtn.disabled = !filled;
+            addFormBtn.classList.toggle('disabled', !filled);
+        }
+        if (hint) hint.style.display = filled ? 'none' : 'block';
+    }
+
+    function addForm() {
+        if (!isOrderDateFilled()) {
+            alert('Debe diligenciar la Fecha de Pedido antes de añadir recibos.');
+            if (transactionDateField) transactionDateField.focus();
+            return;
+        }
      
         const index = parseInt(totalFormsInput.value, 10);
         const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, index);
@@ -602,6 +622,13 @@ document.addEventListener('DOMContentLoaded', function() {
     addFormBtn.addEventListener('click', addForm);
     container.addEventListener('click', handleContainerClick);
     if(transactionDateField) transactionDateField.addEventListener('change', syncAllDates);
+
+    // --- Gating: la Fecha de Pedido debe estar diligenciada para poder añadir recibos ---
+    if (transactionDateField) {
+        transactionDateField.addEventListener('input', updateAddReceiptState);
+        transactionDateField.addEventListener('change', updateAddReceiptState);
+    }
+    updateAddReceiptState();
 
     // --- Listeners para Saldo de Cliente (NUEVO) ---
     if (clientSelect) {

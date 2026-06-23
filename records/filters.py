@@ -172,6 +172,26 @@ class CreditFilter(django_filters.FilterSet):
         label='Comprobante',
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '# Comprobante'})
     )
+    transaction_id = django_filters.CharFilter(
+        field_name='transaction__unique_transaction_id',
+        lookup_expr='icontains',
+        label='Transacción ID',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Buscar por ID de transacción...'})
+    )
+    transaccion_presencia = django_filters.ChoiceFilter(
+        method='filter_transaccion_presencia',
+        label='Transacción',
+        choices=[('con', 'Con transacción'), ('sin', 'Sin transacción')],
+        empty_label='Todas',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    def filter_transaccion_presencia(self, queryset, name, value):
+        if value == 'con':
+            return queryset.filter(transaction__isnull=False)
+        if value == 'sin':
+            return queryset.filter(transaction__isnull=True)
+        return queryset
     banco_llegada = django_filters.ModelChoiceFilter(
         queryset=Bank.objects.all(),
         label='Banco',
@@ -233,7 +253,8 @@ class CreditFilter(django_filters.FilterSet):
 
     class Meta:
         model = FinancialRecord
-        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'banco_llegada', 'payment_status', 
+        fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'transaction_id', 'transaccion_presencia',
+                  'banco_llegada', 'payment_status',
                   'display_client', 'valor', 'uploaded_by', 'vendedor', 'facturador']
 
 
