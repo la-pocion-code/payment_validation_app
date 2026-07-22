@@ -2192,6 +2192,23 @@ def update_credit_status(request, pk):
 
 @require_POST
 @login_required
+def toggle_credit_revisado(request, pk):
+    """
+    Marca/desmarca un recibo (FinancialRecord) como 'Revisado' vía AJAX.
+    Solo accesible por superusuarios y grupos Validador o Contabilidad.
+    """
+    if not (request.user.is_superuser
+            or request.user.groups.filter(name__in=['Validador', 'Contabilidad']).exists()):
+        return JsonResponse({'success': False, 'message': 'No tienes permiso para realizar esta acción.'}, status=403)
+
+    credit = get_object_or_404(FinancialRecord, pk=pk)
+    credit.revisado = request.POST.get('revisado') == 'true'
+    credit.save(update_fields=['revisado', 'modificado'])
+    return JsonResponse({'success': True, 'revisado': credit.revisado})
+
+
+@require_POST
+@login_required
 @group_required('Admin', 'Digitador')
 def create_credit_note_from_surplus(request, pk):
     """

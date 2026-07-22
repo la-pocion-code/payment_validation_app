@@ -111,6 +111,12 @@ class FinancialRecordForm(forms.ModelForm):
         if comprobante:
             cleaned_data['comprobante'] = comprobante.strip()
 
+        # En un formset, no validar ni registrar duplicados de un form marcado para
+        # eliminación: aunque Django ignore sus errores al guardar, el efecto secundario
+        # de crear DuplicateRecordAttempt en clean() dejaría un duplicado "fantasma".
+        if cleaned_data.get('DELETE'):
+            return cleaned_data
+
         fecha = cleaned_data.get('fecha')
         # --- Backend: Validación de rango de fecha para NUEVOS recibos ---
         if fecha and not self.instance.pk: # Solo para nuevos registros
