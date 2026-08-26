@@ -2,14 +2,14 @@ import csv
 from django.views.decorators.http import require_POST
 from io import TextIOWrapper
 from django.db.models import Q, Count, F
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import logout
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.messages.views import SuccessMessageMixin
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
@@ -18,12 +18,18 @@ from django.core.exceptions import PermissionDenied
 from .filters import FinancialRecordFilter, DuplicateRecordAttemptFilter, TransactionFilter, CreditFilter, ClientFilter
 from django_filters.views import FilterView
 from django.forms import inlineformset_factory
+from .forms import flush_duplicate_attempts
 from .forms import FinancialRecordForm, FinancialRecordUpdateForm, CSVUploadForm, BankForm, UserUpdateForm, TransactionForm, FinancialRecordFormSet, SellerForm, OrigenTransaccionForm, TransactionTypeForm, ClientForm, CreditForm, NoteUpdateForm, PaymentDocumentForm
 from .models import FinancialRecord, Bank, DuplicateRecordAttempt, AccessRequest, Transaction, Seller, OrigenTransaccion, TransactionType, Client, PaymentDocument
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group, User
 from .decorators import group_required
 from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
+from .idempotency import (
+    already_submitted, claim_submission, complete_submission,
+    duplicate_response, DuplicateSubmission,
+)
 from .services import CSVProcessor 
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm 
@@ -217,12 +223,26 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         return super().post(request, *args, **kwargs)
 
 
+@method_decorator(never_cache, name='dispatch')
 @method_decorator(group_required('Admin', 'Digitador'), name='dispatch')
 class CreditCreateView(LoginRequiredMixin, CreateView):
     model = FinancialRecord
     form_class = CreditForm
     template_name = 'records/credit_form.html'
     success_url = reverse_lazy('credit_list') # O a donde quieras redirigir
+
+    def post(self, request, *args, **kwargs):
+        """
+        Detecta el reenvío del mismo formulario antes de tocar los formularios: el
+        clean() de CreditForm registra DuplicateRecordAttempt, así que si dejamos que
+        se ejecute, un reintento de red ensucia la bandeja de duplicados.
+        """
+        prior = already_submitted(request)
+        if prior is not None:
+            return duplicate_response(
+                request, prior.token, fallback_url_name='credit_list', noun='abono'
+            )
+        return super().post(request, *args, **kwargs)
 
     def get_form_kwargs(self):
         """
@@ -241,34 +261,62 @@ class CreditCreateView(LoginRequiredMixin, CreateView):
         return context
 
     def form_valid(self, form):
-        with transaction.atomic():
-            # Asignamos el objeto a self.object para que la vista lo reconozca
-            self.object = form.save(commit=False)
-            credit = self.object # Podemos seguir usando 'credit' por legibilidad
-            credit.uploaded_by = self.request.user
-            # El estado ya se establece en el formulario, pero lo aseguramos aquí
-            credit.payment_status = 'Pendiente' 
-            credit.save()
+        try:
+            with transaction.atomic():
+                claim = claim_submission(self.request, 'credit_create')
 
-            # Si el usuario confirmó un duplicado similar, creamos el registro de intento
-            # que ya fue validado en el form.
-            if form.cleaned_data.get('confirm_duplicate'):
-                serializable_data = {k: str(v) for k, v in form.cleaned_data.items()}
-                DuplicateRecordAttempt.objects.create(
-                    user=self.request.user,
-                    data=serializable_data,
-                    attempt_type='SIMILAR',
-                    is_resolved=True, # Lo marcamos como resuelto porque el usuario confirmó
-                    resolved_by=self.request.user,
-                    resolved_at=timezone.now()
+                # Asignamos el objeto a self.object para que la vista lo reconozca
+                self.object = form.save(commit=False)
+                credit = self.object # Podemos seguir usando 'credit' por legibilidad
+                credit.uploaded_by = self.request.user
+                # El estado ya se establece en el formulario, pero lo aseguramos aquí
+                credit.payment_status = 'Pendiente' 
+                credit.save()
+
+                # Si el usuario confirmó un duplicado similar, creamos el registro de intento
+                # que ya fue validado en el form.
+                if form.cleaned_data.get('confirm_duplicate'):
+                    serializable_data = {k: str(v) for k, v in form.cleaned_data.items()}
+                    DuplicateRecordAttempt.objects.create(
+                        user=self.request.user,
+                        data=serializable_data,
+                        attempt_type='SIMILAR',
+                        is_resolved=True, # Lo marcamos como resuelto porque el usuario confirmó
+                        resolved_by=self.request.user,
+                        resolved_at=timezone.now()
+                    )
+
+                complete_submission(
+                    claim,
+                    result_url=reverse('credit_detail', args=[self.object.pk]),
+                    result_pk=self.object.pk,
+                    result_label=self.object.comprobante,
                 )
 
+        except DuplicateSubmission as exc:
+            return duplicate_response(
+                self.request, exc, fallback_url_name='credit_list', noun='abono'
+            )
+
+        except IntegrityError:
+            form.add_error(
+                None,
+                'Ya existe un recibo con estos mismos datos (fecha, hora, comprobante, '
+                'banco y valor). Revisa el listado de abonos antes de volver a intentar.'
+            )
+            return self.form_invalid(form)
+
         messages.success(self.request, 'Abono registrado exitosamente. Queda pendiente de aprobación.')
-        # Dejamos que la clase base maneje la redirección.
-        # Llama a super().form_valid() que a su vez llama a get_success_url().
-        return super().form_valid(form)
+        # NO usamos super().form_valid(form): ModelFormMixin volvería a llamar
+        # form.save(), guardando el abono dos veces y dejando una fila de historial
+        # espuria. El objeto ya está guardado arriba, solo falta redirigir.
+        return HttpResponseRedirect(self.get_success_url())
 
     def form_invalid(self, form):
+        # Registrar en la bandeja el duplicado detectado en clean(). Solo se llega
+        # aquí si la llave de idempotencia no vio un reenvío.
+        flush_duplicate_attempts(self.request, [form])
+
         # Si el formulario es inválido específicamente por una advertencia de duplicado similar...
         if 'confirm_duplicate' in form.errors:
             # El mensaje de error ya viene formateado desde el formulario, así que lo usamos directamente.
@@ -1187,12 +1235,24 @@ FinancialRecordInlineFormSet = inlineformset_factory(
 )
 
 
+@method_decorator(never_cache, name='dispatch')
 class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Transaction
     form_class = TransactionForm
     template_name = 'records/transaction_form.html'
     success_url = reverse_lazy('record_list')
     success_message = "¡Transacción actualizada exitosamente!"
+
+    def post(self, request, *args, **kwargs):
+        """
+        Detecta el reenvío del mismo formulario antes de construir el formset: el
+        clean() de FinancialRecordForm registra DuplicateRecordAttempt, y basta
+        acceder a form.errors para dispararlo.
+        """
+        prior = already_submitted(request)
+        if prior is not None:
+            return duplicate_response(request, prior.token, noun='cambio')
+        return super().post(request, *args, **kwargs)
 
     def get_queryset(self):
         """
@@ -1259,95 +1319,119 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                     self.get_context_data(form=form, formset=formset, show_confirm_duplicate=True)
                 )
 
-            with transaction.atomic():
-                self.object = form.save(commit=False)
+            try:
+                with transaction.atomic():
+                    claim = claim_submission(self.request, 'transaction_update')
+                    self.object = form.save(commit=False)
 
-                # ------------------- INICIO: Nueva lógica para asignar facturador -------------------
-                # Verificamos si el estado cambió a 'Facturado' o si se añadió un número de factura.
-                # 'form.changed_data' nos dice qué campos del formulario han cambiado.
+                    # ------------------- INICIO: Nueva lógica para asignar facturador -------------------
+                    # Verificamos si el estado cambió a 'Facturado' o si se añadió un número de factura.
+                    # 'form.changed_data' nos dice qué campos del formulario han cambiado.
                 
-                status_changed_to_billed = 'status' in form.changed_data and form.cleaned_data.get('status') == 'Facturado'
-                invoice_number_added = 'numero_factura' in form.changed_data and form.cleaned_data.get('numero_factura')
+                    status_changed_to_billed = 'status' in form.changed_data and form.cleaned_data.get('status') == 'Facturado'
+                    invoice_number_added = 'numero_factura' in form.changed_data and form.cleaned_data.get('numero_factura')
 
-                # Si se cumple alguna de las condiciones, el usuario actual es el facturador.
-                if status_changed_to_billed or invoice_number_added:
-                    self.object.facturador = self.request.user.username
-                # -------------------- FIN: Nueva lógica para asignar facturador ---------------------
+                    # Si se cumple alguna de las condiciones, el usuario actual es el facturador.
+                    if status_changed_to_billed or invoice_number_added:
+                        self.object.facturador = self.request.user.username
+                    # -------------------- FIN: Nueva lógica para asignar facturador ---------------------
 
-                self.object.save()
+                    self.object.save()
 
-                # 🔹 Desvincular recibos marcados
-                credit_ids_to_unlink = self.request.POST.getlist('unlink_credit')
-                if credit_ids_to_unlink:
-                    # Filtramos solo los recibos que pertenecen a esta transacción
-                    receipts_to_unlink = self.object.receipts.filter(pk__in=credit_ids_to_unlink)
-                    for receipt in receipts_to_unlink:
-                        receipt.cliente = self.object.cliente # ¡CLAVE! Asignamos el cliente de la transacción al recibo.
-                        receipt.transaction = None # Rompemos el vínculo
-                        receipt.save()
+                    # 🔹 Desvincular recibos marcados
+                    credit_ids_to_unlink = self.request.POST.getlist('unlink_credit')
+                    if credit_ids_to_unlink:
+                        # Filtramos solo los recibos que pertenecen a esta transacción
+                        receipts_to_unlink = self.object.receipts.filter(pk__in=credit_ids_to_unlink)
+                        for receipt in receipts_to_unlink:
+                            receipt.cliente = self.object.cliente # ¡CLAVE! Asignamos el cliente de la transacción al recibo.
+                            receipt.transaction = None # Rompemos el vínculo
+                            receipt.save()
 
-                # 🔹 Aplicar abonos seleccionados a esta transacción
-                credit_ids_to_apply = self.request.POST.getlist('apply_credit')
-                if credit_ids_to_apply:
-                    credits = FinancialRecord.objects.filter(pk__in=credit_ids_to_apply)
-                    for credit in credits:
-                        # Doble chequeo para seguridad: el abono debe pertenecer al cliente y no tener transacción asignada
-                        if credit.cliente == self.object.cliente and credit.transaction is None:
-                            credit.transaction = self.object
-                            credit.save()
+                    # 🔹 Aplicar abonos seleccionados a esta transacción
+                    credit_ids_to_apply = self.request.POST.getlist('apply_credit')
+                    if credit_ids_to_apply:
+                        credits = FinancialRecord.objects.filter(pk__in=credit_ids_to_apply)
+                        for credit in credits:
+                            # Doble chequeo para seguridad: el abono debe pertenecer al cliente y no tener transacción asignada
+                            if credit.cliente == self.object.cliente and credit.transaction is None:
+                                credit.transaction = self.object
+                                credit.save()
 
-                # 🔹 Lógica de guardado del formset según rol
-                if is_facturador and not is_superuser:
-                    # El Facturador SOLO puede actualizar 'comprobante' y 'payment_document'
-                    # en recibos EXISTENTES. No puede crear ni borrar recibos.
-                    for receipt_form in formset:
-                        if receipt_form.instance.pk and receipt_form.has_changed():
-                            update_fields = {}
-                            new_comprobante = receipt_form.cleaned_data.get('comprobante', '').strip()
-                            if new_comprobante:
-                                update_fields['comprobante'] = new_comprobante
-                            new_payment_doc = receipt_form.cleaned_data.get('payment_document')
-                            # El campo es nullable, permitimos asignar None para borrar la selección
-                            if 'payment_document' in receipt_form.changed_data:
-                                update_fields['payment_document'] = new_payment_doc
-                            if update_fields:
-                                FinancialRecord.objects.filter(
-                                    pk=receipt_form.instance.pk
-                                ).update(**update_fields)
-                elif not is_facturador or is_superuser:
-                    # Admin / Digitador: acceso completo al formset
-                    formset.instance = self.object
+                    # 🔹 Lógica de guardado del formset según rol
+                    if is_facturador and not is_superuser:
+                        # El Facturador SOLO puede actualizar 'comprobante' y 'payment_document'
+                        # en recibos EXISTENTES. No puede crear ni borrar recibos.
+                        for receipt_form in formset:
+                            if receipt_form.instance.pk and receipt_form.has_changed():
+                                update_fields = {}
+                                new_comprobante = receipt_form.cleaned_data.get('comprobante', '').strip()
+                                if new_comprobante:
+                                    update_fields['comprobante'] = new_comprobante
+                                new_payment_doc = receipt_form.cleaned_data.get('payment_document')
+                                # El campo es nullable, permitimos asignar None para borrar la selección
+                                if 'payment_document' in receipt_form.changed_data:
+                                    update_fields['payment_document'] = new_payment_doc
+                                if update_fields:
+                                    FinancialRecord.objects.filter(
+                                        pk=receipt_form.instance.pk
+                                    ).update(**update_fields)
+                    elif not is_facturador or is_superuser:
+                        # Admin / Digitador: acceso completo al formset
+                        formset.instance = self.object
                     
-                    for receipt_form in formset:
-                        if receipt_form.has_changed() and receipt_form.cleaned_data:
-                            if receipt_form.cleaned_data.get('DELETE'):
-                                if receipt_form.instance.pk:
-                                    receipt_form.instance.delete()
-                            else:
-                                receipt = receipt_form.save(commit=False)
-                                is_new = not receipt.pk
+                        for receipt_form in formset:
+                            if receipt_form.has_changed() and receipt_form.cleaned_data:
+                                if receipt_form.cleaned_data.get('DELETE'):
+                                    if receipt_form.instance.pk:
+                                        receipt_form.instance.delete()
+                                else:
+                                    receipt = receipt_form.save(commit=False)
+                                    is_new = not receipt.pk
                                 
-                                if is_new:
-                                    receipt.uploaded_by = self.request.user
+                                    if is_new:
+                                        receipt.uploaded_by = self.request.user
                                 
-                                receipt.transaction = self.object
-                                receipt.save()
+                                    receipt.transaction = self.object
+                                    receipt.save()
 
-                                if receipt_form.cleaned_data.get('confirm_duplicate') and is_new:
-                                    serializable_data = {k: str(v) for k, v in receipt_form.cleaned_data.items()}
-                                    DuplicateRecordAttempt.objects.create(
-                                        user=self.request.user,
-                                        data=serializable_data,
-                                        attempt_type='SIMILAR',
-                                        is_resolved=True,
-                                        resolved_by=self.request.user,
-                                        resolved_at=timezone.now()
-                                    )
+                                    if receipt_form.cleaned_data.get('confirm_duplicate') and is_new:
+                                        serializable_data = {k: str(v) for k, v in receipt_form.cleaned_data.items()}
+                                        DuplicateRecordAttempt.objects.create(
+                                            user=self.request.user,
+                                            data=serializable_data,
+                                            attempt_type='SIMILAR',
+                                            is_resolved=True,
+                                            resolved_by=self.request.user,
+                                            resolved_at=timezone.now()
+                                        )
+
+                    complete_submission(
+                        claim,
+                        result_url=reverse('transaction_update', args=[self.object.pk]),
+                        result_pk=self.object.pk,
+                        result_label=self.object.unique_transaction_id,
+                    )
+
+            except DuplicateSubmission as exc:
+                return duplicate_response(request=self.request, token_or_exc=exc, noun='cambio')
+
+            except IntegrityError:
+                messages.error(
+                    self.request,
+                    'No se pudo guardar porque uno de los recibos ya existe (misma fecha, '
+                    'hora, comprobante, banco y valor). Revisa los recibos de la '
+                    'transacción antes de volver a intentar.'
+                )
+                return self.render_to_response(
+                    self.get_context_data(form=form, formset=formset)
+                )
 
             messages.success(self.request, self.success_message)
             return redirect(self.get_success_url())
 
         else:
+            flush_duplicate_attempts(self.request, formset.forms)
             messages.error(self.request, 'Por favor, corrija los errores en el formulario.')
             return self.render_to_response(self.get_context_data(form=form, formset=formset))
 
@@ -1356,6 +1440,7 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
         messages.error(self.request, 'Por favor, corrija los errores en el formulario de la transacción.')
         context = self.get_context_data(form=form)
         formset = context['formset']
+        flush_duplicate_attempts(self.request, formset.forms)
 
         has_similar_duplicate_warning = False
         for fs_form in formset:
@@ -1859,11 +1944,20 @@ def export_duplicate_attempts_csv(request):
     return response
 
 @login_required
+@never_cache
 @group_required('Admin', 'Digitador')
 def create_bulk_receipts(request):
     form_kwargs = {'request': request}
 
     if request.method == 'POST':
+        # Reenvío por red inestable (doble clic, F5, retry del navegador): se
+        # responde con el resultado del envío original en lugar de un error de
+        # duplicado. Va ANTES de instanciar los formularios porque más abajo se
+        # accede a form.errors, y eso ya dispara clean(), que escribe en BD.
+        prior = already_submitted(request)
+        if prior is not None:
+            return duplicate_response(request, prior.token, noun='registro')
+
         transaction_form = TransactionForm(request.POST)
         formset = FinancialRecordFormSet(request.POST, form_kwargs=form_kwargs)
 
@@ -1888,58 +1982,89 @@ def create_bulk_receipts(request):
                 return render(request, 'records/create_bulk_receipts.html', context)
 
             # Si no hay errores o si los duplicados similares fueron confirmados, proceder a guardar
-            with transaction.atomic():
-                new_transaction = Transaction(
-                    date=transaction_form.cleaned_data['date'],
-                    cliente=transaction_form.cleaned_data['cliente'],
-                    vendedor=transaction_form.cleaned_data['vendedor'],
-                    transaction_type=transaction_form.cleaned_data['transaction_type'],
-                    expected_amount = transaction_form.cleaned_data['expected_amount'],
-                    description=transaction_form.cleaned_data['description'],
-                    status=transaction_form.cleaned_data['status'], # <-- CAMBIO: Usar el estado validado del formulario
-                    numero_factura=transaction_form.cleaned_data['numero_factura'],
-                    facturador=transaction_form.cleaned_data['facturador'],
-                    created_by=request.user
-                )
-                new_transaction.save()
-
-                # 🔹 Aplicar abonos seleccionados a la nueva transacción
-                credit_ids_to_apply = request.POST.getlist('apply_credit')
-                if credit_ids_to_apply:
-                    # Buscamos los abonos que pertenecen al cliente y no tienen transacción asignada
-                    credits_to_apply = FinancialRecord.objects.filter(
-                        pk__in=credit_ids_to_apply,
-                        cliente=new_transaction.cliente,
-                        transaction__isnull=True
+            try:
+                with transaction.atomic():
+                    claim = claim_submission(request, 'record_create')
+                    new_transaction = Transaction(
+                        date=transaction_form.cleaned_data['date'],
+                        cliente=transaction_form.cleaned_data['cliente'],
+                        vendedor=transaction_form.cleaned_data['vendedor'],
+                        transaction_type=transaction_form.cleaned_data['transaction_type'],
+                        expected_amount = transaction_form.cleaned_data['expected_amount'],
+                        description=transaction_form.cleaned_data['description'],
+                        status=transaction_form.cleaned_data['status'], # <-- CAMBIO: Usar el estado validado del formulario
+                        numero_factura=transaction_form.cleaned_data['numero_factura'],
+                        facturador=transaction_form.cleaned_data['facturador'],
+                        created_by=request.user
                     )
-                    credits_to_apply.update(transaction=new_transaction)
+                    new_transaction.save()
 
-                for form in formset:
-                    if form.has_changed() and form.cleaned_data:
-                        if form.cleaned_data.get('DELETE'):
-                            if form.instance.pk:
-                                form.instance.delete()
-                        else:
-                            receipt = form.save(commit=False)
-                            receipt.transaction = new_transaction
-                            receipt.uploaded_by = request.user
-                            receipt.save()
+                    # 🔹 Aplicar abonos seleccionados a la nueva transacción
+                    credit_ids_to_apply = request.POST.getlist('apply_credit')
+                    if credit_ids_to_apply:
+                        # Buscamos los abonos que pertenecen al cliente y no tienen transacción asignada
+                        credits_to_apply = FinancialRecord.objects.filter(
+                            pk__in=credit_ids_to_apply,
+                            cliente=new_transaction.cliente,
+                            transaction__isnull=True
+                        )
+                        credits_to_apply.update(transaction=new_transaction)
 
-                            # Si un duplicado similar fue confirmado por el usuario, registrarlo como resuelto
-                            if form.cleaned_data.get('confirm_duplicate'):
-                                serializable_data = {k: str(v) for k, v in form.cleaned_data.items()}
-                                DuplicateRecordAttempt.objects.create(
-                                    user=request.user,
-                                    data=serializable_data,
-                                    attempt_type='SIMILAR',
-                                    is_resolved=True, # Marcar como resuelto porque el usuario confirmó
-                                    resolved_by=request.user,
-                                    resolved_at=timezone.now()
-                                )
+                    for form in formset:
+                        if form.has_changed() and form.cleaned_data:
+                            if form.cleaned_data.get('DELETE'):
+                                if form.instance.pk:
+                                    form.instance.delete()
+                            else:
+                                receipt = form.save(commit=False)
+                                receipt.transaction = new_transaction
+                                receipt.uploaded_by = request.user
+                                receipt.save()
+
+                                # Si un duplicado similar fue confirmado por el usuario, registrarlo como resuelto
+                                if form.cleaned_data.get('confirm_duplicate'):
+                                    serializable_data = {k: str(v) for k, v in form.cleaned_data.items()}
+                                    DuplicateRecordAttempt.objects.create(
+                                        user=request.user,
+                                        data=serializable_data,
+                                        attempt_type='SIMILAR',
+                                        is_resolved=True, # Marcar como resuelto porque el usuario confirmó
+                                        resolved_by=request.user,
+                                        resolved_at=timezone.now()
+                                    )
+
+                    # Destino de un reenvío posterior: el reintento aterriza VIENDO
+                    # sus recibos ya guardados, que es la información que faltaba.
+                    complete_submission(
+                        claim,
+                        result_url=reverse('transaction_update', args=[new_transaction.pk]),
+                        result_pk=new_transaction.pk,
+                        result_label=new_transaction.unique_transaction_id,
+                    )
+
+            except DuplicateSubmission as exc:
+                return duplicate_response(request, exc, noun='registro')
+
+            except IntegrityError:
+                messages.error(
+                    request,
+                    'No se pudo guardar porque uno de los recibos ya existe (misma fecha, '
+                    'hora, comprobante, banco y valor). Revisa el listado de recibos; si el '
+                    'recibo ya aparece ahí, no hay nada más que hacer.'
+                )
+                return render(request, 'records/create_bulk_receipts.html', {
+                    'transaction_form': transaction_form,
+                    'formset': formset,
+                    'title': 'Nuevo Registro',
+                })
 
             messages.success(request, 'Transacción y recibos guardados exitosamente.')
             return redirect('record_list')
         else:
+            # Registrar en la bandeja los duplicados detectados. Solo se llega aquí
+            # si la llave de idempotencia no vio un reenvío, así que un reintento por
+            # red inestable ya no genera falsos positivos.
+            flush_duplicate_attempts(request, formset.forms)
             messages.error(request, 'Por favor, corrija los errores en el formulario.')
             print(f"DEBUG: Transaction Form Errors: {transaction_form.errors}")
             print(f"DEBUG: Formset Errors: {formset.errors}")
@@ -2207,6 +2332,14 @@ def toggle_credit_revisado(request, pk):
     return JsonResponse({'success': True, 'revisado': credit.revisado})
 
 
+class _NoSurplus(Exception):
+    """La transacción no tiene excedente que convertir en saldo a favor."""
+
+
+class _CreditNoteAlreadyExists(Exception):
+    """El saldo a favor de esta transacción ya fue generado."""
+
+
 @require_POST
 @login_required
 @group_required('Admin', 'Digitador')
@@ -2217,73 +2350,140 @@ def create_credit_note_from_surplus(request, pk):
     1. Crea un `FinancialRecord` positivo (saldo a favor) sin transacción asignada.
     2. Crea un `FinancialRecord` negativo (ajuste) DENTRO de la transacción actual para balancearla.
     3. Vincula ambos registros para mantener la trazabilidad.
+
+    Protección contra duplicados. Esta era la única vía que generaba duplicados
+    reales y silenciosos: no pasa por ningún formulario, y la `hora` la ponía
+    timezone.now(), así que el unique_together de FinancialRecord no la cubría.
+    Tres capas:
+    - Llave de idempotencia del envío (token del formulario).
+    - select_for_update sobre la transacción, para serializar dos POST concurrentes.
+    - Comprobante determinista como llave, que también protege en SQLite.
     """
+    # Reenvío por red inestable: se responde con el resultado del envío original.
+    prior = already_submitted(request)
+    if prior is not None:
+        return duplicate_response(request, prior.token, noun='saldo a favor')
+
     try:
-        transaction_obj = get_object_or_404(Transaction, pk=pk)
-
-        # 1. Calcular la diferencia y asegurarse de que haya un excedente.
-        surplus = -transaction_obj.difference
-        if surplus <= 0:
-            messages.error(request, "No hay un excedente en esta transacción para generar un saldo a favor.")
-            return redirect('transaction_update', pk=transaction_obj.pk)
-
-        # 2. Iniciar una transacción atómica para garantizar la integridad.
+        # Transacción atómica para garantizar la integridad del par saldo/ajuste.
         with transaction.atomic():
-            # 2.1. Obtener o crear el Banco y Origen por defecto para los Saldos a Favor.
+            claim = claim_submission(request, 'create_credit_note_from_surplus')
+
+            # select_for_update serializa dos POST concurrentes sobre la MISMA
+            # transacción: el segundo espera, recalcula `difference` después del
+            # commit del primero y ve surplus == 0. Antes la lectura y el cálculo
+            # ocurrían FUERA del atomic, y ahí estaba la carrera.
+            transaction_obj = Transaction.objects.select_for_update().get(pk=pk)
+
+            surplus = -transaction_obj.difference
+            if surplus <= 0:
+                raise _NoSurplus()
+
+            # Banco y Origen por defecto para los Saldos a Favor.
             # Esto evita el error "NOT NULL constraint failed".
             saldo_favor_bank, _ = Bank.objects.get_or_create(name="SALDO A FAVOR")
             saldo_favor_origin, _ = OrigenTransaccion.objects.get_or_create(name="SALDO A FAVOR")
 
-            # 2.1. Crear el SALDO A FAVOR (positivo, sin transacción)
+            # Una sola marca de tiempo para los dos registros del par: antes se
+            # llamaba timezone.now() cuatro veces y podían caer en segundos distintos.
+            now = timezone.now()
+            fecha_actual = now.date()
+            hora_actual = now.astimezone(zoneinfo.ZoneInfo("America/Bogota")).time().replace(microsecond=0)
+
+            # El comprobante ya es determinista, así que sirve de llave de
+            # idempotencia incluso en SQLite, donde select_for_update es un no-op.
+            comprobante_favor = f"SF-FAVOR-{transaction_obj.unique_transaction_id}"
+            comprobante_ajuste = f"SF-AJUSTE-{transaction_obj.unique_transaction_id}"
+
+            # 1. El SALDO A FAVOR (positivo, sin transacción).
             # Este es el abono que el cliente podrá usar en el futuro.
-            positive_credit = FinancialRecord.objects.create(
-                cliente=transaction_obj.cliente,
-                fecha=timezone.now().date(),
-                hora=timezone.now().astimezone(zoneinfo.ZoneInfo("America/Bogota")).time().replace(microsecond=0),
-                banco_llegada=saldo_favor_bank,
-                origen_transaccion=saldo_favor_origin,
-                comprobante=f"SF-FAVOR-{transaction_obj.unique_transaction_id}",
-                valor=surplus,
-                payment_status='Aprobado',
-                uploaded_by=request.user,
-                transaction=None, # CLAVE: Esto lo convierte en un saldo a favor.
-                description=f"Saldo a favor generado por excedente en transacción {transaction_obj.unique_transaction_id}."
+            positive_credit, created_favor = FinancialRecord.objects.get_or_create(
+                comprobante=comprobante_favor,
+                defaults={
+                    'cliente': transaction_obj.cliente,
+                    'fecha': fecha_actual,
+                    'hora': hora_actual,
+                    'banco_llegada': saldo_favor_bank,
+                    'origen_transaccion': saldo_favor_origin,
+                    'valor': surplus,
+                    'payment_status': 'Aprobado',
+                    'uploaded_by': request.user,
+                    'transaction': None,  # CLAVE: esto lo convierte en un saldo a favor.
+                    'description': f"Saldo a favor generado por excedente en transacción {transaction_obj.unique_transaction_id}.",
+                }
             )
+            if not created_favor:
+                raise _CreditNoteAlreadyExists()
 
-            # 2.2. Crear el AJUSTE (negativo, DENTRO de la transacción)
+            # 2. El AJUSTE (negativo, DENTRO de la transacción).
             # Esto balancea la transacción actual para que su diferencia sea cero.
-            negative_adjustment = FinancialRecord.objects.create(
-                cliente=transaction_obj.cliente,
-                fecha=timezone.now().date(),
-                hora=timezone.now().astimezone(zoneinfo.ZoneInfo("America/Bogota")).time().replace(microsecond=0),
-                banco_llegada=saldo_favor_bank,
-                origen_transaccion=saldo_favor_origin,
-                comprobante=f"SF-AJUSTE-{transaction_obj.unique_transaction_id}",
-                valor=-surplus, # CLAVE: Valor negativo.
-                payment_status='Aprobado',
-                uploaded_by=request.user,
-                transaction=transaction_obj, # CLAVE: Se asocia a la transacción actual.
-                description=f"Ajuste para balancear excedente en transacción {transaction_obj.unique_transaction_id}."
+            negative_adjustment, created_ajuste = FinancialRecord.objects.get_or_create(
+                comprobante=comprobante_ajuste,
+                defaults={
+                    'cliente': transaction_obj.cliente,
+                    'fecha': fecha_actual,
+                    'hora': hora_actual,
+                    'banco_llegada': saldo_favor_bank,
+                    'origen_transaccion': saldo_favor_origin,
+                    'valor': -surplus,  # CLAVE: valor negativo.
+                    'payment_status': 'Aprobado',
+                    'uploaded_by': request.user,
+                    'transaction': transaction_obj,  # CLAVE: se asocia a la transacción actual.
+                    'description': f"Ajuste para balancear excedente en transacción {transaction_obj.unique_transaction_id}.",
+                }
             )
+            if not created_ajuste:
+                raise _CreditNoteAlreadyExists()
 
-            # 2.3. Vincular ambos registros.
+            # 3. Vincular ambos registros.
             positive_credit.linked_credit_note = negative_adjustment
-            positive_credit.save()
+            positive_credit.save(update_fields=['linked_credit_note'])
             negative_adjustment.linked_credit_note = positive_credit
-            negative_adjustment.save()
+            negative_adjustment.save(update_fields=['linked_credit_note'])
+
+            complete_submission(
+                claim,
+                result_url=reverse('transaction_update', args=[transaction_obj.pk]),
+                result_pk=positive_credit.pk,
+                result_label=positive_credit.comprobante,
+            )
 
         messages.success(
-            request, 
+            request,
             f"Saldo a favor por valor de ${surplus:,.2f} generado exitosamente. La transacción ha sido balanceada."
         )
-        return redirect('transaction_update', pk=transaction_obj.pk)
+        return redirect('transaction_update', pk=pk)
+
+    except DuplicateSubmission as exc:
+        return duplicate_response(request, exc, noun='saldo a favor')
+
+    except _CreditNoteAlreadyExists:
+        messages.info(request, "El saldo a favor de esta transacción ya había sido generado.")
+        return redirect('transaction_update', pk=pk)
+
+    except _NoSurplus:
+        messages.error(request, "No hay un excedente en esta transacción para generar un saldo a favor.")
+        return redirect('transaction_update', pk=pk)
 
     except Transaction.DoesNotExist:
         messages.error(request, "La transacción no existe.")
         return redirect('record_list')
+
+    except IntegrityError:
+        messages.error(
+            request,
+            "No se pudo generar el saldo a favor porque ya existe un recibo con esos "
+            "mismos datos. Revisa los recibos de la transacción."
+        )
+        return redirect('transaction_update', pk=pk)
+
+    # El except genérico va AL FINAL a propósito: si queda antes, se traga las
+    # excepciones de control de arriba y las convierte en "Ocurrió un error
+    # inesperado", que es justo el mensaje que hacía que el digitador reintentara.
     except Exception as e:
         messages.error(request, f"Ocurrió un error inesperado: {e}")
         return redirect('transaction_update', pk=pk)
+
 
 
 class FinancialRecordFormSet(inlineformset_factory(Transaction, FinancialRecord, form=FinancialRecordForm, extra=0, can_delete=True)):

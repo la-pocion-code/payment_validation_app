@@ -1,6 +1,7 @@
 {% extends 'records/base.html' %}
 {% load humanize %}
 {% load static %}
+{% load idempotency %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -38,16 +39,18 @@
                 <span>
                     <strong>¡Pago en Exceso!</strong> Hay un excedente de <strong>${{ difference|floatformat:2|intcomma }}</strong> en esta transacción.
                 </span>
-                <form action="{% url 'create_credit_note_from_surplus' transaction.pk %}" method="post" onsubmit="return confirm('¿Estás seguro de que deseas generar un saldo a favor por el excedente? Esta acción creará un nuevo recibo de ajuste en esta transacción y un saldo a favor para el cliente.');">
+                <form action="{% url 'create_credit_note_from_surplus' transaction.pk %}" method="post" data-submit-once onsubmit="return confirm('¿Estás seguro de que deseas generar un saldo a favor por el excedente? Esta acción creará un nuevo recibo de ajuste en esta transacción y un saldo a favor para el cliente.');">
                     {% csrf_token %}
+                    {% submit_token %}
                     <button type="submit" class="btn btn-primary">Generar Saldo a Favor</button>
                 </form>
             </div>
         {% endif %} 
     {% endif %}
 
-    <form method="post" id="transaction-form">
+    <form method="post" id="transaction-form" data-submit-once>
         {% csrf_token %}
+        {% submit_token %}
         {# Transaction Form #}
         <fieldset>
             <legend>Detalles de la Transacción # {{ transaction.unique_transaction_id }}</legend>

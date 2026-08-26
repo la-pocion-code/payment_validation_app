@@ -344,3 +344,44 @@ class AccessRequest(models.Model):
 
     def __str__(self):
         return f"Access request from {self.user.username}"
+
+
+class FormSubmission(models.Model):
+    """
+    Llave de idempotencia de un envío de formulario.
+
+    Cada render de un formulario de captura incluye un token UUID. Si el POST se
+    reenvía (doble clic, F5 -> "reenviar formulario", o reintento del navegador o
+    del proxy cuando la conexión se cae antes de recibir la respuesta), llega el
+    mismo token y la escritura NO se vuelve a ejecutar: se responde con un redirect
+    al resultado del envío original.
+
+    La fila se inserta DENTRO del mismo transaction.atomic() que hace el guardado,
+    así que solo es visible para otras conexiones si el guardado hizo commit. Si el
+    guardado falla, el rollback libera el token y el usuario puede reenviar.
+    """
+    # La PK es el token: el índice único lo da la propia PK, y el INSERT en
+    # conflicto es exactamente la señal de "esto ya se procesó".
+    token = models.UUIDField(primary_key=True, editable=False, verbose_name="Token")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='form_submissions',
+        verbose_name="Usuario"
+    )
+    scope = models.CharField(max_length=100, verbose_name="Vista")
+    result_url = models.CharField(max_length=500, blank=True, default='', verbose_name="URL del resultado")
+    result_pk = models.BigIntegerField(null=True, blank=True, verbose_name="PK creada")
+    result_label = models.CharField(max_length=100, blank=True, default='', verbose_name="Etiqueta del resultado")
+    retry_count = models.PositiveIntegerField(default=0, verbose_name="Reenvíos absorbidos")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Fecha de creación")
+
+    class Meta:
+        verbose_name = "Envío de formulario"
+        verbose_name_plural = "Envíos de formulario"
+        indexes = [models.Index(fields=['scope', 'created_at'])]
+
+    def __str__(self):
+        return f"{self.scope} · {self.token}"
