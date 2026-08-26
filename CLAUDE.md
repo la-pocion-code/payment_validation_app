@@ -48,6 +48,7 @@ importación masiva CSV/Excel y detección de duplicados. Desplegada en **Railwa
 - `DuplicateRecordAttempt` — registra intentos de duplicado (DUPLICATE/SIMILAR).
 - `AccessRequest` — onboarding de nuevos usuarios.
 - `AuthorizedUser` — usuarios autorizados.
+- `FormSubmission` — llave de idempotencia por envío de formulario (PK = token UUID).
 
 ## Autenticación y roles
 
@@ -89,6 +90,39 @@ python manage.py load_receipts    # comando custom
 - Push a `main` → **producción**; push a `staging` → **staging**.
 - Flujo recomendado: desarrollar en `staging`, verificar, merge `staging` → `main`.
 - `Procfile`: `collectstatic → migrate → gunicorn financial_tracker.wsgi:application`.
+
+## Idempotencia de formularios (duplicados por red inestable)
+
+Los digitadores trabajan con WIFI inestable, así que un mismo POST puede llegar dos veces
+(doble clic, F5 → «reenviar formulario», reintento del navegador o del proxy). Antes eso
+producía un falso «Registro duplicado exacto» y, cuando el digitador re-digitaba creyendo
+que nada se había guardado, un duplicado real.
+
+Mecanismo, en `records/idempotency.py`:
+
+1. `{% submit_token %}` (`records/templatetags/idempotency.py`) emite un UUID nuevo en cada
+   render del formulario, junto al `{% csrf_token %}`.
+2. `already_submitted(request)` — al **inicio** del POST, antes de instanciar los
+   formularios. Si el token ya existe, responde `redirect` + `messages.info` («ya fue
+   guardado»). Va antes a propósito: acceder a `form.errors` dispara
+   `FinancialRecordForm.clean()`, que anota intentos de duplicado.
+3. `claim_submission(request, scope)` — **primera** sentencia dentro del `transaction.atomic()`
+   que escribe. El `INSERT` de la PK duplicada es lo que resuelve la carrera (en PostgreSQL
+   espera al commit/rollback rival). Levanta `DuplicateSubmission`, que se captura **fuera**
+   del atomic.
+4. `complete_submission(claim, ...)` — al final, dentro del mismo atomic, guarda la URL de
+   destino para un reenvío posterior. Si el guardado falla, el rollback libera el token.
+
+Aplicado en las cuatro vías que crean recibos: `create_bulk_receipts`, `CreditCreateView`,
+`TransactionUpdateView` y `create_credit_note_from_surplus` (esta última suma
+`select_for_update` sobre la `Transaction` y comprobante determinista como llave).
+
+Apoyos: `records/static/js/submit-once.js` (guard de doble submit, opt-in con
+`data-submit-once`), `@never_cache` en las vistas de formulario (evita que bfcache devuelva
+un token ya consumido) y captura de `IntegrityError` para no responder 500.
+
+Comandos: `python manage.py diagnose_duplicates` (informe de solo lectura) y
+`python manage.py purge_form_submissions --days 7`.
 
 ## Convenciones
 

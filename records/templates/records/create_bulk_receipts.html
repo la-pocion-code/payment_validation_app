@@ -1,6 +1,7 @@
 ﻿{% extends "records/base.html" %}
 {% load humanize %}
 {% load static %}
+{% load idempotency %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -26,8 +27,9 @@
         </div>
     {% endif %}
 
-    <form method="post" class="filter-form">
+    <form method="post" class="filter-form" data-submit-once>
         {% csrf_token %}
+        {% submit_token %}
         {{ transaction_form.status }}
 
         <fieldset class="mb-4">

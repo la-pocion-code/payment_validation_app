@@ -56,6 +56,11 @@ class FinancialRecordForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super(FinancialRecordForm, self).__init__(*args, **kwargs)
         self.similar_records = None
+        # Intento de duplicado detectado en clean(), pendiente de persistir por la
+        # vista. clean() NO debe escribir en BD: se ejecuta en autocommit, fuera de
+        # cualquier atomic() de la vista, así que la fila sobrevive al rollback y se
+        # crea incluso cuando el guardado se aborta. Ver flush_duplicate_attempts().
+        self.pending_duplicate_attempt = None
         
         # --- Lógica de fecha mínima y máxima ---
         today = timezone.now().date()
@@ -147,12 +152,14 @@ class FinancialRecordForm(forms.ModelForm):
                 )
                 if exact_qs.exists():
                     if self.request:
-                        serializable_data = {k: str(v) for k, v in cleaned_data.items()}
-                        DuplicateRecordAttempt.objects.create(
-                            user=self.request.user,
-                            data=serializable_data,
-                            attempt_type='DUPLICATE'
-                        )
+                        # Se anota, no se persiste: la vista lo hace con
+                        # flush_duplicate_attempts() solo si el envío no era un
+                        # reenvío de red y el formulario se vuelve a renderizar.
+                        self.pending_duplicate_attempt = {
+                            'attempt_type': 'DUPLICATE',
+                            'data': {k: str(v) for k, v in cleaned_data.items()},
+                            'existing_pk': exact_qs.values_list('pk', flat=True).first(),
+                        }
                     raise forms.ValidationError(
                         format_html('<div id="exact-duplicate-error">Registro duplicado exacto: ya existe un registro con los mismos datos (Fecha: {}, Hora: {}, Comprobante: {}, Banco: {}, Valor: {}).</div>', fecha, hora, comprobante, banco_llegada.name, valor)
                     )
@@ -178,15 +185,10 @@ class FinancialRecordForm(forms.ModelForm):
                             format_html('<div id=\"similar-duplicate-warning\">ADVERTENCIA: Posible registro duplicado. Ya existe un registro con la misma Fecha, Hora, Banco y Valor. Si estás seguro de que no es un duplicado, marca la casilla de confirmación.</div>')
                         )
                         self.similar_records = similar_qs
-                    else:
-                        # Si el usuario SÍ ha confirmado, creamos la alerta para el administrador.
-                        if self.request:
-                            serializable_data = {k: str(v) for k, v in cleaned_data.items()}
-                            DuplicateRecordAttempt.objects.create(
-                                user=self.request.user,
-                                data=serializable_data,
-                                attempt_type='SIMILAR'
-                            )
+                    # Si el usuario SÍ ha confirmado, la alerta para el administrador
+                    # la crea la vista tras guardar, ya con is_resolved=True. Antes se
+                    # creaba también aquí, así que cada similar confirmado generaba DOS
+                    # filas en la bandeja: una sin resolver y otra resuelta.
 
         # Para nuevos registros, si payment_status no se envía, establece el valor por defecto.
         if not self.instance.pk and not cleaned_data.get('payment_status'):
@@ -222,6 +224,32 @@ class FinancialRecordForm(forms.ModelForm):
 
         return cleaned_data
 
+
+
+def flush_duplicate_attempts(request, forms_iterable):
+    """
+    Persiste los intentos de duplicado que clean() dejó anotados.
+
+    Se llama desde la vista, en la rama de re-render (nunca en la de éxito), y solo
+    se alcanza cuando la llave de idempotencia no detectó un reenvío: así un
+    reintento por red inestable ya no ensucia la bandeja de duplicados.
+    """
+    if not request or not request.user.is_authenticated:
+        return
+    for form in forms_iterable:
+        pending = getattr(form, 'pending_duplicate_attempt', None)
+        if not pending:
+            continue
+        data = dict(pending['data'])
+        if pending.get('existing_pk'):
+            # Permite triar el intento de un clic desde la bandeja.
+            data['_registro_existente_pk'] = str(pending['existing_pk'])
+        DuplicateRecordAttempt.objects.create(
+            user=request.user,
+            data=data,
+            attempt_type=pending['attempt_type'],
+        )
+        form.pending_duplicate_attempt = None
 
 
 class FinancialRecordUpdateForm(FinancialRecordForm):

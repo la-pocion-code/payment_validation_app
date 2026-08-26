@@ -1,5 +1,6 @@
 {% extends 'records/base.html' %}
 {% load humanize %}
+{% load idempotency %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -10,8 +11,9 @@
             <h1 class="h4 mb-0">{{ title }}</h1>
         </div>
         <div class="card-body">
-            <form method="post" id="credit-form" novalidate>
+            <form method="post" id="credit-form" novalidate data-submit-once>
                 {% csrf_token %}
+                {% submit_token %}
 
                 {# --- 1. Mostrar Errores No Específicos de un Campo (DUPLICADO EXACTO) --- #}
                 {# Esta sección es clave para mostrar el mensaje de "Duplicado Exacto" en rojo. #}
