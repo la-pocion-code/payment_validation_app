@@ -264,6 +264,7 @@ class FinancialRecord(models.Model):
         related_name='related_credit_note_pair',
         help_text='Vincula este saldo a favor con su contraparte (positiva o negativa).'
     )
+    revisado = models.BooleanField(default=False, verbose_name="Revisado")
 
 
 

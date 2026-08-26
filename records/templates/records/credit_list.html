@@ -43,6 +43,14 @@
                         {{ filter.form.comprobante }}
                     </div>
                     <div class="filter-field">
+                        <label class="form-label">Transacción ID</label>
+                        {{ filter.form.transaction_id }}
+                    </div>
+                    <div class="filter-field">
+                        <label class="form-label">Transacción</label>
+                        {{ filter.form.transaccion_presencia }}
+                    </div>
+                    <div class="filter-field">
                         <label class="form-label">Banco</label>
                         {{ filter.form.banco_llegada }}
                     </div>
@@ -66,7 +74,11 @@
                         <label class="form-label">Facturador</label>
                         {{ filter.form.facturador }}
                     </div>
-                    
+                    <div class="filter-field d-flex align-items-center gap-2 mt-2">
+                        {{ filter.form.ocultar_revisados }}
+                        <label class="form-label mb-0" for="{{ filter.form.ocultar_revisados.id_for_label }}">Ocultar revisados</label>
+                    </div>
+
                 </div>
                 
                 <div class="d-flex justify-content-end gap-2">
@@ -93,7 +105,7 @@
                 <table class="table table-striped table-hover">
                     <thead class="table-light">
                         <tr>
-                            <th>ID</th>
+                            <th>Revisado</th>
                             <th>Transacción ID</th>
                             <th>Tipo Transacción</th>
                             <th>Cliente</th>
@@ -113,7 +125,12 @@
                     <tbody>
                         {% for credit in credits %}
                         <tr onclick="window.location='{% url 'credit_detail' credit.pk %}'" style="cursor:pointer;">
-                            <td>{{ credit.id }}</td>
+                            <td onclick="event.stopPropagation();" class="text-center">
+                                <input type="checkbox" class="revisado-check form-check-input"
+                                       data-url="{% url 'toggle_credit_revisado' credit.pk %}"
+                                       {% if credit.revisado %}checked{% endif %}
+                                       {% if not user.is_superuser and 'Validador' not in user_groups and 'Contabilidad' not in user_groups %}disabled{% endif %}>
+                            </td>
                             <td>{{ credit.transaction.unique_transaction_id}}</td>
                             <td>{{ credit.transaction.transaction_type }}</td>
                             <td>{{ credit.display_client }}</td>
@@ -157,7 +174,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="13" class="text-center">No se encontraron abonos con los filtros seleccionados.</td>
+                            <td colspan="15" class="text-center">No se encontraron abonos con los filtros seleccionados.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -270,6 +287,45 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 selectElement.value = originalStatus;
             }
+        });
+    });
+
+    // --- Casilla "Revisado" (toggle vía AJAX) ---
+    document.querySelectorAll('.revisado-check').forEach(checkbox => {
+        checkbox.addEventListener('change', function(event) {
+            const cb = event.target;
+            const url = cb.dataset.url;
+            const newValue = cb.checked;
+
+            const formData = new FormData();
+            formData.append('revisado', newValue ? 'true' : 'false');
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken ? csrfToken.value : '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data.success) {
+                    alert(`Error al actualizar: ${data.message}`);
+                    cb.checked = !newValue;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const errorMessage = error.message ? `Error: ${error.message}` : 'Error de red al actualizar. Intente de nuevo.';
+                alert(errorMessage);
+                cb.checked = !newValue;
+            });
         });
     });
 

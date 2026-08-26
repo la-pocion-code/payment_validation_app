@@ -67,6 +67,7 @@ urlpatterns = [
     path('credits/<int:pk>/', views.CreditDetailView.as_view(), name='credit_detail'),
     path('credit/<int:pk>/update_field/', views.update_credit_field, name='update_credit_field'),
     path('credits/<int:pk>/update_status/', views.update_credit_status, name='update_credit_status'),
+    path('credit/<int:pk>/toggle_revisado/', views.toggle_credit_revisado, name='toggle_credit_revisado'),
     path('transaction/<int:pk>/create_credit_note/', views.create_credit_note_from_surplus, name='create_credit_note_from_surplus'),
     path('credit/<int:pk>/update_client/', views.update_credit_client, name='update_credit_client'),
     path('payment_documents/', views.PaymentDocumentListView.as_view(), name='payment_document_list'),

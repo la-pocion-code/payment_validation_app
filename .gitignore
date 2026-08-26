@@ -211,3 +211,6 @@ __marimo__/
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+# graphify knowledge-graph output
+graphify-out/
+.graphify_python

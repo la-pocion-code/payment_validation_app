@@ -33,6 +33,7 @@ from django.utils import timezone
 from django.db.models import Q
 import json
 from decimal import Decimal, InvalidOperation
+import zoneinfo
 
 
 
@@ -2191,6 +2192,23 @@ def update_credit_status(request, pk):
 
 @require_POST
 @login_required
+def toggle_credit_revisado(request, pk):
+    """
+    Marca/desmarca un recibo (FinancialRecord) como 'Revisado' vía AJAX.
+    Solo accesible por superusuarios y grupos Validador o Contabilidad.
+    """
+    if not (request.user.is_superuser
+            or request.user.groups.filter(name__in=['Validador', 'Contabilidad']).exists()):
+        return JsonResponse({'success': False, 'message': 'No tienes permiso para realizar esta acción.'}, status=403)
+
+    credit = get_object_or_404(FinancialRecord, pk=pk)
+    credit.revisado = request.POST.get('revisado') == 'true'
+    credit.save(update_fields=['revisado', 'modificado'])
+    return JsonResponse({'success': True, 'revisado': credit.revisado})
+
+
+@require_POST
+@login_required
 @group_required('Admin', 'Digitador')
 def create_credit_note_from_surplus(request, pk):
     """
@@ -2221,7 +2239,7 @@ def create_credit_note_from_surplus(request, pk):
             positive_credit = FinancialRecord.objects.create(
                 cliente=transaction_obj.cliente,
                 fecha=timezone.now().date(),
-                hora=timezone.now().time(),
+                hora=timezone.now().astimezone(zoneinfo.ZoneInfo("America/Bogota")).time().replace(microsecond=0),
                 banco_llegada=saldo_favor_bank,
                 origen_transaccion=saldo_favor_origin,
                 comprobante=f"SF-FAVOR-{transaction_obj.unique_transaction_id}",
@@ -2237,7 +2255,7 @@ def create_credit_note_from_surplus(request, pk):
             negative_adjustment = FinancialRecord.objects.create(
                 cliente=transaction_obj.cliente,
                 fecha=timezone.now().date(),
-                hora=timezone.now().time(),
+                hora=timezone.now().astimezone(zoneinfo.ZoneInfo("America/Bogota")).time().replace(microsecond=0),
                 banco_llegada=saldo_favor_bank,
                 origen_transaccion=saldo_favor_origin,
                 comprobante=f"SF-AJUSTE-{transaction_obj.unique_transaction_id}",
