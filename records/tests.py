@@ -17,7 +17,7 @@ from unittest import skipUnless
 from django.contrib.auth.models import Group, User
 from django.db import connection, connections, transaction
 from django.test import Client as DjangoClient
-from django.test import RequestFactory, TestCase, TransactionTestCase
+from django.test import RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -119,8 +119,15 @@ class IdempotencyHelpersTests(TestCase):
         complete_submission(None, result_url='/records/')  # no debe lanzar
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 class DatosBase(TestCase):
-    """Catálogos y usuario compartidos por las pruebas de vistas."""
+    """
+    Catálogos y usuario compartidos por las pruebas de vistas.
+
+    SECURE_SSL_REDIRECT se desactiva porque con DEBUG=False (staging y producción)
+    el cliente de pruebas, que pide por HTTP, recibiría un 301 a HTTPS. Así la suite
+    corre igual en local con SQLite y dentro del contenedor contra PostgreSQL.
+    """
 
     def setUp(self):
         self.user = User.objects.create_user('digitador', password='clave-larga-123')
@@ -412,6 +419,7 @@ class CreditCreateIdempotenciaTests(DatosBase):
         )
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 @skipUnless(
     connection.vendor == 'postgresql',
     'La espera fina de fila del INSERT en conflicto solo existe en PostgreSQL; '
