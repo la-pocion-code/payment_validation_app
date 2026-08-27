@@ -137,7 +137,11 @@ class DatosBase(TestCase):
 
         self.cliente = Client.objects.create(name='CLIENTE PRUEBA', dni='900123456')
         self.vendedor = Seller.objects.create(name='VENDEDOR PRUEBA')
-        self.tipo = TransactionType.objects.create(name='VENTA')
+        # La migración 0025 inserta TransactionType con id=1 explícito, sin avanzar la
+        # secuencia, así que en PostgreSQL el primer create() de una BD recién migrada
+        # choca con esa fila. Reutilizamos la que ya existe: a estas pruebas les da
+        # igual el nombre del tipo.
+        self.tipo = TransactionType.objects.first() or TransactionType.objects.create(name='VENTA')
         self.banco = Bank.objects.create(name='BANCOLOMBIA')
         self.origen = OrigenTransaccion.objects.create(name='TRANSFERENCIA')
 
@@ -435,8 +439,6 @@ class ConcurrenciaTests(TransactionTestCase):
     comportamiento de producción (Railway usa PostgreSQL).
     """
 
-    reset_sequences = True
-
     def setUp(self):
         self.user = User.objects.create_user('digitador', password='clave-larga-123')
         grupo, _ = Group.objects.get_or_create(name='Digitador')
@@ -444,7 +446,11 @@ class ConcurrenciaTests(TransactionTestCase):
 
         self.cliente = Client.objects.create(name='CLIENTE PRUEBA', dni='900123456')
         self.vendedor = Seller.objects.create(name='VENDEDOR PRUEBA')
-        self.tipo = TransactionType.objects.create(name='VENTA')
+        # La migración 0025 inserta TransactionType con id=1 explícito, sin avanzar la
+        # secuencia, así que en PostgreSQL el primer create() de una BD recién migrada
+        # choca con esa fila. Reutilizamos la que ya existe: a estas pruebas les da
+        # igual el nombre del tipo.
+        self.tipo = TransactionType.objects.first() or TransactionType.objects.create(name='VENTA')
         self.banco = Bank.objects.create(name='BANCOLOMBIA')
         self.origen = OrigenTransaccion.objects.create(name='TRANSFERENCIA')
 
