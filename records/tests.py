@@ -8,6 +8,8 @@ un falso "Registro duplicado exacto", o un duplicado real cuando el digitador
 re-digitaba creyendo que nada se había guardado.
 """
 
+import csv
+import io
 import threading
 import uuid
 from datetime import timedelta
@@ -577,3 +579,53 @@ class RenderDelTokenTests(DatosBase):
                 html = self.client.get(url).content.decode()
                 self.assertIn('data-submit-once', html)
                 self.assertIn('submit-once', html)  # el <script> de base.html
+
+
+class ExportTransaccionesCsvTests(DatosBase):
+    """
+    El reporte que descarga contabilidad desde la lista de Transacciones
+    (reporte_detallado_recibos.csv) debe traer el tipo de transacción para que
+    puedan comprobarlo fila por fila.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # La exportación es solo para superusuarios.
+        self.user.is_superuser = True
+        self.user.save()
+
+        transaccion = Transaction.objects.create(
+            date=timezone.now().date(),
+            cliente=self.cliente,
+            vendedor=self.vendedor,
+            transaction_type=self.tipo,
+            expected_amount=Decimal('100000.00'),
+            created_by=self.user,
+        )
+        FinancialRecord.objects.create(
+            fecha=timezone.now().date(),
+            hora='09:00:00',
+            comprobante='PAGO-EXPORT',
+            banco_llegada=self.banco,
+            origen_transaccion=self.origen,
+            valor=Decimal('100000.00'),
+            transaction=transaccion,
+            uploaded_by=self.user,
+        )
+
+    def _filas(self):
+        respuesta = self.client.get(reverse('export_transactions_csv'))
+        self.assertEqual(respuesta.status_code, 200)
+        # utf-8-sig quita el BOM que la vista agrega para Excel.
+        contenido = respuesta.content.decode('utf-8-sig')
+        return list(csv.reader(io.StringIO(contenido), delimiter=';'))
+
+    def test_el_reporte_trae_el_tipo_de_transaccion(self):
+        encabezado, *datos = self._filas()
+
+        self.assertIn('Tipo Transaccion', encabezado)
+        columna = encabezado.index('Tipo Transaccion')
+        self.assertEqual(encabezado[columna - 1], 'Vendedor')
+
+        self.assertEqual(len(datos), 1)
+        self.assertEqual(datos[0][columna], self.tipo.name)

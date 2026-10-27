@@ -1769,9 +1769,10 @@ def export_transactions_csv(request):
     receipts_queryset = FinancialRecord.objects.filter(
         transaction__id__in=filtered_transaction_ids
     ).select_related(
-        'transaction', 
-        'transaction__vendedor', 
-        'banco_llegada', 
+        'transaction',
+        'transaction__vendedor',
+        'transaction__transaction_type',
+        'banco_llegada',
         'origen_transaccion',
         'uploaded_by',
         'transaction__created_by'
@@ -1791,6 +1792,7 @@ def export_transactions_csv(request):
         'Fecha Transaccion',
         'Cliente',
         'Vendedor',
+        'Tipo Transaccion',
         'Descripcion Transaccion',
         'Estado Transaccion',
         '# Factura',
@@ -1817,6 +1819,7 @@ def export_transactions_csv(request):
             transaction.date.strftime('%d/%m/%Y'),
             transaction.cliente,
             transaction.vendedor.name if transaction.vendedor else '',
+            transaction.transaction_type.name if transaction.transaction_type else '',
             transaction.description,
             transaction.status,
             transaction.numero_factura,
