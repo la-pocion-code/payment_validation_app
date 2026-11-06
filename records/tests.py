@@ -629,3 +629,54 @@ class ExportTransaccionesCsvTests(DatosBase):
 
         self.assertEqual(len(datos), 1)
         self.assertEqual(datos[0][columna], self.tipo.name)
+
+
+class ExportRecibosCsvTests(DatosBase):
+    """
+    El Excel de la lista de Recibos (/credits/ -> recibos.csv) también lleva el tipo de
+    transacción; un abono suelto, sin transacción, sale con N/A como la columna vecina.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.transaccion = Transaction.objects.create(
+            date=timezone.now().date(),
+            cliente=self.cliente,
+            vendedor=self.vendedor,
+            transaction_type=self.tipo,
+            expected_amount=Decimal('100000.00'),
+            created_by=self.user,
+        )
+        FinancialRecord.objects.create(
+            fecha=timezone.now().date(),
+            hora='09:00:00',
+            comprobante='PAGO-CON-TRANSACCION',
+            banco_llegada=self.banco,
+            origen_transaccion=self.origen,
+            valor=Decimal('100000.00'),
+            transaction=self.transaccion,
+            uploaded_by=self.user,
+        )
+        FinancialRecord.objects.create(
+            fecha=timezone.now().date(),
+            hora='10:00:00',
+            comprobante='ABONO-SUELTO',
+            banco_llegada=self.banco,
+            origen_transaccion=self.origen,
+            valor=Decimal('50000.00'),
+            cliente=self.cliente,
+            uploaded_by=self.user,
+        )
+
+    def test_el_excel_de_recibos_trae_el_tipo_de_transaccion(self):
+        respuesta = self.client.get(reverse('export_credits_csv'))
+        self.assertEqual(respuesta.status_code, 200)
+        encabezado, *datos = list(csv.reader(
+            io.StringIO(respuesta.content.decode('utf-8-sig')), delimiter=';'))
+
+        columna = encabezado.index('Tipo de Transacción')
+        self.assertEqual(encabezado[columna - 1], 'Asociado a Transacción ID')
+
+        por_comprobante = {fila[encabezado.index('Comprobante')]: fila for fila in datos}
+        self.assertEqual(por_comprobante['PAGO-CON-TRANSACCION'][columna], self.tipo.name)
+        self.assertEqual(por_comprobante['ABONO-SUELTO'][columna], 'N/A')

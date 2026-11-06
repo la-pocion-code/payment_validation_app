@@ -2523,7 +2523,8 @@ def export_credits_csv(request):
     # 1. Obtenemos todos los recibos. Usamos select_related y prefetch_related
     #    para optimizar la consulta y evitar múltiples accesos a la base de datos.
     queryset = FinancialRecord.objects.select_related(
-        'banco_llegada', 'uploaded_by', 'cliente', 'transaction__cliente'
+        'banco_llegada', 'uploaded_by', 'cliente', 'transaction__cliente',
+        'transaction__transaction_type'
     ).order_by('-fecha', '-hora')
 
     # 2. Aplicamos el mismo filtro que en la vista de lista.
@@ -2543,7 +2544,8 @@ def export_credits_csv(request):
     writer = csv.writer(response, delimiter=';')
     writer.writerow([
         'ID', 'Cliente', 'Fecha', 'Hora', 'Comprobante', 'Banco',
-        'Valor', 'Estado de Pago', 'Subido por', 'Asociado a Transacción ID'
+        'Valor', 'Estado de Pago', 'Subido por', 'Asociado a Transacción ID',
+        'Tipo de Transacción'
     ])
 
     # 5. Iteramos sobre los recibos filtrados y escribimos cada fila en el CSV.
@@ -2558,7 +2560,8 @@ def export_credits_csv(request):
             credit.valor,
             credit.get_payment_status_display(), # Usamos el método para obtener el texto legible del estado
             credit.uploaded_by.username if credit.uploaded_by else 'Sistema',
-            credit.transaction.unique_transaction_id if credit.transaction else 'N/A'
+            credit.transaction.unique_transaction_id if credit.transaction else 'N/A',
+            credit.transaction.transaction_type.name if credit.transaction else 'N/A'
         ])
 
     # 6. Devolvemos la respuesta.
