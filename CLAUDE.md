@@ -124,6 +124,40 @@ un token ya consumido) y captura de `IntegrityError` para no responder 500.
 Comandos: `python manage.py diagnose_duplicates` (informe de solo lectura) y
 `python manage.py purge_form_submissions --days 7`.
 
+## Servidor (gunicorn)
+
+La configuración está en `gunicorn.conf.py` (gthread, 3 workers × 4 hilos, timeout 120 s),
+**no** en el `Procfile`: el servicio de Railway tiene su propio «start command» en el panel,
+que es el que se ejecuta y deja al `Procfile` sin efecto. gunicorn carga ese archivo solo.
+
+Reglas que evitan las caídas que hubo con 1 worker sync:
+
+- Todo reporte CSV sale con `stream_csv()` (`records/utils.py`) sobre `queryset.iterator()`.
+- Las listas no consultan por fila: `select_related`/`Prefetch` en la vista y totales
+  calculados sobre lo precargado (`receipts_total_calc`, `difference_calc`), no con las
+  propiedades `Transaction.receipts_total`/`.difference`, que lanzan un `aggregate` cada vez.
+  Hay pruebas que fallan si el número de consultas crece con las filas.
+
+## API REST (`/api/v1/`)
+
+Paquete `records/api/` (DRF + drf-spectacular). Guía para integradores: `docs/API.md`;
+Swagger en `/api/v1/docs/`.
+
+- **Auth**: `Authorization: Api-Key <llave>` (modelo `ApiKey`, se guarda el hash; se crean con
+  `python manage.py create_api_key "Odoo" --write` o en el admin) o sesión de la app.
+  Permisos en `records/api/auth.py::ApiAccess`: la llave escribe solo con `can_write`; un
+  usuario con sesión escribe según `write_groups` del viewset.
+- **Recursos**: `transactions`, `receipts`, `clients` (GET/POST/PATCH, sin DELETE ni PUT) y
+  catálogos de solo lectura.
+- **Duplicados**: `check_receipt_duplicates()` en `records/api/serializers.py` replica la regla
+  de `FinancialRecordForm.clean()` y responde `409`. Si se cambia una, cambiar la otra.
+- **Idempotencia**: cabecera `Idempotency-Key` sobre la misma tabla `FormSubmission`
+  (`records/api/idempotency.py`).
+- **Sincronización**: `?updated_since=` usa `Transaction.updated_at` y
+  `FinancialRecord.modificado`. Ojo: `QuerySet.update()` no dispara `auto_now`; al usarlo
+  sobre recibos hay que pasar `modificado=timezone.now()`.
+- `odoo_id` en `Client` y `Transaction` para la referencia cruzada con Odoo.
+
 ## Convenciones
 
 - Español en UI y mensajes de commit.

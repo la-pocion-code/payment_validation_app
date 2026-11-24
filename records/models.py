@@ -7,6 +7,7 @@ from django.db.models import Sum, Q
 from datetime import datetime
 from decimal import Decimal
 from .utils import calculate_effective_date
+import hashlib
 import secrets
 import re
 
@@ -32,6 +33,9 @@ class Client(models.Model):
 
     # DNI como texto para permitir letras y guiones
     dni = models.CharField("Documento", max_length=50, unique=True)
+
+    # Referencia cruzada con Odoo (res.partner). La escribe la integración por API.
+    odoo_id = models.PositiveBigIntegerField("ID en Odoo", null=True, blank=True, db_index=True)
 
     @property
     def available_balance(self):
@@ -167,7 +171,13 @@ class Transaction(models.Model):
     unique_transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True, verbose_name="ID unico")
     creat_at = models.DateTimeField(auto_now_add=True, null=True, blank=True, verbose_name="Fecha de Creación")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions_created", verbose_name="Creado por")
-    history = HistoricalRecords()
+    # Marca de última modificación: permite a Odoo / la intranet pedir por API solo
+    # lo que cambió desde su última sincronización (?updated_since=).
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True, db_index=True, verbose_name="Última modificación")
+    # Referencia cruzada con Odoo (account.move). La escribe la integración por API.
+    odoo_id = models.PositiveBigIntegerField("ID en Odoo", null=True, blank=True, db_index=True)
+    # updated_at cambia en cada guardado: fuera del historial para no ensuciar los diffs.
+    history = HistoricalRecords(excluded_fields=['updated_at'])
 
     def save(self, *args, **kwargs):
         # Guarda para obtener el ID si es una transaccion nueva
@@ -399,3 +409,57 @@ class FormSubmission(models.Model):
 
     def __str__(self):
         return f"{self.scope} · {self.token}"
+
+
+class ApiKey(models.Model):
+    """
+    Llave de acceso a la API REST para una integración (Odoo, la intranet...).
+
+    La llave completa solo se muestra una vez, al crearla: aquí se guarda su hash.
+    Cada llave tiene un usuario de servicio propio, de modo que el historial de
+    cambios (django-simple-history) registra qué integración hizo cada escritura.
+    """
+    name = models.CharField("Integración", max_length=100, unique=True)
+    prefix = models.CharField("Prefijo", max_length=12, unique=True, editable=False)
+    hashed_key = models.CharField(max_length=64, editable=False)
+    user = models.OneToOneField(
+        User, on_delete=models.PROTECT, editable=False, related_name='api_key',
+        verbose_name="Usuario de servicio",
+    )
+    can_write = models.BooleanField(
+        "Puede escribir", default=False,
+        help_text="Sin marcar, la llave solo puede consultar (GET).",
+    )
+    is_active = models.BooleanField("Activa", default=True)
+    created_at = models.DateTimeField("Creada", auto_now_add=True)
+    last_used_at = models.DateTimeField("Último uso", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Llave de API"
+        verbose_name_plural = "Llaves de API"
+
+    def __str__(self):
+        return f"{self.name} ({self.prefix}…)"
+
+    @staticmethod
+    def hash_key(raw_key):
+        return hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+    @classmethod
+    def issue(cls, name, can_write=False):
+        """Crea la llave y devuelve (api_key, llave_en_claro). La llave no se puede recuperar después."""
+        from django.utils.text import slugify
+
+        prefix = secrets.token_hex(4)
+        raw_key = f"pv_{prefix}_{secrets.token_urlsafe(32)}"
+        username = f"api-{slugify(name) or prefix}"[:150]
+        if User.objects.filter(username=username).exists():
+            username = f"{username[:140]}-{prefix}"
+        user = User(username=username, is_active=True)
+        user.set_unusable_password()
+        user.save()
+        api_key = cls.objects.create(
+            name=name, prefix=prefix, hashed_key=cls.hash_key(raw_key),
+            user=user, can_write=can_write,
+        )
+        return api_key, raw_key

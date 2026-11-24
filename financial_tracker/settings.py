@@ -51,6 +51,8 @@ INSTALLED_APPS = [
     'social_django',
     'simple_history',
     'django_filters',
+    'rest_framework',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -254,3 +256,44 @@ LOGGING = {
 CSRF_TRUSTED_ORIGINS = []
 if _railway_domain:
     CSRF_TRUSTED_ORIGINS.append(f'https://{_railway_domain}')
+
+# --- API REST (/api/v1/) -------------------------------------------------------
+# Integraciones (Odoo, intranet) entran con `Authorization: Api-Key <llave>`;
+# los usuarios de la app, con su sesión. Ver records/api/.
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'records.api.auth.ApiKeyAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': ['records.api.auth.ApiAccess'],
+    'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
+    'DEFAULT_PARSER_CLASSES': ['rest_framework.parsers.JSONParser'],
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'records.api.pagination.StandardPagination',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # Red de seguridad contra un cliente en bucle. El contador vive en la memoria de
+    # cada worker, así que el límite real es aproximado.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {'user': '600/min', 'anon': '30/min'},
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Validación de Pagos — API',
+    'DESCRIPTION': (
+        'API REST de la aplicación de validación de pagos de La Poción.\n\n'
+        '**Autenticación:** cabecera `Authorization: Api-Key <llave>`.\n\n'
+        '**Reintentos seguros:** envíe `Idempotency-Key: <uuid>` en cada POST.\n\n'
+        '**Duplicados:** un recibo que ya existe responde `409` con el id del existente.'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.IsAuthenticated'],
+    'SCHEMA_PATH_PREFIX': '/api/v1',
+    'COMPONENT_SPLIT_REQUEST': True,
+}

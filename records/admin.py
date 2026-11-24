@@ -2,8 +2,9 @@
 from django.contrib import admin
 from .models import (
     FinancialRecord, Bank, AccessRequest, Seller, OrigenTransaccion, Client,
-    Transaction, TransactionType, DuplicateRecordAttempt, AuthorizedUser
+    Transaction, TransactionType, DuplicateRecordAttempt, AuthorizedUser, ApiKey
 )
+from django.contrib import messages
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
@@ -184,3 +185,38 @@ class DuplicateRecordAttemptAdmin(admin.ModelAdmin):
 class AuthorizedUserAdmin(admin.ModelAdmin):
     list_display = ('email',)
     search_fields = ('email',)
+
+
+@admin.register(ApiKey)
+class ApiKeyAdmin(admin.ModelAdmin):
+    """
+    Llaves de la API REST. Al crear una, la llave completa se muestra una sola vez
+    en el aviso de confirmación; después solo queda su prefijo.
+    """
+    list_display = ('name', 'prefix', 'can_write', 'is_active', 'created_at', 'last_used_at')
+    list_filter = ('can_write', 'is_active')
+    search_fields = ('name', 'prefix')
+    readonly_fields = ('prefix', 'user', 'created_at', 'last_used_at')
+    fields = ('name', 'can_write', 'is_active', 'prefix', 'user', 'created_at', 'last_used_at')
+
+    def get_readonly_fields(self, request, obj=None):
+        # El nombre identifica al usuario de servicio: no se cambia después de crear.
+        return self.readonly_fields + (('name',) if obj else ())
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            return super().save_model(request, obj, form, change)
+        created, raw_key = ApiKey.issue(obj.name, can_write=obj.can_write)
+        if not obj.is_active:
+            created.is_active = False
+            created.save(update_fields=['is_active'])
+        obj.pk = created.pk
+        obj.prefix, obj.user = created.prefix, created.user
+        messages.warning(
+            request,
+            f'Llave de API para «{created.name}»: {raw_key} — cópiela ahora, no se volverá a mostrar.',
+        )
+
+    def has_delete_permission(self, request, obj=None):
+        # Se desactivan, no se borran: su usuario de servicio queda en el historial.
+        return False

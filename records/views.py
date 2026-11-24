@@ -1402,6 +1402,9 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                                 if 'payment_document' in receipt_form.changed_data:
                                     update_fields['payment_document'] = new_payment_doc
                                 if update_fields:
+                                    # .update() no dispara auto_now: sin esto la API no
+                                    # vería el cambio en ?updated_since=.
+                                    update_fields['modificado'] = timezone.now()
                                     FinancialRecord.objects.filter(
                                         pk=receipt_form.instance.pk
                                     ).update(**update_fields)
@@ -2015,7 +2018,7 @@ def create_bulk_receipts(request):
                             cliente=new_transaction.cliente,
                             transaction__isnull=True
                         )
-                        credits_to_apply.update(transaction=new_transaction)
+                        credits_to_apply.update(transaction=new_transaction, modificado=timezone.now())
 
                     for form in formset:
                         if form.has_changed() and form.cleaned_data:
