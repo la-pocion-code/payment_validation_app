@@ -93,6 +93,10 @@ class FinancialRecordForm(forms.ModelForm):
 
         # Lógica original del formulario para valores por defecto y campos ocultos
         self.fields['payment_status'].required = False
+        if self.instance.pk:
+            # Envía también el valor con que se pintó el campo: así «cambió» significa que
+            # la persona lo movió en esta pantalla, no que la pantalla estaba desactualizada.
+            self.fields['payment_status'].show_hidden_initial = True
         if not self.instance.pk:
             self.fields['payment_status'].initial = 'Pendiente'
             self.fields['payment_status'].widget = forms.HiddenInput()

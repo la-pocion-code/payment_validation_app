@@ -1494,7 +1494,21 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                         # Admin / Digitador: acceso completo al formset
                         formset.instance = self.object
                     
+                        is_validador = 'Validador' in user_group_names(self.request.user)
                         for receipt_form in formset:
+                            # Recibos que YA existen, con un rol que no es administrador: no
+                            # se reescriben con lo que traía la pantalla. Esa pantalla pudo
+                            # abrirse hace rato y traer el estado viejo (Pendiente): al
+                            # guardar, deshacía la aprobación que el Validador hizo después.
+                            # Lo único que cambia es el estado del pago, solo si es
+                            # Validador y solo si lo movió en ESTA pantalla.
+                            if receipt_form.instance.pk and not is_superuser:
+                                if (is_validador and receipt_form.cleaned_data
+                                        and 'payment_status' in receipt_form.changed_data):
+                                    actual = FinancialRecord.objects.get(pk=receipt_form.instance.pk)
+                                    actual.payment_status = receipt_form.cleaned_data['payment_status']
+                                    actual.save(update_fields=['payment_status', 'modificado'])
+                                continue
                             if receipt_form.has_changed() and receipt_form.cleaned_data:
                                 if receipt_form.cleaned_data.get('DELETE'):
                                     if receipt_form.instance.pk:

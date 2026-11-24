@@ -948,3 +948,79 @@ class FiltrosTests(base.DatosBase):
     def test_el_buscador_encuentra_la_factura(self):
         respuesta = self.client.get(reverse('global_search'), {'q': 'FV-55501'})
         self.assertEqual(respuesta.context['transactions'], [self.facturada])
+
+
+class AprobacionNoSeRevierteTests(GuardarSinCambiosTests):
+    """
+    El Validador aprueba un recibo; otra persona tenía la transacción abierta desde antes
+    (con el recibo aún Pendiente) y guarda. La aprobación debe seguir en pie.
+    """
+
+    def pantalla_vieja(self):
+        """Lo que enviaría una pantalla abierta ANTES de la aprobación."""
+        pagina = self.client.get(self.url)
+        formulario = _Formulario()
+        formulario.feed(pagina.content.decode())
+        return dict(formulario.datos)
+
+    def aprobar_como_validador(self):
+        self.entrar_como('Validador')
+        respuesta = self.client.post(reverse('update_credit_status', args=[self.recibo.pk]),
+                                     {'payment_status': 'Aprobado'})
+        self.assertTrue(respuesta.json()['success'])
+
+    def test_otro_rol_con_la_pantalla_vieja_no_deshace_la_aprobacion(self):
+        for rol in ('Digitador', 'Contabilidad', 'Facturador'):
+            with self.subTest(rol=rol):
+                FinancialRecord.objects.filter(pk=self.recibo.pk).update(payment_status='Pendiente')
+                otro = self.entrar_como(rol)
+                viejo = self.pantalla_vieja()
+                self.aprobar_como_validador()
+                self.client.force_login(otro)
+                self.assertEqual(self.client.post(self.url, viejo).status_code, 302)
+                self.recibo.refresh_from_db()
+                self.assertEqual(self.recibo.payment_status, 'Aprobado')
+                otro.delete()
+                User.objects.filter(username='u-validador').delete()
+
+    def test_el_propio_validador_con_la_pantalla_vieja_tampoco(self):
+        validador = self.entrar_como('Validador')
+        viejo = self.pantalla_vieja()            # abierta con el recibo Pendiente, sin tocarlo
+        self.client.post(reverse('update_credit_status', args=[self.recibo.pk]), {'payment_status': 'Aprobado'})
+        self.client.force_login(validador)
+        self.assertEqual(self.client.post(self.url, viejo).status_code, 302)
+        self.recibo.refresh_from_db()
+        self.assertEqual(self.recibo.payment_status, 'Aprobado')
+
+    def test_el_validador_si_puede_rechazar_desde_la_pantalla(self):
+        self.entrar_como('Validador')
+        datos = self.pantalla_vieja()
+        datos['receipts-0-payment_status'] = 'Rechazado'
+        self.assertEqual(self.client.post(self.url, datos).status_code, 302)
+        self.recibo.refresh_from_db()
+        self.assertEqual(self.recibo.payment_status, 'Rechazado')
+
+    def test_el_digitador_sigue_pudiendo_agregar_un_recibo(self):
+        self.entrar_como('Digitador')
+        datos = self.pantalla_vieja()
+        datos.update({
+            'receipts-TOTAL_FORMS': '2', 'receipts-1-id': '', 'receipts-1-origen_transaccion': self.origen.pk,
+            'receipts-1-fecha': self.hoy.isoformat(), 'receipts-1-hora': '15:00:00',
+            'receipts-1-comprobante': 'NUEVO-2', 'receipts-1-banco_llegada': self.banco.pk,
+            'receipts-1-valor': '5000.00',
+        })
+        self.assertEqual(self.client.post(self.url, datos).status_code, 302)
+        self.assertTrue(FinancialRecord.objects.filter(comprobante='NUEVO-2', transaction=self.transaccion).exists())
+
+
+class FiltrosALaVistaTests(base.DatosBase):
+
+    def test_transacciones_muestra_todos_los_filtros_sin_boton_y_en_orden(self):
+        html = self.client.get(reverse('record_list')).content.decode()
+        self.assertNotIn('data-pv-more-filters', html)
+        self.assertNotIn('pv-more-filters', html)
+        orden = ['name="id"', 'name="cliente"', 'name="date__gte"', 'name="date__lte"', 'name="status"',
+                 'name="receipt_status"', 'name="valor"', 'name="numero_factura"', 'name="vendedor"',
+                 'name="facturador"', 'name="transaction_type"', 'name="origen_transaccion"']
+        posiciones = [html.index(campo) for campo in orden]
+        self.assertEqual(posiciones, sorted(posiciones))
