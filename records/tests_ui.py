@@ -775,7 +775,9 @@ class FiltrosTests(base.DatosBase):
         self.origen2 = OrigenTransaccion.objects.create(name='DATAFONO')
         self.vendedor2 = Seller.objects.create(name='LAURA GOMEZ')
         self.cliente2 = Client.objects.create(name='DROGUERIA CENTRAL', dni='800555210')
-        self.tipo2 = TransactionType.objects.create(name='FLETE')
+        # Con pk explícito: la migración 0025 inserta el tipo id=1 sin avanzar la secuencia y,
+        # en una base PostgreSQL recién migrada, el primer create() normal choca con esa fila.
+        self.tipo2 = TransactionType.objects.create(pk=9001, name='FLETE')
 
         def tx(**kw):
             datos = dict(date=hoy, cliente=self.cliente, vendedor=self.vendedor, transaction_type=self.tipo,
