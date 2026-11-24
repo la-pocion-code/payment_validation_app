@@ -37,6 +37,13 @@ from .services import CSVProcessor
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm 
 from .utils import calculate_effective_date, stream_csv, user_group_names
+from . import alerts
+from .correo import a_html
+from .models import DuplicateAlertTemplate
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.templatetags.static import static
 from .forms import BulkClientUploadForm
 from django.utils import timezone
 from django.db.models import Q
@@ -2799,3 +2806,115 @@ def check_receipt_duplicate(request):
                        'que no es un duplicado.',
         })
     return JsonResponse({'status': 'none'})
+
+
+# ───────────────────────── Alertas por correo (duplicados) ─────────────────────────
+
+class DuplicateAlertForm(forms.ModelForm):
+    class Meta:
+        model = DuplicateAlertTemplate
+        fields = ['is_active', 'recipients', 'cc', 'subject', 'body']
+        widgets = {
+            'recipients': forms.Textarea(attrs={'rows': 2, 'placeholder': 'auditor@lapocion.com, contabilidad@lapocion.com'}),
+            'cc': forms.Textarea(attrs={'rows': 1, 'placeholder': 'Opcional'}),
+            'body': forms.Textarea(attrs={'rows': 12}),
+        }
+
+    def _clean_addresses(self, field):
+        addresses = DuplicateAlertTemplate.split_addresses(self.cleaned_data.get(field))
+        for address in addresses:
+            try:
+                validate_email(address)
+            except ValidationError:
+                raise forms.ValidationError(f'«{address}» no es un correo válido.')
+        return ', '.join(addresses)
+
+    def clean_recipients(self):
+        return self._clean_addresses('recipients')
+
+    def clean_cc(self):
+        return self._clean_addresses('cc')
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('is_active') and not cleaned.get('recipients') and 'recipients' not in self.errors:
+            self.add_error('recipients', 'Para activar el aviso indica al menos un destinatario.')
+        return cleaned
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def duplicate_alert_settings(request):
+    """
+    «Alertas por correo»: a quién se avisa y con qué texto cuando hay un duplicado exacto
+    o un posible duplicado. «Enviar prueba» manda el correo, con datos de ejemplo, solo a
+    quien lo pide.
+    """
+    templates = {t.key: t for t in DuplicateAlertTemplate.objects.all()}
+    forms_by_key = {}
+
+    if request.method == 'POST':
+        key = request.POST.get('key')
+        template = templates.get(key)
+        if template is None:
+            messages.error(request, 'Ese aviso no existe.')
+            return redirect('duplicate_alert_settings')
+        form = DuplicateAlertForm(request.POST, instance=template, prefix=key)
+        if form.is_valid():
+            if request.POST.get('action') == 'test':
+                if not request.user.email:
+                    messages.error(request, 'Tu usuario no tiene correo; no hay a dónde enviar la prueba.')
+                else:
+                    # Con lo que hay en pantalla, sin guardar: se prueba antes de activar.
+                    draft = form.save(commit=False)
+                    try:
+                        alerts.build_message(draft, alerts.sample_context(), to=[request.user.email]).send()
+                    except Exception as error:
+                        logger.exception('Falló el correo de prueba de alertas')
+                        messages.error(request, f'No se pudo enviar la prueba: {error}')
+                    else:
+                        if alerts.smtp_ready():
+                            messages.success(request, f'Prueba enviada a {request.user.email}. No se guardaron cambios.')
+                        else:
+                            messages.warning(request, 'Este entorno no tiene servidor de correo configurado: '
+                                                      'la prueba quedó en el log del servidor, no en tu bandeja.')
+                    # Se vuelve a pintar con lo digitado, que todavía no está guardado.
+                    template.refresh_from_db()
+                    forms_by_key[key] = form
+            else:
+                saved = form.save(commit=False)
+                saved.updated_by = request.user
+                saved.save()
+                messages.success(request, f'Aviso «{saved.get_key_display()}» guardado.')
+                return redirect('duplicate_alert_settings')
+        else:
+            messages.error(request, 'Revisa los campos marcados.')
+            forms_by_key[key] = form
+
+    cards = []
+    for key, label in DuplicateAlertTemplate.KEY_CHOICES:
+        template = templates.get(key)
+        if template is None:
+            continue
+        cards.append({
+            'key': key, 'label': label, 'template': template,
+            'form': forms_by_key.get(key) or DuplicateAlertForm(instance=template, prefix=key),
+        })
+    return render(request, 'records/duplicate_alert_settings.html', {
+        'cards': cards,
+        'variables': alerts.VARIABLES,
+        'smtp_ready': alerts.smtp_ready(),
+        'from_email': settings.DEFAULT_FROM_EMAIL,
+        'site_url': alerts.site_url(),
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def duplicate_alert_preview(request, key):
+    """Vista previa del correo tal como llega, con datos de ejemplo."""
+    template = get_object_or_404(DuplicateAlertTemplate, key=key)
+    context = alerts.sample_context()
+    return HttpResponse(a_html(alerts.render(template.body, context),
+                               asunto=alerts.render(template.subject, context),
+                               logo_src=static('correo/logo-pocion.png')))

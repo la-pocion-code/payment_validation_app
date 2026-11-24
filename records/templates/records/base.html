@@ -50,9 +50,13 @@
                 {% if user.is_superuser %}
                 <div class="pv-nav-label">Control</div>
                 <a href="{% url 'duplicate_attempts_list' %}" title="Duplicados"
-                   class="pv-nav-item {% if 'duplicate' in current %}is-active{% endif %}">
+                   class="pv-nav-item {% if 'duplicate' in current and 'duplicate_alert' not in current %}is-active{% endif %}">
                     {% include 'records/components/icon.html' with name='copy' %}<span>Duplicados</span>
                     {% if duplicate_attempts_count > 0 %}<b class="pv-nav-count">{{ duplicate_attempts_count }}</b>{% endif %}
+                </a>
+                <a href="{% url 'duplicate_alert_settings' %}" title="Alertas por correo"
+                   class="pv-nav-item {% if 'duplicate_alert' in current %}is-active{% endif %}">
+                    {% include 'records/components/icon.html' with name='mail' %}<span>Alertas por correo</span>
                 </a>
                 <a href="{% url 'access_request_list' %}" title="Usuarios"
                    class="pv-nav-item {% if 'access_request' in current or 'user_' in current %}is-active{% endif %}">

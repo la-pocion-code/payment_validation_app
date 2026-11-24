@@ -257,6 +257,24 @@ CSRF_TRUSTED_ORIGINS = []
 if _railway_domain:
     CSRF_TRUSTED_ORIGINS.append(f'https://{_railway_domain}')
 
+# --- Correo (avisos de duplicados) ---------------------------------------------
+# Mismo esquema que la intranet: SMTP de Workspace con contraseña de aplicación.
+# Sin EMAIL_HOST_USER no hay envío real: el correo se escribe en el log (consola),
+# que es lo que conviene en local y en staging. Ver records/alerts.py.
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_TIMEOUT = 10
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND') or (
+    'django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST_USER
+    else 'django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL') or 'noreply@lapocion.com'
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Base de los enlaces que van dentro de los correos.
+SITE_URL = os.getenv('SITE_URL') or (f'https://{_railway_domain}' if _railway_domain else '')
+
 # --- API REST (/api/v1/) -------------------------------------------------------
 # Integraciones (Odoo, intranet) entran con `Authorization: Api-Key <llave>`;
 # los usuarios de la app, con su sesión. Ver records/api/.

@@ -422,6 +422,15 @@ dialog.pv-dialog::backdrop { background: rgba(20, 20, 30, .45); }
   .pv-actionbar__hint { display: none; }
 }
 
+/* Alertas por correo */
+.pv-vars { margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.pv-vars dt { color: var(--pv-accent); font-weight: 600; }
+.pv-vars dd { margin: 0; color: var(--pv-ink-soft); }
+.pv-help p { margin: 0 0 10px; font-size: 13.5px; }
+.pv-help p:last-child { margin-bottom: 0; }
+.pv-alert-form textarea[name$="-body"] { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 13px; line-height: 1.55; }
+.pv-alert-form textarea[name$="-cc"], .pv-alert-form textarea[name$="-recipients"] { min-height: 0; }
+
 /* ───────────── 3. Puente para las pantallas aún no migradas ───────────── */
 
 .pv-content h1, .pv-content h2, .pv-content h3, .pv-content h4, .pv-content h5, .pv-content h6 { color: var(--pv-ink-strong); font-weight: 700; letter-spacing: -.01em; }

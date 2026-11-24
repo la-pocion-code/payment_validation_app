@@ -463,3 +463,45 @@ class ApiKey(models.Model):
             user=user, can_write=can_write,
         )
         return api_key, raw_key
+
+
+class DuplicateAlertTemplate(models.Model):
+    """
+    Aviso por correo de un tipo de intento de duplicado: a quién se envía y qué dice.
+
+    Hay una fila por tipo (las crea la migración, inactivas). Se editan en «Alertas por
+    correo»; el envío está en records/alerts.py.
+    """
+    KEY_CHOICES = [
+        ('DUPLICATE', 'Duplicado exacto (bloqueado por el sistema)'),
+        ('SIMILAR', 'Posible duplicado (confirmado por el digitador)'),
+    ]
+
+    key = models.CharField(max_length=20, choices=KEY_CHOICES, unique=True, verbose_name="Tipo de aviso")
+    is_active = models.BooleanField(default=False, verbose_name="Enviar este aviso")
+    recipients = models.TextField(blank=True, verbose_name="Para",
+                                  help_text="Correos separados por coma o por línea.")
+    cc = models.TextField(blank=True, verbose_name="Con copia")
+    subject = models.CharField(max_length=200, verbose_name="Asunto")
+    body = models.TextField(verbose_name="Mensaje")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+
+    class Meta:
+        verbose_name = "Aviso de duplicado por correo"
+        verbose_name_plural = "Avisos de duplicado por correo"
+        ordering = ['key']
+
+    def __str__(self):
+        return self.get_key_display()
+
+    @staticmethod
+    def split_addresses(text):
+        return [part for part in re.split(r'[\s,;]+', text or '') if part]
+
+    def recipient_list(self):
+        return self.split_addresses(self.recipients)
+
+    def cc_list(self):
+        return self.split_addresses(self.cc)

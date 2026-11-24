@@ -1,0 +1,121 @@
+{% extends 'records/base.html' %}
+
+{% block title %}Alertas por correo{% endblock %}
+{% block page_title %}Alertas por correo{% endblock %}
+
+{% block content %}
+
+<div class="pv-page-head">
+    <div>
+        <h1>Alertas por correo</h1>
+        <p>Elige a quién se le avisa, y con qué mensaje, cuando aparece un duplicado o un posible duplicado.</p>
+    </div>
+    <div class="pv-page-head__actions">
+        <a href="{% url 'duplicate_attempts_list' %}" class="pv-btn pv-btn--ghost pv-btn--sm">
+            {% include 'records/components/icon.html' with name='copy' %}Bandeja de duplicados
+        </a>
+    </div>
+</div>
+
+{% if not smtp_ready %}
+<div class="pv-callout" style="margin: 0 0 16px;" role="status">
+    {% include 'records/components/icon.html' with name='alert' %}
+    <div>
+        <strong>Este entorno todavía no envía correos de verdad.</strong>
+        Falta configurar el servidor de correo en Railway (<span class="pv-mono">EMAIL_HOST_USER</span> y
+        <span class="pv-mono">EMAIL_HOST_PASSWORD</span>). Mientras tanto puedes dejar todo listo: los avisos
+        se escriben en el log del servidor en vez de salir.
+    </div>
+</div>
+{% endif %}
+
+<div class="pv-split">
+    <div class="pv-stack">
+        {% for card in cards %}
+        <section class="pv-card">
+            <div class="pv-card__head">
+                <h2>{{ card.label }}</h2>
+                <span class="pv-badge {% if card.template.is_active %}pv-badge--ok{% else %}pv-badge--muted{% endif %}">
+                    {% if card.template.is_active %}Activo{% else %}Apagado{% endif %}
+                </span>
+            </div>
+            <div class="pv-card__body">
+                <form method="post" class="pv-alert-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="key" value="{{ card.key }}">
+                    {% if card.form.non_field_errors %}<div class="pv-errors">{{ card.form.non_field_errors }}</div>{% endif %}
+
+                    <label class="pv-check" style="margin-bottom: 14px;">
+                        {{ card.form.is_active }}
+                        <span>Enviar este aviso</span>
+                    </label>
+
+                    <div class="pv-form-grid">
+                        <div class="pv-field pv-field--wide">
+                            <label for="{{ card.form.recipients.id_for_label }}">Para (uno o varios correos, separados por coma)</label>
+                            {{ card.form.recipients }}
+                            {{ card.form.recipients.errors }}
+                        </div>
+                        <div class="pv-field pv-field--wide">
+                            <label for="{{ card.form.cc.id_for_label }}">Con copia</label>
+                            {{ card.form.cc }}
+                            {{ card.form.cc.errors }}
+                        </div>
+                        <div class="pv-field pv-field--wide">
+                            <label for="{{ card.form.subject.id_for_label }}">Asunto</label>
+                            {{ card.form.subject }}
+                            {{ card.form.subject.errors }}
+                        </div>
+                        <div class="pv-field pv-field--wide">
+                            <label for="{{ card.form.body.id_for_label }}">Mensaje</label>
+                            {{ card.form.body }}
+                            {{ card.form.body.errors }}
+                        </div>
+                    </div>
+
+                    <div class="pv-filters__actions">
+                        <button type="submit" name="action" value="save" class="pv-btn pv-btn--primary pv-btn--sm">
+                            {% include 'records/components/icon.html' with name='save' %}Guardar
+                        </button>
+                        <button type="submit" name="action" value="test" class="pv-btn pv-btn--ghost pv-btn--sm"
+                                title="Te llega a ti ({{ user.email|default:'sin correo' }}) con datos de ejemplo; no guarda cambios">
+                            Enviarme una prueba
+                        </button>
+                        <a href="{% url 'duplicate_alert_preview' card.key %}" target="_blank" rel="noopener" class="pv-btn pv-btn--ghost pv-btn--sm">
+                            Vista previa (lo guardado)
+                        </a>
+                        {% if card.template.updated_by %}
+                        <span class="pv-filters__hint">Editado por {{ card.template.updated_by.username }} · {{ card.template.updated_at|date:"d/m/Y H:i" }}</span>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+
+    <aside class="pv-stack">
+        <section class="pv-card">
+            <div class="pv-card__head"><h2>Variables</h2></div>
+            <div class="pv-card__body">
+                <p class="pv-card__hint" style="margin: 0 0 10px;">Escríbelas tal cual en el asunto o en el mensaje; se reemplazan al enviar.</p>
+                <dl class="pv-vars">
+                    {% for name, help in variables %}
+                    <div><dt class="pv-mono">{{ "{" }}{{ name }}{{ "}" }}</dt><dd>{{ help }}</dd></div>
+                    {% endfor %}
+                </dl>
+            </div>
+        </section>
+        <section class="pv-card">
+            <div class="pv-card__head"><h2>Cómo funciona</h2></div>
+            <div class="pv-card__body pv-help">
+                <p><strong>Duplicado exacto:</strong> alguien intentó guardar un recibo idéntico a uno que ya existe y el sistema lo bloqueó.</p>
+                <p><strong>Posible duplicado:</strong> el recibo coincide en fecha, hora, banco y valor con otro, y el digitador confirmó que no es el mismo. Sí se guardó.</p>
+                <p>Un doble clic o un reintento por mala conexión <strong>no</strong> genera aviso: el sistema lo reconoce como el mismo envío.</p>
+                <p>Una línea «Texto: enlace» llega como botón. Los correos salen desde <span class="pv-mono">{{ from_email }}</span> con el mismo diseño de la intranet.</p>
+            </div>
+        </section>
+    </aside>
+</div>
+
+{% endblock %}

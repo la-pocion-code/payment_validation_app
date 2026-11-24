@@ -10,13 +10,16 @@ from unittest import mock
 
 from django.contrib.auth.models import Group, User
 from django.contrib.messages import get_messages
+from django.core import mail
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from . import alerts
 from . import tests as base
 from . import views
 from .idempotency import SUBMIT_TOKEN_FIELD, already_submitted
-from .models import DuplicateRecordAttempt, FinancialRecord, Transaction
+from .models import DuplicateAlertTemplate, DuplicateRecordAttempt, FinancialRecord, Transaction
 
 
 class ConRecibos(base.DatosBase):
@@ -277,3 +280,122 @@ class ReenvioCruzadoTests(base.DatosBase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(Transaction.objects.count(), 1)
         self.assertEqual(DuplicateRecordAttempt.objects.count(), 1)
+
+
+@override_settings(DUPLICATE_ALERTS_ASYNC=False, SITE_URL='https://pagos.example.com')
+class AlertasPorCorreoTests(ReenvioCruzadoTests):
+    """Avisos por correo de duplicados: los decide la plantilla (activa + destinatarios)."""
+
+    # Hereda _payload; las pruebas de la clase base se repiten aquí con las alertas activas.
+
+    def activar(self, key='DUPLICATE', recipients='auditor@lapocion.com', cc=''):
+        plantilla = DuplicateAlertTemplate.objects.get(key=key)
+        plantilla.is_active = True
+        plantilla.recipients = recipients
+        plantilla.cc = cc
+        plantilla.save()
+        return plantilla
+
+    def duplicar(self):
+        """Guarda un recibo y vuelve a enviarlo desde otro formulario (duplicado real)."""
+        self.client.post(reverse('record_create'), self._payload(uuid.uuid4()))
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(reverse('record_create'), self._payload(uuid.uuid4()))
+
+    def test_la_migracion_deja_las_dos_plantillas_apagadas(self):
+        self.assertEqual(
+            list(DuplicateAlertTemplate.objects.values_list('key', 'is_active')),
+            [('DUPLICATE', False), ('SIMILAR', False)])
+
+    def test_apagada_no_envia(self):
+        self.duplicar()
+        self.assertEqual(DuplicateRecordAttempt.objects.count(), 1)
+        self.assertEqual(mail.outbox, [])
+
+    def test_duplicado_exacto_avisa_a_los_destinatarios(self):
+        self.activar(recipients='auditor@lapocion.com; conta@lapocion.com', cc='jefe@lapocion.com')
+        self.duplicar()
+
+        self.assertEqual(len(mail.outbox), 1)
+        correo = mail.outbox[0]
+        self.assertEqual(correo.to, ['auditor@lapocion.com', 'conta@lapocion.com'])
+        self.assertEqual(correo.cc, ['jefe@lapocion.com'])
+        self.assertEqual(correo.subject, 'Intento de recibo duplicado: CRUCE-1')
+        self.assertIn('Banco: BANCOLOMBIA', correo.body)
+        self.assertIn('Valor: $150.000', correo.body)
+        existente = FinancialRecord.objects.get()
+        self.assertIn(f'https://pagos.example.com/credits/{existente.pk}/', correo.body)
+        self.assertIn('https://pagos.example.com/duplicates/', correo.body)
+
+        html, tipo = correo.alternatives[0]
+        self.assertEqual(tipo, 'text/html')
+        self.assertIn('cid:logo-pocion', html)
+        self.assertIn('Revisar la bandeja de duplicados</a>', html)   # «Etiqueta: URL» → botón
+        self.assertEqual(correo.mixed_subtype, 'related')
+
+    def test_el_reenvio_del_mismo_formulario_no_avisa(self):
+        self.activar()
+        token = uuid.uuid4()
+        self.client.post(reverse('record_create'), self._payload(token))
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse('record_create'), self._payload(token))
+        self.assertEqual(mail.outbox, [])
+
+    def test_un_fallo_del_servidor_de_correo_no_rompe_el_guardado(self):
+        self.activar()
+        with mock.patch('django.core.mail.message.EmailMessage.send', side_effect=OSError('smtp caído')):
+            with self.assertLogs('records.alerts', level='ERROR'):
+                respuesta = self.duplicar()
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(DuplicateRecordAttempt.objects.count(), 1)
+
+    def test_texto_se_escapa_y_el_enlace_vacio_no_deja_linea_colgando(self):
+        plantilla = DuplicateAlertTemplate.objects.get(key='DUPLICATE')
+        contexto = dict(alerts.sample_context(), comprobante='<b>X</b>', enlace_recibo='')
+        mensaje = alerts.build_message(plantilla, contexto, to=['a@lapocion.com'])
+        self.assertNotIn('Ver el recibo que ya existía', mensaje.body)
+        self.assertIn('&lt;b&gt;X&lt;/b&gt;', mensaje.alternatives[0][0])
+        self.assertEqual(alerts.render('{desconocida} {valor}', {'valor': '$1'}), '{desconocida} $1')
+
+    def test_la_pantalla_es_solo_para_administradores(self):
+        self.assertEqual(self.client.get(reverse('duplicate_alert_settings')).status_code, 302)
+
+    def test_guardar_valida_correos_y_exige_destinatario_para_activar(self):
+        admin = User.objects.create_superuser('jefe', email='jefe@lapocion.com', password='clave-larga-123')
+        self.client.force_login(admin)
+        url = reverse('duplicate_alert_settings')
+        base_datos = {'key': 'SIMILAR', 'action': 'save', 'SIMILAR-subject': 'Asunto', 'SIMILAR-body': 'Hola {usuario}'}
+
+        respuesta = self.client.post(url, dict(base_datos, **{'SIMILAR-is_active': 'on', 'SIMILAR-recipients': ''}))
+        self.assertContains(respuesta, 'indica al menos un destinatario')
+        respuesta = self.client.post(url, dict(base_datos, **{'SIMILAR-recipients': 'no-es-correo'}))
+        self.assertContains(respuesta, 'no es un correo válido')
+        self.assertFalse(DuplicateAlertTemplate.objects.get(key='SIMILAR').is_active)
+
+        respuesta = self.client.post(url, dict(base_datos, **{
+            'SIMILAR-is_active': 'on', 'SIMILAR-recipients': 'a@lapocion.com\nb@lapocion.com'}))
+        self.assertRedirects(respuesta, url)
+        plantilla = DuplicateAlertTemplate.objects.get(key='SIMILAR')
+        self.assertTrue(plantilla.is_active)
+        self.assertEqual(plantilla.recipient_list(), ['a@lapocion.com', 'b@lapocion.com'])
+        self.assertEqual(plantilla.updated_by, admin)
+
+    def test_la_prueba_llega_solo_a_quien_la_pide_y_no_guarda(self):
+        admin = User.objects.create_superuser('jefe', email='jefe@lapocion.com', password='clave-larga-123')
+        self.client.force_login(admin)
+        respuesta = self.client.post(reverse('duplicate_alert_settings'), {
+            'key': 'DUPLICATE', 'action': 'test', 'DUPLICATE-recipients': 'auditor@lapocion.com',
+            'DUPLICATE-subject': 'PRUEBA {comprobante}', 'DUPLICATE-body': 'Hola {usuario}',
+        })
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['jefe@lapocion.com'])
+        self.assertEqual(mail.outbox[0].cc, [])
+        self.assertEqual(mail.outbox[0].subject, 'PRUEBA M03202292')
+        self.assertNotEqual(DuplicateAlertTemplate.objects.get(key='DUPLICATE').subject, 'PRUEBA {comprobante}')
+
+    def test_vista_previa(self):
+        admin = User.objects.create_superuser('jefe', password='clave-larga-123')
+        self.client.force_login(admin)
+        respuesta = self.client.get(reverse('duplicate_alert_preview', args=['SIMILAR']))
+        self.assertContains(respuesta, 'Posible duplicado confirmado: M03202292')

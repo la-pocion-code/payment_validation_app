@@ -113,6 +113,11 @@ Mecanismo, en `records/idempotency.py`:
 4. `complete_submission(claim, ...)` — al final, dentro del mismo atomic, guarda la URL de
    destino para un reenvío posterior. Si el guardado falla, el rollback libera el token.
 
+5. **Segundo chequeo** en la rama de formulario inválido, antes de `flush_duplicate_attempts`:
+   con varios workers dos POST del mismo formulario pueden cruzarse (el segundo pasa la fase 1
+   antes del commit del primero y su `clean()` ya ve el recibo). Se repite `already_submitted`
+   y se responde «ya fue guardado» en vez de registrar un duplicado falso.
+
 Aplicado en las cuatro vías que crean recibos: `create_bulk_receipts`, `CreditCreateView`,
 `TransactionUpdateView` y `create_credit_note_from_surplus` (esta última suma
 `select_for_update` sobre la `Transaction` y comprobante determinista como llave).
@@ -150,7 +155,8 @@ Swagger en `/api/v1/docs/`.
 - **Recursos**: `transactions`, `receipts`, `clients` (GET/POST/PATCH, sin DELETE ni PUT) y
   catálogos de solo lectura.
 - **Duplicados**: `check_receipt_duplicates()` en `records/api/serializers.py` replica la regla
-  de `FinancialRecordForm.clean()` y responde `409`. Si se cambia una, cambiar la otra.
+  de `FinancialRecordForm.clean()` y responde `409`. Si se cambia una, cambiar la otra (y el
+  aviso previo `views.check_receipt_duplicate`, que es la tercera copia de la regla).
 - **Idempotencia**: cabecera `Idempotency-Key` sobre la misma tabla `FormSubmission`
   (`records/api/idempotency.py`).
 - **Sincronización**: `?updated_since=` usa `Transaction.updated_at` y
@@ -161,11 +167,24 @@ Swagger en `/api/v1/docs/`.
 ## Interfaz (Tailwind + HTMX sobre plantillas Django)
 
 Migración por pantallas; no hay SPA. Estado: **hechos** el marco (`base.html`: barra lateral
-plegable, avisos tipo toast, barra de progreso, aviso de sesión por vencer) y la lista de
-Transacciones (filtros en vivo, chips de estado, filas desplegables, paginación parcial).
-**Pendientes** de rediseño propio: lista/detalle de Recibos, formularios de captura
-(`create_bulk_receipts.html`, `transaction_form.html`) y catálogos; mientras tanto ya se
-ven con la marca gracias al «puente» de estilos.
+plegable, buscador global, avisos tipo toast, barra de progreso, aviso de sesión por vencer),
+la lista de Transacciones, la lista y el detalle de Recibos, los formularios de captura
+(`create_bulk_receipts.html`, `transaction_form.html`) y «Alertas por correo».
+**Pendientes** de rediseño propio: catálogos, clientes, usuarios, duplicados y `credit_form.html`
+(nuevo abono); mientras tanto ya se ven con la marca gracias al «puente» de estilos.
+
+- **Marca**: logo `images/pocion-logo.svg` (el `pcn-pocion-logo-2025.svg` de la intranet) y
+  `images/favicon.svg` (el favicon de la intranet). Los correos usan `correo/logo-pocion.png`.
+- **Buscador global** (`views.global_search`, parcial `partials/search_results.html`):
+  transacciones por ID, factura o cliente; recibos por comprobante o valor exacto; clientes.
+  Atajo «/» o Ctrl+K; el teclado lo maneja `app.js`.
+- **Recibos**: `CreditListView` devuelve `partials/credits_table.html` a HTMX. El cambio de
+  estado y «Revisado» en línea van por `data-pv-status` / `data-pv-review` en `app.js`, contra
+  las vistas AJAX de siempre. `window.pvConfirm({...})` reemplaza a `confirm()`.
+- **Captura**: `records/static/js/capture.js` es común a los dos formularios
+  (`<form data-pv-capture>`): resumen fijo `pvCaptureSummary(venta, recibos)`, atajos Alt+N y
+  Ctrl+Enter, aviso al salir sin guardar y **aviso previo de duplicado** contra
+  `views.check_receipt_duplicate` (solo lectura, no registra intentos).
 
 - **CSS**: fuente en `frontend/app.css`; `cd frontend && npm install && npm run build:css` genera
   `records/static/css/app.css`, que **se versiona** (Railway no usa Node). Tras cambiar
@@ -182,6 +201,21 @@ ven con la marca gracias al «puente» de estilos.
   está en `records/static/js/app.js` (`window.pvToast(mensaje, tipo)` para avisos).
 - La suite usa el storage con manifiesto: tras añadir un estático nuevo, correr
   `python manage.py collectstatic --noinput` antes de `manage.py test`.
+
+## Alertas por correo (duplicados)
+
+Cada `DuplicateRecordAttempt` nuevo puede avisar por correo. Lo decide `DuplicateAlertTemplate`
+(una fila por tipo, `DUPLICATE` y `SIMILAR`; la migración 0039 las crea **apagadas**): activo,
+destinatarios, copia, asunto y mensaje con variables `{usuario}`, `{comprobante}`, `{valor}`…
+Se editan en `/alertas/` (solo superusuarios), con «Enviarme una prueba» y vista previa.
+
+- `records/alerts.py`: receptor `post_save` (conectado en `apps.py`), envío tras el commit y en
+  un hilo; un fallo de SMTP se registra en el log y no afecta al guardado.
+- `records/correo.py`: el marco de marca, portado de `common/correo_marco.py` de la intranet
+  (texto plano como fuente, HTML derivado, «Etiqueta: URL» → botón, logo en línea).
+- Variables de entorno: `EMAIL_HOST_USER` y `EMAIL_HOST_PASSWORD` (contraseña de aplicación de
+  Workspace), opcionales `EMAIL_HOST`, `EMAIL_PORT`, `DEFAULT_FROM_EMAIL`, `SITE_URL`. Sin
+  `EMAIL_HOST_USER` el backend es la consola: el correo queda en el log y no sale.
 
 ## Convenciones
 
