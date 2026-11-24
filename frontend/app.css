@@ -448,7 +448,9 @@ dialog.pv-dialog--form { width: min(480px, calc(100vw - 32px)); padding: 0; }
 .pv-row-actions button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--pv-ink-soft); cursor: pointer; }
 .pv-row-actions button:not(.pv-btn):hover { background: var(--pv-brand-soft); color: var(--pv-brand-dark); }
 .pv-row-actions button.is-danger:hover { background: var(--pv-bad-soft); color: var(--pv-bad); }
-.pv-row-actions button.pv-btn { padding: 0 12px; }
+/* Un botón con texto dentro de las acciones de fila no hereda el cuadrado de 32px de los iconos. */
+.pv-row-actions button.pv-btn, .pv-row-actions a.pv-btn { width: auto; flex-shrink: 0; padding: 0 12px; white-space: nowrap; }
+.pv-row-actions form { flex-shrink: 0; }
 .pv-row-actions button.pv-btn--primary { background: var(--pv-brand); color: #fff; }
 .pv-row-actions button:focus-visible, .pv-row-actions a:focus-visible { outline: 3px solid rgba(229, 0, 118, .35); outline-offset: 1px; }
 .pv-table tbody tr[hidden] { display: none; }
