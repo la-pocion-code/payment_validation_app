@@ -1,27 +1,36 @@
 {% extends 'records/base.html' %}
-{% load static %}
 
-{% block title %}Cargar CSV{% endblock %}
+{% block title %}Cargar recibos{% endblock %}
+{% block page_title %}Recibos{% endblock %}
 
 {% block content %}
-    <div class="login-wrapper">
-        <div class="login-container">
-            <div class="login-logo">
-                <img src="{% static 'images/logo.png' %}" alt="Logo">
-            </div>
-            <h1 class="login-title">Cargar Archivo CSV</h1>
-            <a href="{% url 'download_csv_template' %}" class="download-template-link">Descargar Plantilla CSV</a>
-            <p class="login-description">Sube un  CSV separado por ;</p>
-            
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="form-group">
-                    {{ form.csv_file.label_tag }}
-                    {{ form.csv_file }}
-                </div>
-                
-                <button type="submit" class="google-login-btn">Cargar Archivo</button>
-            </form>
+
+<div class="pv-page-head">
+    <div>
+        <a href="{% url 'credit_list' %}" class="pv-back">{% include 'records/components/icon.html' with name='back' %}Recibos</a>
+        <h1>Cargar recibos desde un archivo</h1>
+        <p>Sube un archivo CSV separado por punto y coma (;) con el formato de la plantilla.</p>
+    </div>
+    <a href="{% url 'download_csv_template' %}" class="pv-btn pv-btn--ghost" data-pv-download>
+        {% include 'records/components/icon.html' with name='download' %}<span data-pv-label>Descargar plantilla</span>
+    </a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="pv-card pv-narrow">
+    {% csrf_token %}
+    <div class="pv-card__body">
+        <div class="pv-field pv-file">
+            <label for="{{ form.csv_file.id_for_label }}">Archivo CSV</label>
+            {{ form.csv_file }}
+            {{ form.csv_file.errors }}
+        </div>
+        <div class="pv-filters__actions">
+            <button type="submit" class="pv-btn pv-btn--primary">
+                {% include 'records/components/icon.html' with name='upload' %}Cargar archivo
+            </button>
+            <a href="{% url 'credit_list' %}" class="pv-btn pv-btn--ghost">Cancelar</a>
         </div>
     </div>
+</form>
+
 {% endblock %}

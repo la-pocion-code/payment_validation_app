@@ -1,2 +1,5 @@
-{% extends 'records/base.html' %} {% block content %} {% include
-'records/payment_document_form.html' %} {% endblock %}
+{% extends 'records/base.html' %}
+
+{% block content %}
+    {% include 'records/components/modal_form.html' with submit_label="Guardar documento de pago" standalone=True %}
+{% endblock %}

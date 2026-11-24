@@ -28,3 +28,31 @@ class SocialAuthErrorsMiddleware(SocialAuthExceptionMiddleware):
             return 'Cancelaste el inicio de sesión con Google.'
         logger.warning('Error de autenticación social: %s', exception)
         return 'No se pudo iniciar sesión con Google. Por favor, intenta de nuevo.'
+
+
+class ProtectedDeleteMiddleware:
+    """
+    Eliminar algo que ya está en uso (un banco con recibos, un vendedor con ventas) lanza
+    ProtectedError. Varias vistas de catálogo no lo capturaban y respondían 500; aquí se
+    convierte en un mensaje claro, en JSON para la ventana de catálogos o como aviso.
+    """
+    MESSAGE = 'No se puede eliminar porque ya está en uso en recibos o transacciones.'
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_exception(self, request, exception):
+        from django.contrib import messages
+        from django.db.models.deletion import ProtectedError
+        from django.http import JsonResponse
+        from django.shortcuts import redirect
+
+        if not isinstance(exception, ProtectedError):
+            return None
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'message': self.MESSAGE}, status=400)
+        messages.error(request, self.MESSAGE)
+        return redirect(request.META.get('HTTP_REFERER') or '/')

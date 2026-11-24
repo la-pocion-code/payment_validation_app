@@ -1,8 +1,2 @@
-<h2>Confirmar Eliminación de Tipo Transacción</h2>
-<p>¿Estás seguro de que quieres eliminar el tipo de Transacción "{{ object.name }}"?</p>
-<form method="post" action="{% url 'TransactionType_delete' object.pk %}">
-    {% csrf_token %}
-    <button type="submit" class="btn-primary">Confirmar Eliminación</button>
-    <a href="#" class="btn-cancel">Cancelar</a>
-</form>
-
+{% url 'TransactionType_delete' object.pk as delete_url %}
+{% include 'records/components/modal_confirm_delete.html' with kind="el tipo de transacción" name=object.name delete_url=delete_url %}

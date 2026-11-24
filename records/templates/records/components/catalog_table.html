@@ -1,0 +1,59 @@
+{% comment %}
+Página de un catálogo simple: encabezado, botón «Nuevo» y tabla con editar / eliminar.
+Las acciones abren la ventana de catalog.js (data-pv-modal).
+Parámetros: items, heading, intro, new_label, singular, create_url, update_name,
+delete_name, name_label, extra («dias» | «bank» | vacío), extra_label, empty_text.
+{% endcomment %}
+<div class="pv-page-head">
+    <div>
+        <h1>{{ heading }}</h1>
+        <p>{{ intro }}</p>
+    </div>
+    <button type="button" class="pv-btn pv-btn--primary" data-pv-modal data-url="{{ create_url }}" data-title="{{ new_label }}">
+        {% include 'records/components/icon.html' with name='plus' %}{{ new_label }}
+    </button>
+</div>
+
+<div class="pv-card pv-catalog">
+    <div class="pv-table-foot" style="border-top: 0; border-bottom: 1px solid var(--pv-line);">
+        <span><strong style="color: var(--pv-ink-strong);">{{ items|length }}</strong> en total</span>
+        <label class="pv-catalog__filter">
+            <span class="tw:sr-only">Filtrar la lista</span>
+            <input type="search" placeholder="Filtrar…" data-pv-table-filter autocomplete="off">
+        </label>
+    </div>
+    <div class="pv-table-wrap">
+        <table class="pv-table">
+            <thead>
+                <tr>
+                    <th>{{ name_label }}</th>
+                    {% if extra %}<th>{{ extra_label }}</th>{% endif %}
+                    <th><span class="tw:sr-only">Acciones</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr class="pv-row">
+                    <td class="pv-cell-main">{{ item.name }}</td>
+                    {% if extra == 'dias' %}<td>{{ item.dias_efectivo }} día{{ item.dias_efectivo|pluralize }}</td>
+                    {% elif extra == 'bank' %}<td>{{ item.bank.name|default:"—" }}</td>{% endif %}
+                    <td>
+                        <div class="pv-row-actions">
+                            <button type="button" data-pv-modal data-url="{% url update_name item.pk %}" data-title="Editar {{ singular }}"
+                                    title="Editar" aria-label="Editar {{ item.name }}">
+                                {% include 'records/components/icon.html' with name='edit' %}
+                            </button>
+                            <button type="button" data-pv-modal data-url="{% url delete_name item.pk %}" data-title="Eliminar {{ singular }}"
+                                    title="Eliminar" aria-label="Eliminar {{ item.name }}" class="is-danger">
+                                {% include 'records/components/icon.html' with name='trash' %}
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3"><div class="pv-empty"><strong>{{ empty_text }}</strong>Crea el primero con «{{ new_label }}».</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

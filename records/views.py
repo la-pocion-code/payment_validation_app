@@ -75,7 +75,9 @@ def request_access(request):
 @user_passes_test(lambda u: u.is_superuser)
 def access_request_list(request):
     requests = AccessRequest.objects.filter(approved=False) 
-    users = User.objects.all()
+    requests = requests.select_related('user').order_by('-timestamp')
+    # Los roles se precargan: antes era una consulta por usuario.
+    users = User.objects.prefetch_related('groups').order_by('-is_active', 'username')
     return render(request, 'records/access_request_list.html', {'requests': requests, 'users': users})
 
 @user_passes_test(lambda u: u.is_superuser)
@@ -2020,7 +2022,15 @@ class DuplicateAttemptsHistoryListView(LoginRequiredMixin, UserPassesTestMixin, 
         return self.request.user.is_superuser
 
     def get_queryset(self):
-        return DuplicateRecordAttempt.objects.all().order_by('-timestamp')
+        return (DuplicateRecordAttempt.objects.select_related('user', 'resolved_by')
+                .order_by('-timestamp'))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        params = self.request.GET.copy()
+        params.pop('page', None)
+        context['querystring'] = params.urlencode()
+        return context
 
 
 @login_required

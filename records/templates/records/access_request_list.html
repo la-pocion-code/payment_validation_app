@@ -1,203 +1,109 @@
 {% extends 'records/base.html' %}
-{% load static %}
+
+{% block title %}Usuarios{% endblock %}
+{% block page_title %}Usuarios{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <h2>Gestión de Usuarios</h2>
-    <hr>
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
 
-    <h3 class="mt-5">Solicitudes de Acceso Pendientes</h3>
-    {% if requests %}
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Usuario</th>
-                        <th>Email</th>
-                        <th>Fecha de Solicitud</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for req in requests %}
-                        <tr>
-                            <td>{{ req.user.username }}</td>
-                            <td>{{ req.user.email }}</td>
-                            <td>{{ req.requested_at|date:"d/m/Y H:i" }}</td>
-                            <td>
-                            <button type="button" class="btn btn-info btn-sm" title="Gestionar" data-bs-toggle="modal" data-bs-target="#user-modal" data-url="{% url 'access_request_approve_deny' req.pk %}">
-                                <img src="{% static 'images/pen-solid-full.svg' %}" alt="Gestionar" width="20" height="20">
-                            </button>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <div class="alert alert-info" role="alert">
-            No hay solicitudes de acceso pendientes.
-        </div>
-    {% endif %}
-
-    <h3 class="mt-5">Gestión de Usuarios</h3>
-    {% if users %}
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Usuario</th>
-                        <th>Email</th>
-                        <th>Grupos</th>
-                        <th>Activo</th>
-                        <th>Superusuario</th>
-                        <th>Último Login</th>
-                        <th>Fecha de Registro</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in users %}
-                        <tr>
-                            <td>{{ user.username }}</td>
-                            <td>{{ user.email }}</td>
-                            <td>
-                                {% if user.groups.all %}
-                                    {% for group in user.groups.all %}
-                                        {{ group.name }}{% if not forloop.last %}, {% endif %}
-                                    {% endfor %}
-                                {% else %}
-                                    Ninguno
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if user.is_active %}
-                                    <span class="badge bg-success">Sí</span>
-                                {% else %}
-                                    <span class="badge bg-danger">No</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if user.is_superuser %}
-                                    <span class="badge bg-primary">Sí</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">No</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ user.last_login|default:"Nunca"|date:"d/m/Y H:i" }}</td>
-                            <td>{{ user.date_joined|date:"d/m/Y H:i" }}</td>
-                            <td>
-                                <button type="button" class="btn btn-info btn-sm" title="Editar" data-bs-toggle="modal" data-bs-target="#user-modal" data-url="{% url 'user_update' user.pk %}">
-                                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
-                                </button>
-                                <button type="button" class="btn btn-danger btn-sm" title="Eliminar" data-bs-toggle="modal" data-bs-target="#user-modal" data-url="{% url 'user_delete' user.pk %}">
-                                    <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
-                                </button>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <div class="alert alert-info" role="alert">
-            No hay usuarios registrados en el sistema.
-        </div>
-    {% endif %}
-</div>
-
-{# Modal Structure #}
-<div class="modal fade" id="user-modal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="userModalLabel">Gestionar</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="user-form-container">
-                {# Form will be loaded here via AJAX #}
-            </div>
-        </div>
+<div class="pv-page-head">
+    <div>
+        <h1>Usuarios</h1>
+        <p>Quién puede entrar y con qué rol. Las personas nuevas quedan en espera hasta que apruebes su solicitud.</p>
     </div>
 </div>
 
-{% endblock %}
+<div class="pv-section-title" style="margin-top: 0;"><h2>Solicitudes de acceso pendientes</h2></div>
+<div class="pv-card">
+    <div class="pv-table-wrap">
+        <table class="pv-table">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Correo</th>
+                    <th>Solicitó el</th>
+                    <th><span class="tw:sr-only">Acciones</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in requests %}
+                <tr class="pv-row">
+                    <td class="pv-cell-main">{{ req.user.get_full_name|default:req.user.username }}</td>
+                    <td>{{ req.user.email }}</td>
+                    <td>{{ req.timestamp|date:"d/m/Y H:i" }}</td>
+                    <td>
+                        <div class="pv-row-actions">
+                            <button type="button" class="pv-btn pv-btn--primary pv-btn--sm" style="width: auto;"
+                                    data-pv-modal data-url="{% url 'access_request_approve_deny' req.pk %}" data-title="Solicitud de acceso">
+                                Revisar
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4"><div class="pv-empty" style="padding: 28px 20px;"><strong>No hay solicitudes pendientes</strong>Cuando alguien nuevo inicie sesión con Google aparecerá aquí.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-{% block extra_js %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const userModalElement = document.getElementById('user-modal');
-        const userFormContainer = document.getElementById('user-form-container');
-        const userModal = new bootstrap.Modal(userModalElement);
+<div class="pv-section-title"><h2>Usuarios registrados</h2></div>
+<div class="pv-card pv-catalog">
+    <div class="pv-table-foot" style="border-top: 0; border-bottom: 1px solid var(--pv-line);">
+        <span><strong style="color: var(--pv-ink-strong);">{{ users|length }}</strong> usuarios</span>
+        <label class="pv-catalog__filter">
+            <span class="tw:sr-only">Filtrar usuarios</span>
+            <input type="search" placeholder="Filtrar por nombre, correo o rol…" data-pv-table-filter autocomplete="off">
+        </label>
+    </div>
+    <div class="pv-table-wrap">
+        <table class="pv-table">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Roles</th>
+                    <th>Estado</th>
+                    <th>Último ingreso</th>
+                    <th>Registrado</th>
+                    <th><span class="tw:sr-only">Acciones</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {# «person» y no «user»: «user» es quien tiene la sesión abierta. #}
+                {% for person in users %}
+                <tr class="pv-row">
+                    <td>
+                        <div class="pv-cell-main">{{ person.get_full_name|default:person.username }}</div>
+                        <div class="pv-cell-sub">{{ person.email|default:person.username }}</div>
+                    </td>
+                    <td>
+                        {% if person.is_superuser %}<span class="pv-badge pv-badge--info pv-badge--plain">Administrador</span>{% endif %}
+                        {% for group in person.groups.all %}<span class="pv-badge pv-badge--muted pv-badge--plain">{{ group.name }}</span> {% empty %}{% if not person.is_superuser %}<span class="pv-muted">Sin rol</span>{% endif %}{% endfor %}
+                    </td>
+                    <td>
+                        {% if person.is_active %}<span class="pv-badge pv-badge--ok">Activo</span>{% else %}<span class="pv-badge pv-badge--bad">Bloqueado</span>{% endif %}
+                    </td>
+                    <td>{% if person.last_login %}{{ person.last_login|date:"d/m/Y H:i" }}{% else %}<span class="pv-muted">Nunca</span>{% endif %}</td>
+                    <td>{{ person.date_joined|date:"d/m/Y" }}</td>
+                    <td>
+                        <div class="pv-row-actions">
+                            <button type="button" data-pv-modal data-url="{% url 'user_update' person.pk %}" data-title="Editar usuario"
+                                    title="Editar" aria-label="Editar a {{ person.username }}">
+                                {% include 'records/components/icon.html' with name='edit' %}
+                            </button>
+                            <button type="button" data-pv-modal data-url="{% url 'user_delete' person.pk %}" data-title="Eliminar usuario"
+                                    title="Eliminar" aria-label="Eliminar a {{ person.username }}" class="is-danger">
+                                {% include 'records/components/icon.html' with name='trash' %}
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="pv-empty"><strong>No hay usuarios registrados</strong></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-        userModalElement.addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            const url = button.getAttribute('data-url');
-            const modalTitle = userModalElement.querySelector('.modal-title');
-
-            // Actualizar título del modal dinámicamente
-            if (button.title) {
-                modalTitle.textContent = button.title;
-            }
-
-            userFormContainer.innerHTML = '<p class="text-center">Cargando...</p>';
-            
-            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(response => response.text())
-                .then(html => {
-                    userFormContainer.innerHTML = html;
-                    attachFormSubmitHandler();
-                })
-                .catch(error => {
-                    userFormContainer.innerHTML = '<p class="text-center text-danger">Error al cargar el contenido.</p>';
-                    console.error('Error loading form:', error);
-                });
-        });
-
-        function attachFormSubmitHandler() {
-            const currentForm = userFormContainer.querySelector('form');
-            if (currentForm) {
-                currentForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    const formData = new FormData(currentForm);
-                    fetch(currentForm.action, {
-                        method: 'POST',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                        },
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert(data.message || 'Operación exitosa!');
-                            userModal.hide();
-                            window.location.reload();
-                        } else {
-                            userFormContainer.innerHTML = data.form_html;
-                            attachFormSubmitHandler();
-                        }
-                    })
-                    .catch(error => console.error('Error submitting form:', error)); // Debug log
-                });
-
-                const cancelButton = currentForm.querySelector('.btn-cancel');
-                if (cancelButton) {
-                    cancelButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        userModal.hide();
-                    });
-                }
-            }
-        }
-    });
-</script>
 {% endblock %}

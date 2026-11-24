@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 import dj_database_url
 
 from dotenv import load_dotenv
@@ -66,6 +67,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
     'records.middleware.SocialAuthErrorsMiddleware',
+    'records.middleware.ProtectedDeleteMiddleware',
 ]
 
 ROOT_URLCONF = 'financial_tracker.urls'
@@ -229,6 +231,11 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+# La suite pide por HTTP: con DEBUG=False (CI contra PostgreSQL, staging) el redirect a
+# HTTPS convertiría cada petición de prueba en un 301.
+if 'test' in sys.argv:
+    SECURE_SSL_REDIRECT = False
 
 LOGGING = {
     'version': 1,

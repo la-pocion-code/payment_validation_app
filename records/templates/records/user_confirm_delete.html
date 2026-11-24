@@ -1,10 +1,10 @@
-<div class="container mt-4">
-    <h2>Confirmar Eliminación de Usuario</h2>
-    <hr>
-    <p>¿Estás seguro de que quieres eliminar al usuario "<strong>{{ user.username }}</strong>"?</p>
-    <form method="post" action="{% url 'user_delete' user.pk %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger">Confirmar Eliminación</button>
-        <a href="#" class="btn btn-secondary btn-cancel">Cancelar</a>
-    </form>
-</div>
+{# Se carga en la ventana de catalog.js desde «Usuarios». #}
+<form method="post" action="{% url 'user_delete' user.pk %}" class="pv-modal-form" data-pv-delete>
+    {% csrf_token %}
+    <p style="margin: 0;">Vas a eliminar al usuario <strong>{{ user.username }}</strong>. Esta acción no se puede deshacer.</p>
+    <p class="pv-card__hint" style="margin: 8px 0 0;">Si solo quieres que deje de entrar, es mejor editarlo y quitarle «Puede entrar a la aplicación»: así se conserva su historial.</p>
+    <div class="pv-dialog__actions">
+        <a href="#" class="pv-btn pv-btn--ghost btn-cancel">Cancelar</a>
+        <button type="submit" class="pv-btn pv-btn--solid-danger">Eliminar usuario</button>
+    </div>
+</form>

@@ -454,3 +454,106 @@ class NuevoAbonoYBandejaTests(ConRecibos):
         self.assertContains(respuesta, 'Posible duplicado')
         self.assertContains(respuesta, reverse('credit_detail', args=[self.recibo.pk]))
         self.assertContains(respuesta, reverse('credit_list') + '?comprobante=X')
+
+
+class CatalogosClientesYUsuariosTests(ConRecibos):
+    """Las pantallas de administración: lista, ventana (parciales AJAX) y eliminaciones protegidas."""
+
+    AJAX = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    def setUp(self):
+        super().setUp()
+        self.admin = User.objects.create_superuser('jefe', email='jefe@lapocion.com', password='clave-larga-123')
+        self.client.force_login(self.admin)
+
+    def test_todas_las_pantallas_cargan(self):
+        from .models import Bank
+        paginas = ['bank_list', 'seller_list', 'origen_transaccion_list', 'TransactionType_list',
+                   'payment_document_list', 'Client_list', 'access_request_list',
+                   'duplicate_attempts_list', 'duplicate_attempts_history_list', 'csv_upload',
+                   'client_bulk_upload_page', 'bank_create', 'deleted_receipts_list',
+                   'deleted_transactions_list', 'duplicate_alert_settings']
+        for nombre in paginas:
+            with self.subTest(pagina=nombre):
+                respuesta = self.client.get(reverse(nombre))
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertContains(respuesta, 'pv-sidebar')
+        detalle = self.client.get(reverse('transaction_detail', args=[self.transaccion.pk]))
+        self.assertContains(detalle, 'Cambios de la transacción')
+        self.assertContains(detalle, 'M0320-AAA')
+        self.assertEqual(Bank.objects.count(), 1)
+
+    def test_cada_catalogo_abre_su_formulario_y_su_confirmacion_en_la_ventana(self):
+        from .models import PaymentDocument
+        documento = PaymentDocument.objects.create(name='BAN', bank=self.banco)
+        casos = [('bank', self.banco), ('seller', self.vendedor), ('origen_transaccion', self.origen),
+                 ('TransactionType', self.tipo), ('payment_document', documento), ('Client', self.cliente)]
+        for prefijo, objeto in casos:
+            with self.subTest(catalogo=prefijo):
+                lista = self.client.get(reverse(f'{prefijo}_list'))
+                self.assertContains(lista, 'data-pv-modal')
+                self.assertContains(lista, reverse(f'{prefijo}_update', args=[objeto.pk]))
+                for nombre, args in ((f'{prefijo}_create', []), (f'{prefijo}_update', [objeto.pk])):
+                    parcial = self.client.get(reverse(nombre, args=args), **self.AJAX).content.decode()
+                    self.assertNotIn('<html', parcial)
+                    self.assertIn('pv-modal-form', parcial)
+                    self.assertIn('csrfmiddlewaretoken', parcial)
+                confirmar = self.client.get(reverse(f'{prefijo}_delete', args=[objeto.pk]), **self.AJAX).content.decode()
+                self.assertIn('data-pv-delete', confirmar)
+                self.assertIn(reverse(f'{prefijo}_delete', args=[objeto.pk]), confirmar)
+
+    def test_crear_editar_y_error_de_validacion_por_la_ventana(self):
+        from .models import Bank
+        respuesta = self.client.post(reverse('bank_create'), {'name': 'NEQUI'}, **self.AJAX)
+        self.assertTrue(respuesta.json()['success'])
+        banco = Bank.objects.get(name='NEQUI')
+        respuesta = self.client.post(reverse('bank_update', args=[banco.pk]), {'name': 'NEQUI PCN'}, **self.AJAX)
+        self.assertTrue(respuesta.json()['success'])
+        respuesta = self.client.post(reverse('bank_create'), {'name': ''}, **self.AJAX)
+        datos = respuesta.json()
+        self.assertFalse(datos['success'])
+        self.assertIn('errorlist', datos['form_html'])
+
+    def test_eliminar_algo_en_uso_responde_un_mensaje_y_no_un_500(self):
+        from .models import Bank
+        for nombre, objeto in (('bank_delete', self.banco), ('seller_delete', self.vendedor),
+                               ('origen_transaccion_delete', self.origen)):
+            with self.subTest(vista=nombre):
+                respuesta = self.client.post(reverse(nombre, args=[objeto.pk]), **self.AJAX)
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertFalse(respuesta.json()['success'])
+                self.assertIn('ya está en uso', respuesta.json()['message'])
+        self.assertTrue(Bank.objects.filter(pk=self.banco.pk).exists())
+        # Sin AJAX: aviso y regreso, tampoco un 500.
+        respuesta = self.client.post(reverse('bank_delete', args=[self.banco.pk]), HTTP_REFERER='/banks/')
+        self.assertRedirects(respuesta, '/banks/', fetch_redirect_response=False)
+
+    def test_usuarios_muestra_solicitudes_y_no_consulta_roles_por_fila(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from .models import AccessRequest
+        nuevo = User.objects.create_user('nuevo', email='nuevo@lapocion.com', password='clave-larga-123')
+        AccessRequest.objects.get_or_create(user=nuevo)
+
+        def contar():
+            with CaptureQueriesContext(connection) as consultas:
+                respuesta = self.client.get(reverse('access_request_list'))
+            return len(consultas), respuesta
+
+        antes, respuesta = contar()
+        self.assertContains(respuesta, 'nuevo@lapocion.com')
+        self.assertContains(respuesta, reverse('user_update', args=[self.user.pk]))
+        grupo = Group.objects.get(name='Digitador')
+        for i in range(8):
+            User.objects.create_user(f'extra{i}', password='clave-larga-123').groups.add(grupo)
+        self.assertEqual(contar()[0], antes)
+
+    def test_editar_usuario_por_la_ventana(self):
+        parcial = self.client.get(reverse('user_update', args=[self.user.pk]), **self.AJAX).content.decode()
+        self.assertIn('pv-modal-form', parcial)
+        self.assertIn('digitador', parcial)
+        validador = Group.objects.get_or_create(name='Validador')[0]
+        respuesta = self.client.post(reverse('user_update', args=[self.user.pk]),
+                                     {'is_active': 'on', 'groups': [validador.pk]}, **self.AJAX)
+        self.assertTrue(respuesta.json()['success'])
+        self.assertEqual(list(self.user.groups.values_list('name', flat=True)), ['Validador'])

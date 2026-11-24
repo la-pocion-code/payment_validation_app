@@ -1,5 +1,5 @@
 {% extends 'records/base.html' %}
 
 {% block content %}
-    {% include 'records/TransactionType_form.html' %}
+    {% include 'records/components/modal_form.html' with submit_label="Guardar tipo de transacción" standalone=True %}
 {% endblock %}

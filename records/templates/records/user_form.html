@@ -1,47 +1,30 @@
-<div class="container mt-4">
-    <h2>{{ title }}</h2>
-    <hr>
-    <form method="post" action="{% url 'user_update' user.pk %}">
-        {% csrf_token %}
+{# Se carga en la ventana de catalog.js desde «Usuarios». Aquí «user» es la persona que se edita. #}
+<form method="post" action="{% url 'user_update' user.pk %}" class="pv-modal-form">
+    {% csrf_token %}
+    <dl class="pv-dl" style="grid-template-columns: 1fr 1fr;">
+        <div><dt>Nombre</dt><dd>{{ user.get_full_name|default:"Sin nombre" }}</dd></div>
+        <div><dt>Usuario</dt><dd>{{ user.username }}</dd></div>
+        <div style="grid-column: 1 / -1;"><dt>Correo</dt><dd>{{ user.email|default:"—" }}</dd></div>
+    </dl>
 
-        <div class="form-group">
-            <label>Nombre de Usuario:</label>
-            <p><strong>{{ user.username }}</strong></p>
-        </div>
+    {% if form.non_field_errors %}<div class="pv-errors">{{ form.non_field_errors }}</div>{% endif %}
 
-        <div class="form-group">
-            <label>Correo Electrónico:</label>
-            <p><strong>{{ user.email }}</strong></p>
-        </div>
+    <fieldset class="pv-choices">
+        <legend>Acceso</legend>
+        <label>{{ form.is_active }} <span>Puede entrar a la aplicación</span></label>
+        {{ form.is_active.errors }}
+        <label>{{ form.is_superuser }} <span>Administrador (ve y edita todo)</span></label>
+        {{ form.is_superuser.errors }}
+    </fieldset>
 
-        <div class="form-group">
-            <label>Nombre:</label>
-            <p><strong>{{ user.first_name|default:"N/A" }}</strong></p>
-        </div>
+    <fieldset class="pv-choices">
+        <legend>Roles</legend>
+        {{ form.groups }}
+        {{ form.groups.errors }}
+    </fieldset>
 
-        <div class="form-group">
-            <label>Apellido:</label>
-            <p><strong>{{ user.last_name|default:"N/A" }}</strong></p>
-        </div>
-
-        <hr>
-
-        <div class="form-group">
-            {{ form.is_active.label_tag }}
-            {{ form.is_active }}
-        </div>
-
-        <div class="form-group">
-            {{ form.is_superuser.label_tag }}
-            {{ form.is_superuser }}
-        </div>
-
-        <div class="form-group">
-            {{ form.groups.label_tag }}
-            {{ form.groups }}
-        </div>
-
-        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-        <a href="{% url 'access_request_list' %}" class="btn btn-secondary btn-cancel">Cancelar</a>
-    </form>
-</div>
+    <div class="pv-dialog__actions">
+        <a href="{% url 'access_request_list' %}" class="pv-btn pv-btn--ghost btn-cancel">Cancelar</a>
+        <button type="submit" class="pv-btn pv-btn--primary">Guardar cambios</button>
+    </div>
+</form>

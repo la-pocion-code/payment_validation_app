@@ -1,0 +1,13 @@
+{% comment %}
+Confirmación de eliminación para la ventana de catalog.js.
+Parámetros: kind («el banco»), name, delete_url.
+{% endcomment %}
+<form method="post" action="{{ delete_url }}" class="pv-modal-form" data-pv-delete>
+    {% csrf_token %}
+    <p style="margin: 0;">Vas a eliminar {{ kind }} <strong>{{ name }}</strong>. Esta acción no se puede deshacer.</p>
+    <p class="pv-card__hint" style="margin: 8px 0 0;">Si ya está en uso en algún recibo o transacción, el sistema no lo dejará eliminar.</p>
+    <div class="pv-dialog__actions">
+        <a href="#" class="pv-btn pv-btn--ghost btn-cancel">Cancelar</a>
+        <button type="submit" class="pv-btn pv-btn--solid-danger">Eliminar</button>
+    </div>
+</form>

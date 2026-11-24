@@ -65,6 +65,15 @@
     };
 
     if (toasts) {
+        // Aviso que dejó una acción justo antes de recargar (catalog.js). Si el servidor
+        // ya trae su propio mensaje, ese manda y este se descarta.
+        try {
+            var flash = sessionStorage.getItem('pv-flash');
+            if (flash) {
+                sessionStorage.removeItem('pv-flash');
+                if (!toasts.querySelector('[data-pv-toast]')) window.pvToast(flash, 'success');
+            }
+        } catch (e) {}
         toasts.querySelectorAll('[data-pv-toast]').forEach(armToast);
         toasts.addEventListener('click', function (event) {
             var close = event.target.closest('[data-pv-toast-close]');

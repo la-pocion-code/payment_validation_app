@@ -171,8 +171,15 @@ plegable, buscador global, avisos tipo toast, barra de progreso, aviso de sesió
 la lista de Transacciones, la lista y el detalle de Recibos, los formularios de captura
 (`create_bulk_receipts.html`, `transaction_form.html`, `credit_form.html`), la bandeja de
 duplicados y «Alertas por correo».
-**Pendientes** de rediseño propio: catálogos, clientes, usuarios, historial de duplicados y
-`transaction_detail.html`; mientras tanto ya se ven con la marca gracias al «puente» de estilos.
+También catálogos, clientes, usuarios, historial de duplicados, historial de la transacción
+y cargas de archivo. **Pendientes** (poco uso, solo administradores): registros y
+transacciones eliminados, `record_history.html` y las páginas de acceso denegado.
+
+- **Catálogos, clientes y usuarios** comparten `components/catalog_table.html`,
+  `components/modal_form.html`, `components/modal_confirm_delete.html` y
+  `records/static/js/catalog.js`: un botón `data-pv-modal data-url="…"` abre la ventana y
+  carga el parcial que la vista devuelve a AJAX. Eliminar algo en uso (`ProtectedError`) lo
+  convierte `ProtectedDeleteMiddleware` en un mensaje, no en un 500.
 Los avisos (toasts) van abajo a la derecha, salvo en pantallas con `.pv-actionbar`, donde suben
 para no tapar el botón de guardar.
 
@@ -219,6 +226,13 @@ Se editan en `/alertas/` (solo superusuarios), con «Enviarme una prueba» y vis
 - Variables de entorno: `EMAIL_HOST_USER` y `EMAIL_HOST_PASSWORD` (contraseña de aplicación de
   Workspace), opcionales `EMAIL_HOST`, `EMAIL_PORT`, `DEFAULT_FROM_EMAIL`, `SITE_URL`. Sin
   `EMAIL_HOST_USER` el backend es la consola: el correo queda en el log y no sale.
+
+## Pruebas y CI
+
+`python manage.py test` (113 pruebas: `records/tests.py`, `tests_api.py`, `tests_ui.py`).
+`.github/workflows/tests.yml` las corre contra PostgreSQL en cada push a `staging` y `main`,
+junto con `check` y `makemigrations --check`. Railway despliega al recibir el push sin esperar
+ese resultado, salvo que se active «Wait for CI» en el servicio.
 
 ## Convenciones
 

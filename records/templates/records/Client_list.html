@@ -1,189 +1,109 @@
 {% extends "records/base.html" %}
-{% load static %}
+{% load humanize %}
 
-{% block title %}Gestionar Cliente{% endblock %}
+{% block title %}Clientes{% endblock %}
+{% block page_title %}Clientes{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Gestionar Cliente</h2>
 
-    <div class="mb-3">
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#Client-modal" data-url="{% url 'Client_create' %}">
-            Nuevo Cliente
-        </button>
-
+<div class="pv-page-head">
+    <div>
+        <h1>Clientes</h1>
+        <p>Clientes a los que se les registran transacciones y abonos.</p>
+    </div>
+    <div class="pv-page-head__actions">
         {% if user.is_superuser %}
-        <a href="{% url 'client_bulk_upload_page' %}" class="btn btn-warning">
-            <i class="fas fa-upload"></i> Cargar Archivo
-        </a> 
+        <a href="{% url 'client_bulk_upload_page' %}" class="pv-btn pv-btn--ghost">
+            {% include 'records/components/icon.html' with name='upload' %}Cargar archivo
+        </a>
         {% endif %}
+        <button type="button" class="pv-btn pv-btn--primary" data-pv-modal data-url="{% url 'Client_create' %}" data-title="Nuevo cliente">
+            {% include 'records/components/icon.html' with name='plus' %}Nuevo cliente
+        </button>
     </div>
+</div>
 
-    {# --- SECCIÓN DE FILTROS --- #}
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="get" action="" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label">{{ filter.form.name.label }}</label>
-                    {{ filter.form.name }}
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">{{ filter.form.dni.label }}</label>
-                    {{ filter.form.dni }}
-                </div>
-                <div class="col-md-4 d-flex justify-content-start gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-filter"></i> Filtrar
-                    </button>
-                    <a href="{% url 'Client_list' %}" class="btn btn-secondary" title="Limpiar Filtros">
-                        Limpiar
-                    </a>
-                </div>
-            </form>
+<form method="get" action="{% url 'Client_list' %}" class="pv-card pv-filters" data-pv-filters>
+    <div class="pv-filters__grid">
+        <div class="pv-field">
+            <label for="{{ filter.form.name.id_for_label }}">Nombre</label>
+            {{ filter.form.name }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.dni.id_for_label }}">Documento</label>
+            {{ filter.form.dni }}
         </div>
     </div>
+    <div class="pv-filters__actions">
+        <button type="submit" class="pv-btn pv-btn--primary pv-btn--sm">
+            {% include 'records/components/icon.html' with name='filter' %}Filtrar
+        </button>
+        <a href="{% url 'Client_list' %}" class="pv-btn pv-btn--ghost pv-btn--sm">Limpiar</a>
+        <span class="pv-filters__hint" data-pv-filter-count></span>
+    </div>
+</form>
 
-    <table class="table table-striped table-hover">
-        <thead class="table-light">
-            <tr>
-                <th>Nombre del Cliente</th>
-                <th>Documento</th>
-                {% if user.is_superuser %}
-                <th>Acciones</th>
-                {% endif %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for client in clients %} {# Cambiado a 'client in clients' #}
-            <tr>
-                <td>{{ client.name }}</td>
-                <td>{{ client.dni }}</td>
-                {% if user.is_superuser %}
-                <td>
-                    <button type="button" class="btn-accion-icono" title="Editar" data-bs-toggle="modal" data-bs-target="#Client-modal" data-url="{% url 'Client_update' client.pk %}">
-                        <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
-                    </button>
-                    <button type="button" class="btn-accion-icono" title="Eliminar" data-bs-toggle="modal" data-bs-target="#Client-modal" data-url="{% url 'Client_delete' client.pk %}">
-                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
-                    </button>
-                </td>
-                {% endif %}
-            </tr>
-            {% empty %}
-            <tr><td colspan="3" class="text-center">No se encontraron clientes con los filtros seleccionados.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-     {# Modal Structure for Create/Edit/Delete #}
-    <div class="modal fade" id="Client-modal" tabindex="-1" aria-labelledby="ClientModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="ClientModalLabel">Gestionar Cliente</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" id="Client-form-container">
-                    {# Client form will be loaded here via AJAX #}
-                </div>
-            </div>
-        </div>
+<div class="pv-card">
+    <div class="pv-table-foot" style="border-top: 0; border-bottom: 1px solid var(--pv-line);">
+        <span>
+            <strong style="color: var(--pv-ink-strong);">{{ page_obj.paginator.count|intcomma }}</strong>
+            {% if page_obj.paginator.count == 1 %}cliente{% else %}clientes{% endif %}
+            {% if is_paginated %}· página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}{% endif %}
+        </span>
+    </div>
+    <div class="pv-table-wrap">
+        <table class="pv-table">
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Documento</th>
+                    <th><span class="tw:sr-only">Acciones</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client in clients %}
+                <tr class="pv-row">
+                    <td class="pv-cell-main">{{ client.name }}</td>
+                    <td class="pv-mono">{{ client.dni }}</td>
+                    <td>
+                        <div class="pv-row-actions">
+                            <a href="{% url 'record_list' %}?cliente={{ client.dni|urlencode }}&amp;status=" title="Ver sus transacciones"
+                               aria-label="Ver las transacciones de {{ client.name }}">
+                                {% include 'records/components/icon.html' with name='transactions' %}
+                            </a>
+                            <a href="{% url 'credit_list' %}?display_client={{ client.dni|urlencode }}" title="Ver sus recibos"
+                               aria-label="Ver los recibos de {{ client.name }}">
+                                {% include 'records/components/icon.html' with name='receipt' %}
+                            </a>
+                            {% if user.is_superuser %}
+                            <button type="button" data-pv-modal data-url="{% url 'Client_update' client.pk %}" data-title="Editar cliente"
+                                    title="Editar" aria-label="Editar {{ client.name }}">
+                                {% include 'records/components/icon.html' with name='edit' %}
+                            </button>
+                            <button type="button" data-pv-modal data-url="{% url 'Client_delete' client.pk %}" data-title="Eliminar cliente"
+                                    title="Eliminar" aria-label="Eliminar {{ client.name }}" class="is-danger">
+                                {% include 'records/components/icon.html' with name='trash' %}
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3"><div class="pv-empty"><strong>No hay clientes con esos filtros</strong>Prueba con menos letras o limpia los filtros.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
-    {# --- SECCIÓN DE PAGINACIÓN --- #}
     {% if is_paginated %}
-    <nav aria-label="Page navigation" class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% if page_obj.has_previous %}
-                <li class="page-item">
-                    {# Preservamos los parámetros de filtro al cambiar de página #}
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">Anterior</a>
-                </li>
-            {% endif %}
-            
-            <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
-            
-            {% if page_obj.has_next %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">Siguiente</a>
-                </li>
-            {% endif %}
-        </ul>
-    </nav>
+    <div class="pv-table-foot">
+        <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count|intcomma }}</span>
+        <div class="pv-pager">
+            {% if page_obj.has_previous %}<a class="pv-btn pv-btn--ghost pv-btn--sm" href="?page={{ page_obj.previous_page_number }}&amp;name={{ request.GET.name|urlencode }}&amp;dni={{ request.GET.dni|urlencode }}">Anterior</a>{% endif %}
+            {% if page_obj.has_next %}<a class="pv-btn pv-btn--ghost pv-btn--sm" href="?page={{ page_obj.next_page_number }}&amp;name={{ request.GET.name|urlencode }}&amp;dni={{ request.GET.dni|urlencode }}">Siguiente</a>{% endif %}
+        </div>
+    </div>
     {% endif %}
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const clientModalElement = document.getElementById('Client-modal');
-        const clientFormContainer = document.getElementById('Client-form-container');
-        const clientModal = new bootstrap.Modal(clientModalElement); // Instancia del modal de Bootstrap
-
-        // Este evento se dispara CADA VEZ que el modal '#Client-modal' intenta mostrarse
-        clientModalElement.addEventListener('show.bs.modal', function (event) {
-            // El botón que disparó el modal
-            const button = event.relatedTarget;
-            // Extraemos la URL del atributo 'data-url' que pusimos en los botones
-            const url = button.getAttribute('data-url');
-
-            // Limpiamos el contenido anterior y mostramos un 'cargando...'
-            clientFormContainer.innerHTML = '<p class="text-center">Cargando...</p>';
-            
-            // Hacemos la petición AJAX para obtener el formulario
-            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(response => response.text())
-                .then(html => {
-                    clientFormContainer.innerHTML = html;
-                    attachClientFormSubmitHandler(); // Adjuntamos el manejador al nuevo formulario
-                })
-                .catch(error => {
-                    clientFormContainer.innerHTML = '<p class="text-center text-danger">Error al cargar el contenido.</p>';
-                    console.error('Error loading Client form:', error);
-                });
-        });
-
-        // Function to attach submit handler to the dynamically loaded form
-        function attachClientFormSubmitHandler() {
-            const ClientForm = clientFormContainer.querySelector('form');
-            if (ClientForm) {
-                ClientForm.addEventListener('submit', function(e) {
-                    e.preventDefault(); // Prevent default form submission
-                    const formData = new FormData(ClientForm);
-                    fetch(ClientForm.action, {
-                        method: 'POST',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                        },
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert(data.message || 'Operación exitosa!');
-                            clientModal.hide();
-                            location.reload(); // Reload the page to show updated list
-                        } else {
-                            // Display errors by re-rendering the form HTML
-                            clientFormContainer.innerHTML = data.form_html;
-                            attachClientFormSubmitHandler(); // Re-attach handler for the new form
-                        }
-                    })
-                    .catch(error => console.error('Error submitting Client form:', error));
-                });
-
-                // Add event listener for the new cancel button in the form
-                const cancelButton = ClientForm.querySelector('.btn-cancel');
-                if (cancelButton) {
-                    cancelButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        clientModal.hide();
-                    });
-                }
-            }
-        }
-    });
-    
-</script>
 {% endblock %}

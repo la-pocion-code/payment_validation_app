@@ -1,0 +1,26 @@
+{% comment %}
+Formulario genérico de catálogo. Se carga dentro de la ventana de catalog.js (petición
+AJAX) y también sirve la página suelta (standalone=True) si alguien abre la URL directa.
+Parámetros: form, title, submit_label.
+{% endcomment %}
+{% if standalone %}
+<div class="pv-page-head"><div><h1>{{ title }}</h1></div></div>
+<div class="pv-card pv-narrow"><div class="pv-card__body">
+{% endif %}
+<form method="post" action="{{ request.path }}" class="pv-modal-form">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="pv-errors" style="margin-bottom: 12px;">{{ form.non_field_errors }}</div>{% endif %}
+    {% for field in form %}
+    <div class="pv-field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<span class="pv-card__hint">{{ field.help_text }}</span>{% endif %}
+        {{ field.errors }}
+    </div>
+    {% endfor %}
+    <div class="pv-dialog__actions">
+        <a href="#" class="pv-btn pv-btn--ghost btn-cancel">Cancelar</a>
+        <button type="submit" class="pv-btn pv-btn--primary">{{ submit_label|default:"Guardar" }}</button>
+    </div>
+</form>
+{% if standalone %}</div></div>{% endif %}

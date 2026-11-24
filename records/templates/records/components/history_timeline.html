@@ -1,0 +1,26 @@
+{% comment %}
+Línea de tiempo de cambios (django-simple-history). Parámetros: history (cada registro
+puede traer .delta, lo calcula la vista), noun («la transacción», «el recibo»).
+{% endcomment %}
+{% if history %}
+<ol class="pv-timeline">
+    {% for record in history %}
+    <li class="pv-timeline__item pv-timeline__item--{% if record.history_type == '+' %}new{% elif record.history_type == '-' %}del{% else %}edit{% endif %}">
+        <div class="pv-timeline__head">
+            <strong>{{ record.history_user|default:"Sistema" }}</strong>
+            {% if record.history_type == '+' %}creó {{ noun }}{% elif record.history_type == '-' %}eliminó {{ noun }}{% else %}modificó{% endif %}
+            <span class="pv-muted">· {{ record.history_date|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% if record.history_type == '~' and record.delta %}
+        <ul class="pv-timeline__changes">
+            {% for change in record.delta.changes %}
+            <li><span class="pv-muted">{{ change.field|capfirst }}:</span> <del>{{ change.old|default_if_none:"—" }}</del> → <strong>{{ change.new|default_if_none:"—" }}</strong></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ol>
+{% else %}
+<p class="pv-muted" style="margin: 0;">Sin cambios registrados.</p>
+{% endif %}

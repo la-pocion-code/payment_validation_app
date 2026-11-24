@@ -1,5 +1,5 @@
 {% extends 'records/base.html' %}
 
 {% block content %}
-    {% include 'records/Cliente_form.html' %}
+    {% include 'records/components/modal_form.html' with submit_label="Guardar cliente" standalone=True %}
 {% endblock %}

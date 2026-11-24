@@ -1,337 +1,106 @@
 {% extends 'records/base.html' %}
 {% load humanize %}
-{% load static %}
 
-{% block title %}Detalle de Transacción{% endblock %}
+{% block title %}Historial de {{ transaction.unique_transaction_id }}{% endblock %}
+{% block page_title %}Transacciones{% endblock %}
 
 {% block content %}
-    {% csrf_token %}
-    <h2>Detalle de Transacción #{{ transaction.unique_transaction_id }}</h2>
 
-    <table class="transaction-details-horizontal">
-        <thead>
-            <tr>
-                <th>Tipo Transacción</th>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Vendedor</th>
-                <th>Valor Recibos</th>
-                <th>Valor Venta</th>
-                <th>Diferencia</th>
-                <th>Descripción</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>{{ transaction.transaction_type }}</td>
-                <td>{{ transaction.date|date:"d/m/Y" }}</td>
-                <td>{{ transaction.cliente|default:"N/A" }}</td>
-                <td>{{ transaction.vendedor|default:"N/A" }}</td>
-                <td>{{ transaction.receipts_total|intcomma }}</td>
-                <td>{{ transaction.expected_amount|intcomma }}</td>
-                <td>{{ transaction.difference|intcomma }}</td>
-                <td>{{ transaction.description }}</td>
-                <td>{{ transaction.status }}</td>
-            </tr>
-        </tbody>
-    </table>
+<div class="pv-page-head">
+    <div>
+        <a href="{% url 'record_list' %}" class="pv-back">{% include 'records/components/icon.html' with name='back' %}Transacciones</a>
+        <h1>Transacción <span class="pv-mono">{{ transaction.unique_transaction_id }}</span></h1>
+        <p>{{ transaction.cliente.name|default:"Sin cliente" }} · {{ transaction.date|date:"d/m/Y" }} · {{ transaction.transaction_type }}</p>
+    </div>
+    <div class="pv-page-head__actions">
+        <span class="pv-badge {% if transaction.status == 'Facturado' %}pv-badge--ok{% elif transaction.status == 'Anulado' %}pv-badge--bad{% elif transaction.status == 'Pendiente' %}pv-badge--warn{% else %}pv-badge--muted{% endif %}">{{ transaction.status }}</span>
+        {% if user.is_superuser or 'Facturador' in user_groups or 'Validador' in user_groups or 'Digitador' in user_groups %}
+        <a href="{% url 'transaction_update' transaction.pk %}" class="pv-btn pv-btn--primary pv-btn--sm">
+            {% include 'records/components/icon.html' with name='edit' %}Editar
+        </a>
+        {% endif %}
+    </div>
+</div>
 
-    <h3>Recibos Asociados:</h3>
-
-
-    {% if transaction.receipts.all %}
-        <table class="receipts-table" border="1">
-            <thead>
-                <tr>
-                    <th>Origenes de Transacción</th>
-                    <th>Fecha</th>
-                    <th>Hora</th>
-                    <th>Comprobante</th>
-                    <th>Banco de Llegada</th>
-                    <th>Valor</th>
-                    <th>Estado de Pago</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for receipt in transaction.receipts.all %}
-                    <tr>
-                        <td>{{ receipt.origen_transaccion.name }}
-                            {% if receipt.effective_date_message %}
-                                <small style="color: #007bff; display: block;">{{ receipt.effective_date_message }}</small>
-                            {% endif %}
-                        </td>
-                        <td>{{ receipt.fecha|date:"d/m/Y" }}</td>
-                        <td>{{ receipt.hora|time:"H:i" }}</td>
-                        <td>{{ receipt.comprobante }}</td>
-                        <td>{{ receipt.banco_llegada.name }}</td>
-                        <td>{{ receipt.valor|intcomma }}</td>
-                        <td>{{ receipt.payment_status }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p>No hay recibos asociados a esta transacción.</p>
+{% with total=transaction.receipts_total diferencia=transaction.difference %}
+<div class="pv-summary" style="position: static;" data-state="{% if diferencia == 0 %}ok{% elif diferencia > 0 %}short{% else %}over{% endif %}">
+    <div class="pv-summary__item"><span>Valor de la venta</span><strong>${{ transaction.expected_amount|intcomma }}</strong></div>
+    <div class="pv-summary__item"><span>Total recibos</span><strong>${{ total|intcomma }}</strong></div>
+    <div class="pv-summary__item"><span>Diferencia</span><strong data-pv-sum="difference">${{ diferencia|intcomma }}</strong></div>
+    <div class="pv-summary__item"><span>Vendedor</span><strong style="font-size: 15px;">{{ transaction.vendedor|default:"—" }}</strong></div>
+    {% if transaction.numero_factura %}
+    <div class="pv-summary__item"><span>Factura</span><strong style="font-size: 15px;">{{ transaction.numero_factura }}{% if transaction.facturador %} · {{ transaction.facturador }}{% endif %}</strong></div>
     {% endif %}
+</div>
+{% endwith %}
 
-    <h3>Historial de Cambios de la Transacción:</h3>
-    {% if transaction_history %}
-        <table class="history-table" border="1">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Usuario</th>
-                    <th>Tipo</th>
-                    <th>Cambios</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in transaction_history %}
-                    <tr>
-                        <td>{{ record.history_date|date:"d/m/Y H:i" }}</td>
-                        <td>{{ record.history_user|default:"Sistema" }}</td>
-                        <td>{{ record.get_history_type_display }}</td>
-                        <td>
-                            {% if record.history_type == '~' and record.delta %}
-                                <ul>
-                                {% for change in record.delta.changes %}
-                                    <li>
-                                        <strong>{{ change.field|capfirst }}:</strong>
-                                        de <em>{{ change.old }}</em> a <em>{{ change.new }}</em>
-                                    </li>
-                                {% endfor %}
-                                </ul>
-                            {% elif record.history_type == '+' %}
-                                Creado
-                            {% elif record.history_type == '-' %}
-                                Eliminado
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p>No hay historial de cambios para esta transacción.</p>
-    {% endif %}
+{% if transaction.description %}
+<div class="pv-callout pv-callout--info" style="margin: 0 0 16px;"><div><strong>Observación:</strong> {{ transaction.description }}</div></div>
+{% endif %}
 
-    <h3>Historial de Cambios de los Recibos Asociados:</h3>
-    {% if receipts_with_history %}
-        {% for receipt_data in receipts_with_history %}
-            <div class="receipt-history-container">
-                <h4>Recibo ID: {{ receipt_data.receipt.id }} - Comprobante: {{ receipt_data.receipt.comprobante }}
-                    <button class="toggle-receipt-history-btn" data-receipt-id="{{ receipt_data.receipt.id }}">+</button>
-                </h4>
-                <div id="receipt-history-{{ receipt_data.receipt.id }}" style="display:none;">
-                    {% if receipt_data.history %}
-                        <table class="history-table" border="1">
-                            <thead>
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Usuario</th>
-                                    <th>Tipo</th>
-                                    <th>Cambios</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for record in receipt_data.history %}
-                                    <tr>
-                                        <td>{{ record.history_date|date:"d/m/Y H:i" }}</td>
-                                        <td>{{ record.history_user|default:"Sistema" }}</td>
-                                        <td>{{ record.get_history_type_display }}</td>
-                                        <td>
-                                            {% if record.history_type == '~' and record.delta %}
-                                                <ul>
-                                                {% for change in record.delta.changes %}
-                                                    <li>
-                                                        <strong>{{ change.field|capfirst }}:</strong>
-                                                        de <em>{{ change.old }}</em> a <em>{{ change.new }}</em>
-                                                    </li>
-                                                {% endfor %}
-                                                </ul>
-                                            {% elif record.history_type == '+' %}
-                                                Creado
-                                            {% elif record.history_type == '-' %}
-                                                Eliminado
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    {% else %}
-                        <p>No hay historial de cambios para este recibo.</p>
-                    {% endif %}
+<div class="pv-split">
+    <div class="pv-stack">
+        <section class="pv-card">
+            <div class="pv-card__head"><h2>Recibos asociados</h2></div>
+            <div class="pv-table-wrap" style="margin-top: 12px;">
+                <table class="pv-table">
+                    <thead>
+                        <tr>
+                            <th>Recibo</th>
+                            <th>Origen</th>
+                            <th>Banco</th>
+                            <th class="pv-num">Valor</th>
+                            <th>Estado del pago</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in receipts_with_history %}
+                        {% with receipt=item.receipt %}
+                        <tr class="pv-row">
+                            <td>
+                                <div class="pv-cell-main pv-mono">{{ receipt.comprobante }}</div>
+                                <div class="pv-cell-sub">{{ receipt.fecha|date:"d/m/Y" }} · {{ receipt.hora|time:"H:i:s" }}</div>
+                            </td>
+                            <td>
+                                {{ receipt.origen_transaccion.name }}
+                                {% with aviso=receipt.effective_date_message %}{% if aviso %}<div class="pv-cell-sub" style="color: var(--pv-info);">{{ aviso }}</div>{% endif %}{% endwith %}
+                            </td>
+                            <td>{{ receipt.banco_llegada.name }}</td>
+                            <td class="pv-num">${{ receipt.valor|intcomma }}</td>
+                            <td><span class="pv-badge {% if receipt.payment_status == 'Aprobado' %}pv-badge--ok{% elif receipt.payment_status == 'Rechazado' %}pv-badge--bad{% else %}pv-badge--warn{% endif %}">{{ receipt.get_payment_status_display }}</span></td>
+                        </tr>
+                        {% endwith %}
+                        {% empty %}
+                        <tr><td colspan="5"><div class="pv-empty" style="padding: 28px 20px;"><strong>Esta transacción aún no tiene recibos</strong></div></td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        {% for item in receipts_with_history %}
+        <section class="pv-card">
+            <details class="pv-details">
+                <summary>
+                    <span>Cambios del recibo <span class="pv-mono">{{ item.receipt.comprobante }}</span></span>
+                    <span class="pv-card__hint">{{ item.history|length }} registro{{ item.history|length|pluralize }}</span>
+                </summary>
+                <div class="pv-card__body" style="padding-top: 4px;">
+                    {% include 'records/components/history_timeline.html' with history=item.history noun='el recibo' %}
                 </div>
-            </div>
+            </details>
+        </section>
         {% endfor %}
-    {% else %}
-        <p>No hay recibos asociados con historial de cambios.</p>
-    {% endif %}
-
-    {# Modal para confirmar eliminación #}
-    <div id="delete-confirm-modal" class="modal" style="display:none;">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Confirmar Eliminación</h2>
-            <p>¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer.</p>
-            <div class="modal-buttons">
-                <button id="modal-confirm-delete" class="btn btn-danger">Eliminar</button>
-                <button id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
-            </div>
-        </div>
     </div>
 
-    {# Modal para confirmar eliminación #}
-    <div id="delete-confirm-modal" class="modal" style="display:none;">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Confirmar Eliminación</h2>
-            <p>¿Estás seguro de que deseas eliminar esta transacción? Esta acción no se puede deshacer.</p>
-            <div class="modal-buttons">
-                <button id="modal-confirm-delete" class="btn btn-danger">Eliminar</button>
-                <button id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
+    <aside class="pv-stack">
+        <section class="pv-card">
+            <div class="pv-card__head"><h2>Cambios de la transacción</h2></div>
+            <div class="pv-card__body">
+                {% include 'records/components/history_timeline.html' with history=transaction_history noun='la transacción' %}
             </div>
-        </div>
-    </div>
-
-    {% comment %} <a href="{% url 'transaction_update' transaction.pk %}">Editar Transacción</a> {% endcomment %}
-    <a href="{% url 'transaction_update' transaction.pk %}" class="btn-accion-icono" title="Editar">
-                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
-    </a> |
-    {% comment %} {% if user.is_superuser %}
-        
-        {# ELIMINAR #}
-        {# Mantén 'btn-delete-transaction' para que tu JS lo capture y añade 'btn-accion-icono' para los estilos #}
-        <button type="button" class="btn-delete-transaction btn-accion-icono" title="Eliminar" data-url="{% url 'transaction_delete' transaction.pk %}">
-            <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
-        </button>
-        |
-    {% endif %} {% endcomment %}
-        
-    <a href="{% url 'record_list' %}">Atrás</a>
-
-
-<style>
-    .receipts-container { padding: 10px; background-color: #f9f9f9; border-top: 1px solid #eee; margin-top: 5px; }
-    .receipts-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .receipts-table th, .receipts-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    .receipts-table th { background-color: #e0e0e0; }
-    .toggle-receipts-btn { cursor: pointer; background: none; border: 1px solid #ccc; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
-    .btn-link-style { background: none; border: none; color: #FF0082; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; }
-    .btn-link-style:hover { color: #EA5455; }
-
-    /* Modal Styles */
-    .modal { position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; outline: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-    .modal-content { position: relative; background-color: #fefefe; padding: 20px; border: 1px solid #888; width: auto; max-width: 500px; border-radius: 8px; text-align: center; }
-    .modal-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
-    .close-button { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
-</style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.toggle-receipt-history-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const receiptId = this.dataset.receiptId;
-            const historyDiv = document.getElementById(`receipt-history-${receiptId}`);
-            if (historyDiv.style.display === 'none') {
-                historyDiv.style.display = 'block';
-                this.textContent = '-';
-            } else {
-                historyDiv.style.display = 'none';
-                this.textContent = '+';
-            }
-        });
-    });
-
-    // --- Delete Transaction Modal --- //
-    const modal = document.getElementById('delete-confirm-modal');
-    const closeModal = modal.querySelector('.close-button');
-    const confirmDeleteBtn = document.getElementById('modal-confirm-delete');
-    const cancelDeleteBtn = document.getElementById('modal-cancel-delete');
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    let urlToDelete = null;
-    let rowToDelete = null;
-
-    document.querySelectorAll('.btn-delete-transaction').forEach(button => {
-        button.addEventListener('click', function() {
-            urlToDelete = this.dataset.url;
-            rowToDelete = this.closest('tr');
-            modal.style.display = 'flex';
-        });
-    });
-
-    closeModal.addEventListener('click', () => modal.style.display = 'none');
-    cancelDeleteBtn.addEventListener('click', () => modal.style.display = 'none');
-    window.addEventListener('click', (event) => {
-        if (event.target == modal) {
-            modal.style.display = 'none';
-        }
-    });
-
-    confirmDeleteBtn.addEventListener('click', function() {
-        if (!urlToDelete) return;
-
-        fetch(urlToDelete, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest' // To help Django view identify AJAX
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-              alert(data.message || 'Transacción eliminada exitosamente.');
-              window.location.href = "{% url 'record_list' %}";
-            } else {
-              alert(data.message || 'Error al eliminar la transacción.');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Ocurrió un error de red.');
-        })
-        .finally(() => {
-            modal.style.display = 'none';
-            urlToDelete = null;
-            rowToDelete = null;
-        });
-    });
-
-    // --- Máscara automática HH:MM:SS para campos de hora ---
-    function applyTimeMask(input) {
-        let digits = input.value.replace(/\D/g, '').slice(0, 6);
-        let out = digits;
-        if (digits.length > 4) {
-            out = digits.slice(0, 2) + ':' + digits.slice(2, 4) + ':' + digits.slice(4, 6);
-        } else if (digits.length > 2) {
-            out = digits.slice(0, 2) + ':' + digits.slice(2);
-        }
-        input.value = out;
-    }
-
-    function validateTimeInput(input) {
-        const parts = input.value.split(':');
-        if (parts.length !== 3) return;
-        const [hh, mm, ss] = parts.map(Number);
-        if (hh > 23 || mm > 59 || ss > 59) {
-            input.setCustomValidity('Hora inválida. Use formato HH:MM:SS (00:00:00 – 23:59:59).');
-            input.reportValidity();
-        } else {
-            input.setCustomValidity('');
-        }
-    }
-
-    document.addEventListener('input', function(e) {
-        if (e.target.classList.contains('hora-input')) applyTimeMask(e.target);
-    });
-
-    document.addEventListener('blur', function(e) {
-        if (e.target.classList.contains('hora-input')) validateTimeInput(e.target);
-    }, true);
-});
-</script>
+        </section>
+    </aside>
+</div>
 
 {% endblock %}

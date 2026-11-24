@@ -1,25 +1,37 @@
 {% extends "records/base.html" %}
-{% load static %}
 
-{% block title %}Carga Masiva de Clientes{% endblock %}
+{% block title %}Cargar clientes{% endblock %}
+{% block page_title %}Clientes{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Carga Masiva de Clientes</h2>
-    <p>Sube un archivo Excel (.xlsx) o CSV (.csv) con las columnas <strong>name</strong> y <strong>dni</strong> para crear múltiples clientes a la vez.</p>
 
-    <div class="card">
-        <div class="card-body">
-            <form method="post" enctype="multipart/form-data" action="{% url 'client_bulk_upload_page' %}">
-                {% csrf_token %}
-                {{ form.as_p }}
-                <div class="mt-3">
-                    <button type="submit" class="btn btn-primary">Cargar Archivo</button>
-                    <a href="{% url 'Client_list' %}" class="btn btn-secondary">Cancelar</a>
-                </div>
-            </form>
-        </div>
+<div class="pv-page-head">
+    <div>
+        <a href="{% url 'Client_list' %}" class="pv-back">{% include 'records/components/icon.html' with name='back' %}Clientes</a>
+        <h1>Cargar clientes desde un archivo</h1>
+        <p>Sube un Excel (.xlsx) o CSV (.csv) con las columnas <strong>name</strong> y <strong>dni</strong> para crear varios clientes a la vez.</p>
     </div>
 </div>
-{% endblock %}
 
+<form method="post" enctype="multipart/form-data" action="{% url 'client_bulk_upload_page' %}" class="pv-card pv-narrow">
+    {% csrf_token %}
+    <div class="pv-card__body">
+        {% if form.non_field_errors %}<div class="pv-errors" style="margin-bottom: 12px;">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+        <div class="pv-field pv-file">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<span class="pv-card__hint">{{ field.help_text }}</span>{% endif %}
+            {{ field.errors }}
+        </div>
+        {% endfor %}
+        <div class="pv-filters__actions">
+            <button type="submit" class="pv-btn pv-btn--primary">
+                {% include 'records/components/icon.html' with name='upload' %}Cargar archivo
+            </button>
+            <a href="{% url 'Client_list' %}" class="pv-btn pv-btn--ghost">Cancelar</a>
+        </div>
+    </div>
+</form>
+
+{% endblock %}
