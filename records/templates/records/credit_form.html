@@ -1,298 +1,228 @@
 {% extends 'records/base.html' %}
 {% load humanize %}
+{% load static %}
 {% load idempotency %}
 
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Nuevo abono{% endblock %}
+{% block page_title %}Recibos{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="card shadow">
-        <div class="card-header bg-primary text-white">
-            <h1 class="h4 mb-0">{{ title }}</h1>
-        </div>
-        <div class="card-body">
-            <form method="post" id="credit-form" novalidate data-submit-once>
-                {% csrf_token %}
-                {% submit_token %}
 
-                {# --- 1. Mostrar Errores No Específicos de un Campo (DUPLICADO EXACTO) --- #}
-                {# Esta sección es clave para mostrar el mensaje de "Duplicado Exacto" en rojo. #}
-                {% if form.non_field_errors %}
-                    <div class="alert alert-danger" role="alert">
-                        {% for error in form.non_field_errors %}
-                            {{ error|safe }}
-                        {% endfor %}
-                    </div>
-                {% endif %}
-
-                <div class="row">
-                    {# Campo de búsqueda de Cliente #}
-                    <div class="col-md-6 mb-3">
-                        <label for="{{ form.client_search.id_for_label }}" class="form-label">{{ form.client_search.label }}</label>
-                        {{ form.client_search }}
-                        {% if form.client_search.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ form.client_search.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    {# Campo Origen de Transacción #}
-                    <div class="col-md-6 mb-3">
-                        <label for="{{ form.origen_transaccion.id_for_label }}" class="form-label">{{ form.origen_transaccion.label }}</label>
-                        {{ form.origen_transaccion }}
-                        {% if form.origen_transaccion.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ form.origen_transaccion.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="row">
-                    {# Fecha y Hora #}
-                    <div class="col-md-3 mb-3">
-                        <label for="{{ form.fecha.id_for_label }}" class="form-label">{{ form.fecha.label }}</label>
-                        {{ form.fecha }}
-                        {% if form.fecha.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ form.fecha.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label for="{{ form.hora.id_for_label }}" class="form-label">{{ form.hora.label }}</label>
-                        {{ form.hora }}
-                        {% if form.hora.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ form.hora.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-
-                    {# Comprobante #}
-                    <div class="col-md-6 mb-3">
-                        <label for="{{ form.comprobante.id_for_label }}" class="form-label">{{ form.comprobante.label }}</label>
-                        {{ form.comprobante }}
-                        {% if form.comprobante.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ form.comprobante.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="row">
-                    {# Banco y Valor #}
-                    <div class="col-md-6 mb-3">
-                        <label for="{{ form.banco_llegada.id_for_label }}" class="form-label">{{ form.banco_llegada.label }}</label>
-                        {{ form.banco_llegada }}
-                        {% if form.banco_llegada.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ form.banco_llegada.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label for="{{ form.valor.id_for_label }}" class="form-label">{{ form.valor.label }}</label>
-                        {{ form.valor }}
-                        {% if form.valor.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ form.valor.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-12 mb-3">
-                        <label for="{{ form.note.id_for_label }}" class="form-label">{{ form.note.label|default:"Nota" }}</label>
-                        {{ form.note }}
-                        {% if form.note.errors %}
-                            <div class="invalid-feedback d-block">
-                                {{ form.note.errors.0 }}
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                {# --- 2. Lógica para el Checkbox de Confirmación (POSIBLE DUPLICADO) --- #}
-                {# Esta es la sección que muestra el checkbox cuando la vista lo indica. #}
-                {% if show_confirm_duplicate %}
-                    <div class="alert alert-warning mt-3" id="similar-duplicate-warning-box">
-                        <strong>ADVERTENCIA: Posible registro duplicado.</strong>
-                        <p class="mb-2">Ya existe un registro con la misma Fecha, Hora, Banco y Valor. Si estás seguro de que no es un duplicado, marca la casilla de confirmación para guardar de todos modos.</p>
-                        <div class="form-check">
-                            {# Renderizamos el campo que ahora será un checkbox visible #}
-                            <input type="checkbox" name="confirm_duplicate" class="form-check-input" id="id_confirm_duplicate" value="true">
-                            <label class="form-check-label" for="id_confirm_duplicate">
-                                Entiendo que este registro es similar a uno existente y deseo guardarlo de todos modos.
-                            </label>
-                        </div>
-                    </div>
-                {% else %}
-                    {# Si no hay advertencia, el campo se renderiza como oculto (su estado por defecto) #}
-                    {{ form.confirm_duplicate }}
-                {% endif %}
-
-                {# Campos ocultos necesarios para el formulario #}
-                {{ form.cliente_id }}
-                {{ form.cliente }}
-                {{ form.payment_status }}
-
-                <div class="card-footer text-end bg-light">
-                    <a href="{% url 'credit_list' %}" class="btn btn-secondary me-2">Cancelar</a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>Guardar Abono
-                    </button>
-                </div>
-            </form>
-        </div>
+<div class="pv-page-head">
+    <div>
+        <a href="{% url 'credit_list' %}" class="pv-back">{% include 'records/components/icon.html' with name='back' %}Recibos</a>
+        <h1>Nuevo abono</h1>
+        <p>Un pago que llega sin venta asociada: queda como saldo a favor del cliente hasta que se aplique a una transacción.</p>
     </div>
 </div>
 
+<form method="post" id="credit-form" novalidate data-submit-once data-pv-capture
+      data-dup-url="{% url 'check_receipt_duplicate' %}" class="pv-narrow">
+    {% csrf_token %}
+    {% submit_token %}
+
+    {# Duplicado exacto u otros errores generales #}
+    {% if form.non_field_errors %}
+    <div class="pv-callout pv-callout--bad" style="margin: 0 0 16px;" role="alert">
+        {% include 'records/components/icon.html' with name='alert' %}
+        <div>{% for error in form.non_field_errors %}{{ error|safe }}{% endfor %}</div>
+    </div>
+    {% endif %}
+
+    <section class="pv-card">
+        <div class="pv-card__head"><h2>Cliente</h2></div>
+        <div class="pv-card__body">
+            <div class="pv-field">
+                <label for="{{ form.client_search.id_for_label }}">Cliente (nombre o documento)</label>
+                {{ form.client_search }}
+                <span class="pv-field__hint" id="client-picked" hidden>Cliente seleccionado.</span>
+                <div id="client-balance-container" style="display: none; margin-top: 6px;">
+                    <span id="client-balance-display" class="pv-badge pv-badge--info pv-badge--plain"></span>
+                </div>
+                {{ form.client_search.errors }}
+                {% if form.cliente_id.errors and not form.client_search.errors %}
+                <ul class="errorlist"><li>Elige el cliente de la lista de sugerencias.</li></ul>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    {# Misma clase que los recibos de captura: capture.js le pone el aviso previo de duplicado #}
+    <section class="pv-card receipt-form-instance" style="margin-top: 16px;">
+        <div class="pv-card__head"><h2>Datos del pago</h2></div>
+        <div class="pv-card__body">
+            <div class="pv-form-grid">
+                <div class="pv-field">
+                    <label for="{{ form.origen_transaccion.id_for_label }}">Origen de la transacción</label>
+                    {{ form.origen_transaccion }}
+                    <span id="effective-date-message" class="pv-field__hint"></span>
+                    {{ form.origen_transaccion.errors }}
+                </div>
+                <div class="pv-field">
+                    <label for="{{ form.fecha.id_for_label }}">Fecha del pago</label>
+                    {{ form.fecha }}
+                    {{ form.fecha.errors }}
+                </div>
+                <div class="pv-field">
+                    <label for="{{ form.hora.id_for_label }}">Hora (HH:MM:SS)</label>
+                    {{ form.hora }}
+                    {{ form.hora.errors }}
+                </div>
+                <div class="pv-field">
+                    <label for="{{ form.comprobante.id_for_label }}"># Comprobante</label>
+                    {{ form.comprobante }}
+                    {{ form.comprobante.errors }}
+                </div>
+                <div class="pv-field">
+                    <label for="{{ form.banco_llegada.id_for_label }}">Banco de llegada</label>
+                    {{ form.banco_llegada }}
+                    {{ form.banco_llegada.errors }}
+                </div>
+                <div class="pv-field">
+                    <label for="{{ form.valor.id_for_label }}">Valor</label>
+                    {{ form.valor }}
+                    {{ form.valor.errors }}
+                </div>
+                <div class="pv-field pv-field--wide">
+                    <label for="{{ form.note.id_for_label }}">Nota (opcional)</label>
+                    {{ form.note }}
+                    {{ form.note.errors }}
+                </div>
+            </div>
+
+            {# Posible duplicado: el digitador confirma que no lo es #}
+            {# Solo cuando el aviso es de este envío: antes la caja salía con cualquier error del formulario. #}
+            {% if form.confirm_duplicate.errors %}
+            <div class="pv-callout" id="similar-duplicate-warning-box" role="alert">
+                {% include 'records/components/icon.html' with name='alert' %}
+                <div>
+                    <strong>Posible duplicado.</strong>
+                    Ya existe un recibo con la misma fecha, hora, banco y valor. Si estás seguro de que no es el mismo, marca la casilla y guarda de nuevo.
+                    <label class="pv-check" style="margin-top: 8px;">
+                        <input type="checkbox" name="confirm_duplicate" id="id_confirm_duplicate" value="true">
+                        <span>Entiendo que es similar a uno existente y deseo guardarlo de todos modos.</span>
+                    </label>
+                </div>
+            </div>
+            {% else %}
+                {{ form.confirm_duplicate }}
+            {% endif %}
+        </div>
+    </section>
+
+    {{ form.cliente_id }}
+    {{ form.cliente }}
+    {{ form.payment_status }}
+
+    <div class="pv-actionbar">
+        <span class="pv-actionbar__hint"><kbd class="pv-kbd">Ctrl</kbd> + <kbd class="pv-kbd">Enter</kbd> para guardar</span>
+        <a href="{% url 'credit_list' %}" class="pv-btn pv-btn--ghost">Cancelar</a>
+        <button type="submit" class="pv-btn pv-btn--primary">
+            {% include 'records/components/icon.html' with name='save' %}Guardar abono
+        </button>
+    </div>
+</form>
+
 {% endblock %}
 
-
 {% block extra_js %}
+<script src="{% static 'js/capture.js' %}"></script>
 <script>
-$(document).ready(function() {
-    // ==============================================================
-    // 1. LÓGICA DE AUTOCOMPLETADO
-    // ==============================================================
-    const clientSearchInput = $("#id_client_search");
-    const clientIdHiddenInput = $("#id_cliente_id");
+(function () {
+    const form = document.getElementById('credit-form');
+    const search = document.getElementById('id_client_search');
+    const clientId = document.getElementById('id_cliente_id');
+    const picked = document.getElementById('client-picked');
+    const valor = document.getElementById('id_valor');
+    const hora = document.getElementById('id_hora');
+    const balanceBox = document.getElementById('client-balance-container');
+    const balanceText = document.getElementById('client-balance-display');
 
-    // Aseguramos que el input tenga clase form-control (estilo bootstrap)
-    clientSearchInput.addClass('form-control');
+    // ── Cliente: autocompletado y saldo a favor ──
+    function showBalance(id) {
+        picked.hidden = !id;
+        if (!id) { balanceBox.style.display = 'none'; return; }
+        fetch("{% url 'get_client_balance' %}?client_id=" + encodeURIComponent(id))
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                const balance = data.balance !== undefined ? parseFloat(data.balance.replace(/,/g, '')) : 0;
+                balanceBox.style.display = balance > 0 ? 'block' : 'none';
+                if (balance > 0) balanceText.textContent = 'Ya tiene saldo a favor: $' + data.balance;
+            })
+            .catch(function () { balanceBox.style.display = 'none'; });
+    }
 
-    clientSearchInput.autocomplete({
-        source: "{% url 'client_search_ajax' %}",
-        minLength: 2,
-        select: function(event, ui) {
-            clientIdHiddenInput.val(ui.item.id);
-            clientSearchInput.val(ui.item.label);
-            // Opcional: Cambiar borde a verde para indicar éxito visual
-            clientSearchInput.addClass('is-valid'); 
-            return false;
-        },
-        focus: function(event, ui) {
-            clientSearchInput.val(ui.item.label);
-            return false;
-        }
+    if (window.jQuery && window.jQuery.fn.autocomplete) {
+        window.jQuery(search).autocomplete({
+            source: "{% url 'client_search_ajax' %}",
+            minLength: 2,
+            select: function (event, ui) {
+                clientId.value = ui.item.id;
+                search.value = ui.item.label;
+                showBalance(ui.item.id);
+                return false;
+            },
+            focus: function (event, ui) { search.value = ui.item.label; return false; }
+        });
+    }
+    search.addEventListener('input', function () {
+        // Si se cambia el texto, la selección anterior deja de valer.
+        clientId.value = '';
+        showBalance('');
     });
+    if (clientId.value) showBalance(clientId.value);
 
-    clientSearchInput.on('keyup input', function() {
-        if ($(this).val().trim() === '') {
-            clientIdHiddenInput.val('');
-            clientSearchInput.removeClass('is-valid');
-        }
-    });
-
-    // ==============================================================
-    // 2. LÓGICA DE FORMATO DE MONEDA Y TEXTO
-    // ==============================================================
-    
-    const valorInput = document.getElementById('id_valor'); 
-    const creditForm = document.getElementById('credit-form');
-
-    // Aplicar estilos de Bootstrap a todos los inputs/selects generados por Django
-    $('input, select, textarea').not('[type=hidden], [type=checkbox], [type=radio]').addClass('form-control');
-    
-    // A. Configuración inicial del campo valor
-    if (valorInput) {
-        valorInput.setAttribute('type', 'text');
-        valorInput.setAttribute('autocomplete', 'off');
-        valorInput.classList.add('text-end'); // Alinear números a la derecha
-        valorInput.placeholder = "0.00";
+    // ── Valor: se muestra 1,234.56 y se envía sin comas ──
+    if (valor) {
+        valor.type = 'text';
+        valor.inputMode = 'decimal';
+        valor.autocomplete = 'off';
+        valor.placeholder = '0.00';
+        const format = function () {
+            const number = parseFloat(valor.value.trim().replace(/,/g, ''));
+            if (!isNaN(number)) valor.value = number.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+        valor.addEventListener('input', function () {
+            const clean = valor.value.replace(/[^0-9.]/g, '');
+            if (clean !== valor.value) valor.value = clean;
+        });
+        valor.addEventListener('blur', format);
+        valor.addEventListener('focus', function () { valor.value = valor.value.replace(/,/g, ''); valor.select(); });
+        if (valor.value) format();
+        form.addEventListener('submit', function () { valor.value = valor.value.replace(/,/g, ''); });
     }
 
-    // B. Función de formateo
-    function formatNumberInput(input) {
-        if (!input || !input.value) return;
-
-        let value = input.value.trim();
-        const numericValue = parseFloat(value.replace(/,/g, ''));
-        
-        if (isNaN(numericValue)) return;
-
-        const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-        input.value = numericValue.toLocaleString('en-US', numberFormatOptions);
-    }
-
-    // C. Evento Input (Sanitización)
-    if (valorInput) {
-        valorInput.addEventListener('input', function(e) {
-            let currentValue = e.target.value;
-            // Permitir solo números y puntos
-            const sanitizedValue = currentValue.replace(/[^0-9.]/g, '');
-            if (currentValue !== sanitizedValue) {
-                e.target.value = sanitizedValue;
-            }
+    // ── Hora: máscara HH:MM:SS ──
+    if (hora) {
+        hora.addEventListener('input', function () {
+            const d = hora.value.replace(/\D/g, '').slice(0, 6);
+            hora.value = d.length > 4 ? d.slice(0, 2) + ':' + d.slice(2, 4) + ':' + d.slice(4)
+                : d.length > 2 ? d.slice(0, 2) + ':' + d.slice(2) : d;
         });
-
-        // D. Evento Blur (Formato visual)
-        valorInput.addEventListener('blur', function(e) {
-            formatNumberInput(e.target);
-        });
-
-        // E. Evento Focus (Limpiar para editar)
-        valorInput.addEventListener('focus', function(e) {
-            let val = e.target.value;
-            if (val) {
-                e.target.value = val.replace(/,/g, '');
-                e.target.select();
-            }
-        });
-        
-        // Aplicar formato si ya hay un valor al cargar (ej: si falló la validación)
-        if (valorInput.value) {
-            formatNumberInput(valorInput);
-        }
-    }
-
-    // ==============================================================
-    // 3. LIMPIEZA AL GUARDAR
-    // ==============================================================
-    if (creditForm) {
-        creditForm.addEventListener('submit', function() {
-            if (valorInput && valorInput.value) {
-                valorInput.value = valorInput.value.replace(/,/g, '');
-            }
+        hora.addEventListener('blur', function () {
+            const parts = hora.value.split(':');
+            if (parts.length !== 3) return;
+            const invalid = Number(parts[0]) > 23 || Number(parts[1]) > 59 || Number(parts[2]) > 59;
+            hora.setCustomValidity(invalid ? 'Hora inválida. Use formato HH:MM:SS (00:00:00 – 23:59:59).' : '');
+            if (invalid) hora.reportValidity();
         });
     }
 
-    // --- Máscara automática HH:MM:SS para campos de hora ---
-    function applyTimeMask(input) {
-        let digits = input.value.replace(/\D/g, '').slice(0, 6);
-        let out = digits;
-        if (digits.length > 4) {
-            out = digits.slice(0, 2) + ':' + digits.slice(2, 4) + ':' + digits.slice(4, 6);
-        } else if (digits.length > 2) {
-            out = digits.slice(0, 2) + ':' + digits.slice(2);
-        }
-        input.value = out;
+    // ── Fecha efectiva según el origen ──
+    const origen = document.getElementById('id_origen_transaccion');
+    const fecha = document.getElementById('id_fecha');
+    const efectiva = document.getElementById('effective-date-message');
+    function updateEffectiveDate() {
+        if (!origen.value || !fecha.value) { efectiva.textContent = ''; return; }
+        fetch("{% url 'get_effective_date' %}?origen_id=" + encodeURIComponent(origen.value) + '&start_date=' + encodeURIComponent(fecha.value))
+            .then(function (response) { return response.json(); })
+            .then(function (data) { efectiva.textContent = data.message || ''; })
+            .catch(function () { efectiva.textContent = ''; });
     }
-
-    function validateTimeInput(input) {
-        const parts = input.value.split(':');
-        if (parts.length !== 3) return;
-        const [hh, mm, ss] = parts.map(Number);
-        if (hh > 23 || mm > 59 || ss > 59) {
-            input.setCustomValidity('Hora inválida. Use formato HH:MM:SS (00:00:00 – 23:59:59).');
-            input.reportValidity();
-        } else {
-            input.setCustomValidity('');
-        }
+    if (origen && fecha) {
+        origen.addEventListener('change', updateEffectiveDate);
+        fecha.addEventListener('change', updateEffectiveDate);
     }
-
-    document.addEventListener('input', function(e) {
-        if (e.target.classList.contains('hora-input')) applyTimeMask(e.target);
-    });
-
-    document.addEventListener('blur', function(e) {
-        if (e.target.classList.contains('hora-input')) validateTimeInput(e.target);
-    }, true);
-});
+})();
 </script>
 {% endblock %}

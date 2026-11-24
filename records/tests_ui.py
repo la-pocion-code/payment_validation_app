@@ -399,3 +399,58 @@ class AlertasPorCorreoTests(ReenvioCruzadoTests):
         self.client.force_login(admin)
         respuesta = self.client.get(reverse('duplicate_alert_preview', args=['SIMILAR']))
         self.assertContains(respuesta, 'Posible duplicado confirmado: M03202292')
+
+
+class NuevoAbonoYBandejaTests(ConRecibos):
+
+    def datos_abono(self, **cambios):
+        datos = {
+            SUBMIT_TOKEN_FIELD: str(uuid.uuid4()),
+            'client_search': str(self.cliente), 'cliente_id': self.cliente.pk,
+            'origen_transaccion': self.origen.pk, 'fecha': self.hoy.isoformat(), 'hora': '13:00:00',
+            'comprobante': 'AB-NUEVO', 'banco_llegada': self.banco.pk, 'valor': '5000.00',
+            'payment_status': 'Pendiente', 'note': '', 'confirm_duplicate': '',
+        }
+        datos.update(cambios)
+        return datos
+
+    def test_el_formulario_usa_las_ayudas_de_captura(self):
+        respuesta = self.client.get(reverse('credit_create'))
+        self.assertContains(respuesta, 'data-pv-capture')
+        self.assertContains(respuesta, reverse('check_receipt_duplicate'))
+        self.assertContains(respuesta, f'name="{SUBMIT_TOKEN_FIELD}"')
+        self.assertNotContains(respuesta, 'similar-duplicate-warning-box')
+
+    def test_guarda_un_abono(self):
+        respuesta = self.client.post(reverse('credit_create'), self.datos_abono())
+        self.assertRedirects(respuesta, reverse('credit_list'))
+        abono = FinancialRecord.objects.get(comprobante='AB-NUEVO')
+        self.assertEqual((abono.cliente, abono.transaction), (self.cliente, None))
+
+    def test_la_casilla_de_posible_duplicado_solo_sale_cuando_aplica(self):
+        # Un error cualquiera (sin cliente) NO debe mostrar el aviso de posible duplicado.
+        respuesta = self.client.post(reverse('credit_create'), self.datos_abono(cliente_id='', client_search=''))
+        self.assertNotContains(respuesta, 'similar-duplicate-warning-box')
+        # Misma fecha, hora, banco y valor que el abono existente, con otro comprobante: sí.
+        similar = self.datos_abono(hora='11:00:00', valor='20000.00', comprobante='AB-OTRO')
+        respuesta = self.client.post(reverse('credit_create'), similar)
+        self.assertContains(respuesta, 'similar-duplicate-warning-box')
+        self.assertFalse(FinancialRecord.objects.filter(comprobante='AB-OTRO').exists())
+        respuesta = self.client.post(reverse('credit_create'),
+                                     dict(similar, confirm_duplicate='true', **{SUBMIT_TOKEN_FIELD: str(uuid.uuid4())}))
+        self.assertRedirects(respuesta, reverse('credit_list'))
+        self.assertTrue(FinancialRecord.objects.filter(comprobante='AB-OTRO').exists())
+
+    def test_la_bandeja_muestra_el_intento_con_enlace_al_recibo_existente(self):
+        admin = User.objects.create_superuser('jefe', password='clave-larga-123')
+        DuplicateRecordAttempt.objects.create(user=self.user, attempt_type='DUPLICATE', data={
+            'comprobante': 'M0320-AAA', 'fecha': str(self.hoy), 'hora': '09:00:00',
+            'banco_llegada': 'BANCOLOMBIA', 'valor': '150000.00',
+            '_registro_existente_pk': str(self.recibo.pk)})
+        DuplicateRecordAttempt.objects.create(user=self.user, attempt_type='SIMILAR', data={'comprobante': 'X'})
+        self.client.force_login(admin)
+        respuesta = self.client.get(reverse('duplicate_attempts_list'))
+        self.assertContains(respuesta, 'Duplicado exacto')
+        self.assertContains(respuesta, 'Posible duplicado')
+        self.assertContains(respuesta, reverse('credit_detail', args=[self.recibo.pk]))
+        self.assertContains(respuesta, reverse('credit_list') + '?comprobante=X')

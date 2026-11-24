@@ -422,6 +422,17 @@ dialog.pv-dialog::backdrop { background: rgba(20, 20, 30, .45); }
   .pv-actionbar__hint { display: none; }
 }
 
+/* En los formularios los avisos van arriba: abajo taparían el botón de guardar. */
+body:has(.pv-actionbar) .pv-toasts { bottom: auto; top: 76px; }
+
+.pv-callout .pv-check { display: flex; }
+.pv-field input#id_valor { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Formulario corto centrado (Nuevo abono) */
+.pv-narrow { max-width: 860px; }
+.pv-narrow .pv-actionbar { position: static; margin: 16px 0 0; padding: 0; border: 0; background: none; backdrop-filter: none; }
+section.receipt-form-instance > .pv-card__body > [data-dup-hint] { margin-top: 12px; }
+
 /* Alertas por correo */
 .pv-vars { margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .pv-vars dt { color: var(--pv-accent); font-weight: 600; }

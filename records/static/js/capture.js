@@ -52,10 +52,11 @@
 
     // ── Aviso previo de duplicado ──────────────────────────────────────────
     var dupUrl = form.getAttribute('data-dup-url');
-    var WATCHED = /-(fecha|hora|comprobante|banco_llegada|valor)$/;
+    var WATCHED = /(^|-)(fecha|hora|comprobante|banco_llegada|valor)$/;
 
     function fieldOf(instance, name) {
-        return instance.querySelector('[name$="-' + name + '"]');
+        // Con prefijo de formset («receipts-0-fecha») o sin él («fecha», en Nuevo abono).
+        return instance.querySelector('[name$="-' + name + '"], [name="' + name + '"]');
     }
 
     function hintOf(instance) {
@@ -65,7 +66,7 @@
             hint.setAttribute('data-dup-hint', '');
             hint.setAttribute('role', 'status');
             hint.hidden = true;
-            instance.appendChild(hint);
+            (instance.querySelector('.pv-card__body') || instance).appendChild(hint);
         }
         return hint;
     }

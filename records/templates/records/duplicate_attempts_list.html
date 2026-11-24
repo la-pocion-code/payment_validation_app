@@ -1,58 +1,104 @@
 {% extends 'records/base.html' %}
+{% load humanize %}
 
-{% block title %}Intentos de Registros Duplicados{% endblock %}
+{% block title %}Duplicados{% endblock %}
+{% block page_title %}Duplicados{% endblock %}
 
 {% block content %}
-    <h2>Intentos de Registros Duplicados</h2>
 
-    <a href="{% url 'duplicate_attempts_history_list' %}">Ver Historial Completo</a>
-    <br><br>
+<div class="pv-page-head">
+    <div>
+        <h1>Bandeja de duplicados</h1>
+        <p>Intentos de registrar un recibo que ya existía, y posibles duplicados que el digitador confirmó. Revísalos y márcalos como resueltos.</p>
+    </div>
+    <div class="pv-page-head__actions">
+        <a href="{% url 'duplicate_alert_settings' %}" class="pv-btn pv-btn--ghost">
+            {% include 'records/components/icon.html' with name='mail' %}Alertas por correo
+        </a>
+        <a href="{% url 'duplicate_attempts_history_list' %}" class="pv-btn pv-btn--ghost">
+            {% include 'records/components/icon.html' with name='history' %}Historial completo
+        </a>
+    </div>
+</div>
 
-    <table border="1">
-        <thead>
-            <tr>
-                <th>Usuario</th>
-                <th>Fecha y Hora</th>
-                <th>Tipo de Intento</th> {# NUEVO: Columna para el tipo de intento #}
-                <th>Datos del Intento</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for attempt in attempts %}
-            <tr>
-                <td>{{ attempt.user.username }}</td>
-                <td>{{ attempt.timestamp|date:"d/m/Y H:i:s" }}</td>
-                <td>{{ attempt.get_attempt_type_display }}</td> {# NUEVO: Mostrar el tipo de intento #}
-                <td>
-                    <ul>
-                        {% for key, value in attempt.data.items %}
-                            <li><strong>{{ key }}:</strong> {{ value }}</li>
-                        {% endfor %}
-                    </ul>
-                </td>
-                <td>
-                    <form action="{% url 'resolve_duplicate_attempt' attempt.pk %}" method="post" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-success">Marcar como Resuelto</button>
-                    </form>
-                </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="5">No hay intentos de registros duplicados.</td></tr> {# ACTUALIZADO: colspan a 5 #}
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="pv-card">
+    <div class="pv-table-foot" style="border-top: 0; border-bottom: 1px solid var(--pv-line);">
+        <span>
+            <strong style="color: var(--pv-ink-strong);">{{ page_obj.paginator.count|intcomma }}</strong>
+            sin resolver{% if is_paginated %} · página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}{% endif %}
+        </span>
+    </div>
+    <div class="pv-table-wrap">
+        <table class="pv-table">
+            <thead>
+                <tr>
+                    <th>Tipo</th>
+                    <th>Recibo digitado</th>
+                    <th>Banco</th>
+                    <th class="pv-num">Valor</th>
+                    <th>Quién y cuándo</th>
+                    <th><span class="tw:sr-only">Acciones</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in attempts %}
+                <tr class="pv-row">
+                    <td>
+                        {% if attempt.attempt_type == 'DUPLICATE' %}
+                        <span class="pv-badge pv-badge--bad" title="El sistema lo bloqueó: no se guardó">Duplicado exacto</span>
+                        {% else %}
+                        <span class="pv-badge pv-badge--warn" title="Se guardó porque el digitador confirmó que no era el mismo">Posible duplicado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="pv-cell-main pv-mono">{{ attempt.data.comprobante|default:"sin comprobante" }}</div>
+                        <div class="pv-cell-sub">Pago del {{ attempt.data.fecha }} · {{ attempt.data.hora }}</div>
+                    </td>
+                    <td>{{ attempt.data.banco_llegada|default:"—" }}</td>
+                    <td class="pv-num">{% if attempt.valor is not None %}${{ attempt.valor|intcomma }}{% else %}{{ attempt.data.valor|default:"—" }}{% endif %}</td>
+                    <td>
+                        {{ attempt.user.username }}
+                        <div class="pv-cell-sub">{{ attempt.timestamp|date:"d/m/Y H:i" }}</div>
+                    </td>
+                    <td>
+                        <div class="pv-row-actions" style="gap: 8px; align-items: center;">
+                            {% if attempt.existing_pk %}
+                            <a class="pv-btn pv-btn--ghost pv-btn--sm" style="width: auto;" href="{% url 'credit_detail' attempt.existing_pk %}">Ver el que ya existía</a>
+                            {% elif attempt.data.comprobante %}
+                            <a class="pv-btn pv-btn--ghost pv-btn--sm" style="width: auto;" href="{% url 'credit_list' %}?comprobante={{ attempt.data.comprobante|urlencode }}">Buscar el recibo</a>
+                            {% endif %}
+                            <form action="{% url 'resolve_duplicate_attempt' attempt.pk %}" method="post" style="margin: 0;">
+                                {% csrf_token %}
+                                <button type="submit" class="pv-btn pv-btn--primary pv-btn--sm">
+                                    {% include 'records/components/icon.html' with name='check' %}Resuelto
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">
+                        <div class="pv-empty">
+                            <strong>No hay duplicados por revisar</strong>
+                            Cuando aparezca uno lo verás aquí; el historial conserva los ya resueltos.
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
     {% if is_paginated %}
-      <div>
-        {% if page_obj.has_previous %}
-          <a href="?page={{ page_obj.previous_page_number }}">Anterior</a>
-        {% endif %}
-        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_next %}\
-          <a href="?page={{ page_obj.next_page_number }}">Siguiente</a>
-        {% endif %}
-      </div>
+    <div class="pv-table-foot">
+        <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count|intcomma }}</span>
+        <div class="pv-pager">
+            {% if page_obj.has_previous %}<a class="pv-btn pv-btn--ghost pv-btn--sm" href="?page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+            {% if page_obj.has_next %}<a class="pv-btn pv-btn--ghost pv-btn--sm" href="?page={{ page_obj.next_page_number }}">Siguiente</a>{% endif %}
+        </div>
+    </div>
     {% endif %}
+</div>
+
 {% endblock %}

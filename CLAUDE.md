@@ -169,9 +169,12 @@ Swagger en `/api/v1/docs/`.
 Migración por pantallas; no hay SPA. Estado: **hechos** el marco (`base.html`: barra lateral
 plegable, buscador global, avisos tipo toast, barra de progreso, aviso de sesión por vencer),
 la lista de Transacciones, la lista y el detalle de Recibos, los formularios de captura
-(`create_bulk_receipts.html`, `transaction_form.html`) y «Alertas por correo».
-**Pendientes** de rediseño propio: catálogos, clientes, usuarios, duplicados y `credit_form.html`
-(nuevo abono); mientras tanto ya se ven con la marca gracias al «puente» de estilos.
+(`create_bulk_receipts.html`, `transaction_form.html`, `credit_form.html`), la bandeja de
+duplicados y «Alertas por correo».
+**Pendientes** de rediseño propio: catálogos, clientes, usuarios, historial de duplicados y
+`transaction_detail.html`; mientras tanto ya se ven con la marca gracias al «puente» de estilos.
+Los avisos (toasts) van abajo a la derecha, salvo en pantallas con `.pv-actionbar`, donde suben
+para no tapar el botón de guardar.
 
 - **Marca**: logo `images/pocion-logo.svg` (el `pcn-pocion-logo-2025.svg` de la intranet) y
   `images/favicon.svg` (el favicon de la intranet). Los correos usan `correo/logo-pocion.png`.

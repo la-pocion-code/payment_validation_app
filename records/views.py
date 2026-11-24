@@ -1974,7 +1974,25 @@ class DuplicateAttemptsListView(LoginRequiredMixin, UserPassesTestMixin, ListVie
         return self.request.user.is_superuser
 
     def get_queryset(self):
-        return DuplicateRecordAttempt.objects.filter(is_resolved=False).order_by('-timestamp')
+        return (DuplicateRecordAttempt.objects.filter(is_resolved=False)
+                .select_related('user').order_by('-timestamp'))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Lo que la plantilla no puede leer sola del JSON: la llave con guion bajo y el
+        # valor como número (para mostrarlo con separador de miles).
+        existing = set(FinancialRecord.objects.filter(pk__in=[
+            a.data.get('_registro_existente_pk') for a in context['attempts']
+            if str(a.data.get('_registro_existente_pk') or '').isdigit()
+        ]).values_list('pk', flat=True))
+        for attempt in context['attempts']:
+            pk = str(attempt.data.get('_registro_existente_pk') or '')
+            attempt.existing_pk = int(pk) if pk.isdigit() and int(pk) in existing else None
+            try:
+                attempt.valor = Decimal(str(attempt.data.get('valor')))
+            except (InvalidOperation, TypeError):
+                attempt.valor = None
+        return context
 
 @login_required
 @group_required('Admin')
