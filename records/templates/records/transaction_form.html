@@ -4,1088 +4,611 @@
 {% load idempotency %}
 
 {% block title %}{{ title }}{% endblock %}
+{% block page_title %}Transacciones{% endblock %}
 
 {% block content %}
 
+<div class="pv-page-head">
+    <div>
+        <a href="{% url 'record_list' %}" class="pv-back">{% include 'records/components/icon.html' with name='back' %}Transacciones</a>
+        <h1>Transacción <span class="pv-mono">{{ transaction.unique_transaction_id }}</span></h1>
+        <p>{{ transaction.cliente.name|default:"Sin cliente" }} · {{ transaction.date|date:"d/m/Y" }}</p>
+    </div>
+    <div class="pv-page-head__actions">
+        <span class="pv-badge {% if transaction.status == 'Facturado' %}pv-badge--ok{% elif transaction.status == 'Anulado' %}pv-badge--bad{% elif transaction.status == 'Pendiente' %}pv-badge--warn{% else %}pv-badge--muted{% endif %}">{{ transaction.status }}</span>
+        <a href="{% url 'transaction_detail' transaction.pk %}" class="pv-btn pv-btn--ghost pv-btn--sm">
+            {% include 'records/components/icon.html' with name='history' %}Historial
+        </a>
+    </div>
+</div>
 
-    <h2>{{ title }}</h2>
-    <div class="d-flex justify-content-start mb-4">
-        <div id="transaction-summary" 
-             class="card shadow-sm"
-             data-expected-amount="{{ transaction.expected_amount|stringformat:'f' }}"
-             data-initial-receipts="{{ total_receipts_amount|stringformat:'f' }}">
-            <div class="card-body p-2">
-                <div class="d-flex align-items-center gap-4">
-                    <div class="text-center px-2">
-                        <small class="text-muted d-block">Monto Esperado</small>
-                        <h5 id="expected-amount-display" class="mb-0 text-body-secondary">{{ transaction.expected_amount|floatformat:2 }}</h5>
+{# Resumen fijo: lo actualiza updateTotals() con window.pvCaptureSummary (capture.js) #}
+<div class="pv-summary" id="transaction-summary" data-pv-summary data-state="empty" aria-live="polite">
+    <div class="pv-summary__item"><span>Valor de la venta</span><strong data-pv-sum="expected">${{ transaction.expected_amount|floatformat:"0"|intcomma }}</strong></div>
+    <div class="pv-summary__item"><span>Total recibos</span><strong data-pv-sum="receipts">${{ total_receipts_amount|floatformat:"0"|intcomma }}</strong></div>
+    <div class="pv-summary__item"><span data-pv-sum="difference-label">Diferencia</span><strong data-pv-sum="difference">${{ difference|floatformat:"0"|intcomma }}</strong></div>
+    <span class="pv-badge pv-badge--muted pv-summary__state" data-pv-sum="state">—</span>
+</div>
+
+{% if is_admin or is_digitador %}
+    {% if difference < 0 %}
+    <div class="pv-callout" style="margin: 0 0 16px; align-items: center;">
+        {% include 'records/components/icon.html' with name='wallet' %}
+        <span><strong>Pago en exceso.</strong> Hay un excedente de <strong>${{ difference|floatformat:2|intcomma }}</strong> en esta transacción.</span>
+        <form action="{% url 'create_credit_note_from_surplus' transaction.pk %}" method="post" data-submit-once onsubmit="return confirm('¿Estás seguro de que deseas generar un saldo a favor por el excedente? Esta acción creará un nuevo recibo de ajuste en esta transacción y un saldo a favor para el cliente.');">
+            {% csrf_token %}
+            {% submit_token %}
+            <button type="submit" class="pv-btn pv-btn--primary pv-btn--sm">Generar saldo a favor</button>
+        </form>
+    </div>
+    {% endif %}
+{% endif %}
+
+<form method="post" id="transaction-form" data-submit-once data-pv-capture data-dup-url="{% url 'check_receipt_duplicate' %}">
+    {% csrf_token %}
+    {% submit_token %}
+
+    {# Permisos de los campos: Admin edita todo; Facturador solo estado y # de factura; el resto solo lectura. #}
+    <section class="pv-card">
+        <div class="pv-card__head"><h2>Detalles de la transacción</h2></div>
+        <div class="pv-card__body">
+            {% if form.non_field_errors %}
+            <div class="pv-callout pv-callout--bad" style="margin: 0 0 14px;" role="alert">
+                {% include 'records/components/icon.html' with name='alert' %}
+                <div>{% for error in form.non_field_errors %}{{ error }} {% endfor %}</div>
+            </div>
+            {% endif %}
+            <div class="pv-form-grid">
+                <div class="pv-field">
+                    <label for="{{ form.transaction_type.id_for_label }}">Tipo de transacción</label>
+                    {% if is_admin %}
+                        {{ form.transaction_type }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.transaction_type }}" readonly>
+                        <input type="hidden" name="{{ form.transaction_type.name }}" value="{{ form.instance.transaction_type.id }}">
+                    {% endif %}
+                    {{ form.transaction_type.errors }}
+                </div>
+
+                <div class="pv-field">
+                    <label for="{{ form.date.id_for_label }}">Fecha de la transacción</label>
+                    {% if is_admin %}
+                        <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" id="{{ form.date.id_for_label }}">
+                    {% else %}
+                        <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" readonly>
+                    {% endif %}
+                    {{ form.date.errors }}
+                </div>
+
+                <div class="pv-field">
+                    <label for="{{ form.client_search.id_for_label }}">Cliente</label>
+                    {% if is_admin %}
+                        {{ form.client_search }}
+                        {{ form.cliente_id }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.cliente }}" readonly>
+                        <input type="hidden" name="{{ form.client_search.name }}" value="{{ form.instance.cliente }}">
+                        <input type="hidden" name="{{ form.cliente_id.name }}" value="{{ form.instance.cliente.id }}">
+                    {% endif %}
+                    <div id="client-balance-container" style="display: none; margin-top: 6px;">
+                        <span id="client-balance-display" class="pv-badge pv-badge--info pv-badge--plain"></span>
                     </div>
-                    <div class="text-center px-2">
-                        <small class="text-muted d-block">Total Recibos</small>
-                        <h5 id="total-receipts-display" class="mb-0 fw-bold">{{ total_receipts_amount|floatformat:2 }}</h5>
-                    </div>
-                    <div class="text-center px-2">
-                        <small class="text-muted d-block">Diferencia</small>
-                        <h5 id="transaction-difference-display" class="mb-0 fw-bold">{{ difference|floatformat:2 }}</h5>
-                    </div>
+                    {{ form.client_search.errors }}
+                </div>
+
+                <div class="pv-field">
+                    <label for="{{ form.seller_search.id_for_label }}">Vendedor</label>
+                    {% if is_admin %}
+                        {{ form.seller_search }}
+                        {{ form.vendedor_id }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.vendedor }}" readonly>
+                        <input type="hidden" name="{{ form.seller_search.name }}" value="{{ form.instance.vendedor }}">
+                        <input type="hidden" name="{{ form.vendedor_id.name }}" value="{{ form.instance.vendedor.id }}">
+                    {% endif %}
+                    {{ form.seller_search.errors }}
+                </div>
+
+                <div class="pv-field">
+                    <label for="id_expected_amount">Valor de la venta</label>
+                    {% if is_admin %}
+                        <input type="text" id="id_expected_amount" name="expected_amount" inputmode="decimal" autocomplete="off"
+                               value="{{ form.expected_amount.value|stringformat:'.2f' }}">
+                    {% else %}
+                        {# Se usa el valor de la instancia: un error en otro campo no debe borrarlo al re-renderizar. #}
+                        <input type="text" id="id_expected_amount" name="expected_amount"
+                               value="{{ form.instance.expected_amount|stringformat:'.2f' }}" readonly>
+                    {% endif %}
+                    {{ form.expected_amount.errors }}
+                </div>
+
+                <div class="pv-field">
+                    <label for="{{ form.facturador.id_for_label }}">Facturador</label>
+                    {% if is_admin %}
+                        {{ form.facturador }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.facturador|default:'' }}" readonly>
+                    {% endif %}
+                    {{ form.facturador.errors }}
+                </div>
+
+                <div class="pv-field">
+                    <label for="{{ form.numero_factura.id_for_label }}"># de factura</label>
+                    {% if is_admin or is_facturador %}
+                        {{ form.numero_factura }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.numero_factura|default:'' }}" readonly>
+                    {% endif %}
+                    {{ form.numero_factura.errors }}
+                </div>
+
+                <div class="pv-field">
+                    <label for="{{ form.status.id_for_label }}">Estado de la transacción</label>
+                    {% if is_admin or is_facturador %}
+                        {{ form.status }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.status }}" readonly>
+                        <input type="hidden" name="{{ form.status.name }}" value="{{ form.instance.status }}">
+                    {% endif %}
+                    {{ form.status.errors }}
+                </div>
+
+                <div class="pv-field pv-field--wide">
+                    <label for="{{ form.description.id_for_label }}">Observación</label>
+                    {% if is_admin %}
+                        {{ form.description }}
+                    {% else %}
+                        <textarea rows="2" readonly>{{ form.instance.description }}</textarea>
+                        <input type="hidden" name="{{ form.description.name }}" value="{{ form.instance.description }}">
+                    {% endif %}
+                    {{ form.description.errors }}
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    {% if is_admin  or is_digitador %}
-        {% if difference < 0 %}
-            <div class="alert alert-warning d-flex justify-content-between align-items-center mt-3">
+    {% if available_credits %}
+    <section class="pv-card" style="margin-top: 16px;">
+        <div class="pv-card__head">
+            <h2>Abonos disponibles del cliente</h2>
+            <span class="pv-card__hint">Marca los que quieras aplicar a esta transacción</span>
+        </div>
+        <div class="pv-card__body available-credits-list">
+            {% for credit in available_credits %}
+            <label class="pv-credit-option" for="apply_credit_{{ credit.pk }}">
+                <input class="pv-checkbox apply-credit-checkbox"
+                       type="checkbox"
+                       name="apply_credit"
+                       value="{{ credit.pk }}"
+                       data-value="{{ credit.valor|stringformat:'f' }}"
+                       id="apply_credit_{{ credit.pk }}">
                 <span>
-                    <strong>¡Pago en Exceso!</strong> Hay un excedente de <strong>${{ difference|floatformat:2|intcomma }}</strong> en esta transacción.
+                    <span class="pv-mono">{{ credit.comprobante }}</span>
+                    <span class="pv-muted">· {{ credit.fecha|date:'d/m/Y' }} · {{ credit.payment_status }}</span>
                 </span>
-                <form action="{% url 'create_credit_note_from_surplus' transaction.pk %}" method="post" data-submit-once onsubmit="return confirm('¿Estás seguro de que deseas generar un saldo a favor por el excedente? Esta acción creará un nuevo recibo de ajuste en esta transacción y un saldo a favor para el cliente.');">
-                    {% csrf_token %}
-                    {% submit_token %}
-                    <button type="submit" class="btn btn-primary">Generar Saldo a Favor</button>
-                </form>
-            </div>
-        {% endif %} 
+                <strong>${{ credit.valor|floatformat:2|intcomma }}</strong>
+            </label>
+            {% endfor %}
+        </div>
+    </section>
     {% endif %}
 
-    <form method="post" id="transaction-form" data-submit-once>
-        {% csrf_token %}
-        {% submit_token %}
-        {# Transaction Form #}
-        <fieldset>
-            <legend>Detalles de la Transacción # {{ transaction.unique_transaction_id }}</legend>
-            <table class="transaction-details-horizontal">
-               
-                <tbody>
-                    <tr>
-                        <th>Tipo Transacción</th>
-                        <th>Fecha Transaccón</th>
-                        <th>Cliente</th>
-                        <th>Vendedor</th>
-                        <th>Valor Venta</th>
-                        <th>Observación</th>
-                        <th>Facturador</th>
-                        <th># de Factura</th>
-                        <th>Estado Transacción</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr>
-                        {# --- LOGICA DE PERMISOS PARA CAMPOS DE TRANSACCION --- #}
-                        {# Admin: Todo editable #}
-                        {# Digitador: Todo readonly #}
-                        {# Validador: Todo readonly #}
-                        {# Facturador: Solo 'status' y 'numero_factura' editables #}
-
-
-                        {# 1. TIPO TRANSACCION #}
-                        <td>
-                            {% if is_admin %}
-                                {{ form.transaction_type }}
-                            {% else %}
-                                <input type="text" class="form-control" value="{{ form.instance.transaction_type }}" readonly>
-                                <input type="hidden" name="{{ form.transaction_type.name }}" value="{{ form.instance.transaction_type.id }}">
-                            {% endif %}
-                            {{ form.transaction_type.errors }}
-                        </td>
-
-                        {# 2. FECHA #}
-                        <td>
-                            {% if is_admin %}
-                                <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" id="{{ form.date.id_for_label }}">
-                            {% else %}
-                                <input type="date" name="{{ form.date.name }}" value="{{ form.instance.date|date:'Y-m-d' }}" class="form-control" readonly>
-                            {% endif %}
-                            {{ form.date.errors }}
-                        </td>
-
-                        {# 3. CLIENTE #}
-                        <td>
-                            {% if is_admin %}
-                                {{ form.client_search }}
-                                {{ form.cliente_id }}
-                            {% else %}
-                                <input type="text" class="form-control" value="{{ form.instance.cliente }}" readonly>
-                                <input type="hidden" name="{{ form.client_search.name }}" value="{{ form.instance.cliente }}">
-                                <input type="hidden" name="{{ form.cliente_id.name }}" value="{{ form.instance.cliente.id }}">
-                            {% endif %}
-                            
-                            <div id="client-balance-container" class="mt-2" style="display: none;">
-                                <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
-                            </div>
-                            {{ form.client_search.errors }}
-                        </td>
-
-                        {# 4. VENDEDOR #}
-                        <td>
-                            {% if is_admin %}
-                                {{ form.seller_search }}
-                                {{ form.vendedor_id }}
-                            {% else %}
-                                <input type="text" class="form-control" value="{{ form.instance.vendedor }}" readonly>
-                                <input type="hidden" name="{{ form.seller_search.name }}" value="{{ form.instance.vendedor }}">
-                                <input type="hidden" name="{{ form.vendedor_id.name }}" value="{{ form.instance.vendedor.id }}">
-                            {% endif %}
-                            {{ form.seller_search.errors }}
-                        </td>
-
-                        {# 5. VALOR VENTA #}
-                        <td>
-                            {% if is_admin %}
-                                <input type="text" id="id_expected_amount" class="form-control text-end" 
-                                    name="expected_amount" 
-                                    value="{{ form.expected_amount.value|stringformat:'.2f' }}">
-                            {% else %}
-                                {# Para todos los demás roles, usar el valor de la instancia directamente #}
-                                {# Esto evita que un error en otro campo borre este valor al re-renderizar #}
-                                <input type="text" id="id_expected_amount" class="form-control text-end" 
-                                    name="expected_amount" 
-                                    value="{{ form.instance.expected_amount|stringformat:'.2f' }}" 
-                                    readonly>
-                            {% endif %}
-                            {{ form.expected_amount.errors }}
-                        </td>
-
-                        {# 6. OBSERVACION #}
-                        <td>
-                            {% if is_admin %}
-                                {{ form.description }}
-                            {% else %}
-                                <textarea class="form-control" rows="2" readonly>{{ form.instance.description }}</textarea>
-                                <input type="hidden" name="{{ form.description.name }}" value="{{ form.instance.description }}">
-                            {% endif %}
-                            {{ form.description.errors }}
-                        </td>
-                        
-                        {# 7. FACTURADOR #}
-                        <td>
-                            {# Facturador se asigna automaticamente o por admin #}
-                            {% if is_admin %}
-                                {{ form.facturador }}
-                            {% else %}
-                                <input type="text" value="{{ form.instance.facturador|default:'' }}" readonly class="form-control">
-                            {% endif %}
-                            {{ form.facturador.errors }}
-                        </td>
-
-                        {# 8. NUMERO FACTURA #}
-                        <td>
-                            {% if is_admin or is_facturador %}
-                                {{ form.numero_factura }}
-                            {% else %}
-                                <input type="text" class="form-control" value="{{ form.instance.numero_factura|default:'' }}" readonly>
-                            {% endif %}
-                            {{ form.numero_factura.errors }}
-                        </td>
-
-                        {# 9. ESTADO TRANSACCION #}
-                        <td class="
-                            {% if form.instance.status == 'Facturado' %}bg-verde
-                            {% elif form.instance.status == 'Anulado' %}bg-rojo
-                            {% elif form.instance.status == 'Pendiente' %}bg-amarillo
-                            {% endif %}
-                        ">
-                            {% if is_admin or is_facturador %}
-                                {{ form.status }}
-                            {% else %}
-                                {{ form.instance.status }}
-                                <input type="hidden" name="{{ form.status.name }}" value="{{ form.instance.status }}">
-                            {% endif %}
-                            {{ form.status.errors }}
-                        </td>
-
-                    </tr>
-                </tbody>
-            </table>
-        </fieldset>
-
-        {% if available_credits %}
-        <fieldset class="mt-4">
-            <legend>Abonos Disponibles para Aplicar</legend>
-            <p>Este cliente tiene un saldo a favor. Selecciona los abonos que deseas aplicar a esta transacción.</p>
-            
-            <div class="available-credits-list p-3 border rounded bg-light">
-                <!-- En records/transaction_form.html, dentro de la sección de "Abonos Disponibles" -->
-
-                {% for credit in available_credits %}
-                <div class="form-check">
-                    <input class="form-check-input apply-credit-checkbox" 
-                        type="checkbox" 
-                        name="apply_credit" 
-                        value="{{ credit.pk }}"
-                        data-value="{{ credit.valor|stringformat:'f' }}"
-                        id="apply_credit_{{ credit.pk }}">
-                        
-                    <label class="form-check-label" for="apply_credit_{{ credit.pk }}">
-                        Aplicar Abono: {{ credit.fecha|date:'Y-m-d' }} - {{ credit.comprobante }} - Estado: {{ credit.payment_status}} Valor: ${{ credit.valor|floatformat:2|intcomma }}
-                    </label>
-                </div>
-                {% endfor %}
-
-                {% comment %} {% for credit in available_credits %}
-                <div class="form-check">
-                    {# Todos pueden ver abonos, pero solo Admin y Digitador deberian poder aplicarlos activamente #}
-                    {# Aunque la logica original permitia a todos, vamos a restringirlo si es necesario. #}
-                    {# Por ahora, Admin y Digitador pueden aplicar. #}
-                    {% if request.user.is_superuser or 'Digitador' in user_groups %}
-                        <input class="form-check-input" type="checkbox" name="apply_credit" value="{{ credit.pk }}" id="credit_{{ credit.pk }}">
-                    {% else %}
-                        <input class="form-check-input" type="checkbox" disabled>
-                    {% endif %}
-                    <label class="form-check-label" for="credit_{{ credit.pk }}">
-                        id: {{ credit.pk }} | Fecha: {{ credit.fecha }}  | Comprobante: {{ credit.comprobante }} | Banco: {{ credit.banco_llegada }} | Valor: ${{ credit.valor|floatformat:2|intcomma }}
-                    </label>
-                </div>
-                {% endfor %} {% endcomment %}
-            </div>
-        </fieldset>
-        {% endif %}
-
-        {# Financial Records Formset #}
-        <fieldset>
-            <legend>Recibos Asociados</legend>
-            {{ formset.management_form }}
-            <div id="formset-container">
-                {% for form in formset %}
-                    <div class="receipt-form-instance {% if form.errors %}has-errors{% endif %}" id="receipt-form-{{ forloop.counter0 }}">
-                        {% if form.instance.pk %}
-                            <h5>Recibo existente #{{ forloop.counter }}</h5>
-                        {% else %}
-                            <h5>Nuevo Recibo</h5>
-                        {% endif %}
-
-                        {% if form.non_field_errors %}
-                            <div class="non-field-errors">
-                                {% for error in form.non_field_errors %}
-                                    <p class="errorlist">{{ error }}</p>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-
-                        <div class="receipt-form-fields">
-                            
-                            {# --- LOGICA DE PERMISOS PARA RECIBOS --- #}
-                            
-                            {# ORIGEN TRANSACCION #}
-                            <div class="receipt-field">
-                                {{ form.origen_transaccion.label_tag }}
-                                {% if is_admin %}
-                                    {{ form.origen_transaccion }}
-                                {% elif is_digitador and not form.instance.pk %}
-                                    {# Digitador: Editable solo si es nuevo #}
-                                    {{ form.origen_transaccion }}
-                                {% else %}
-                                    {# Readonly para los demas casos #}
-                                    <input type="text" class="form-control" value="{{ form.instance.origen_transaccion }}" readonly>
-                                    {# Si es formset, necesitamos los hidden inputs para que Django no se queje de missing management form data o validation errors si el campo es required #}
-                                    {% if form.instance.pk %}
-                                        <input type="hidden" name="{{ form.origen_transaccion.html_name }}" value="{{ form.instance.origen_transaccion.id }}">
-                                    {% endif %}
-                                {% endif %}
-                                {{ form.origen_transaccion.errors }}
-                                
-                                {% if form.instance.pk and form.instance.effective_date_message %}
-                                    <small style="color: #007bff; display: block;">{{ form.instance.effective_date_message }}</small>
-                                {% endif %}
-                                <span id="effective-date-message-{{ form.prefix }}" style="color: #007bff; font-size: 0.9em; display: block;"></span>
-                            </div>
-
-                            {# FECHA #}
-                            <div class="receipt-field">
-                                {{ form.fecha.label_tag }}
-                                {% if is_admin or is_digitador and not form.instance.pk %}
-                                    <input type="date" 
-                                           name="{{ form.fecha.html_name }}" 
-                                           value="{{ form.instance.fecha|date:'Y-m-d' }}" 
-                                           class="form-control" 
-                                           id="{{ form.fecha.id_for_label }}">
-                                {% else %}
-                                    {# Para recibos existentes, TODOS (incluido el Admin) ven un campo de solo lectura #}
-                                    <input type="date" class="form-control" value="{{ form.instance.fecha|date:'Y-m-d' }}" readonly>
-                                    {% if form.instance.pk %}
-                                        <input type="hidden" name="{{ form.fecha.html_name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}">
-                                    {% endif %}
-                                {% endif %}
-                                {{ form.fecha.errors }}
-                            </div>
-
-                            {# HORA #}
-                            <div class="receipt-field">
-                                {{ form.hora.label_tag }}
-                                {% if is_admin %}
-                                    {{ form.hora }}
-                                {% elif is_digitador and not form.instance.pk %}
-                                    {{ form.hora }}
-                                {% else %}
-                                    <input type="time" class="form-control" value="{{ form.instance.hora|time:'H:i' }}" readonly>
-                                    {% if form.instance.pk %}
-                                        <input type="hidden" name="{{ form.hora.html_name }}" value="{{ form.instance.hora|time:'H:i' }}">
-                                    {% endif %}
-                                {% endif %}
-                                {{ form.hora.errors }}
-                            </div>
-
-                            {# COMPROBANTE #}
-                            <div class="receipt-field">
-                                {{ form.comprobante.label_tag }}
-                                {% if is_admin %}
-                                    {{ form.comprobante }}
-                                {% elif is_digitador and not form.instance.pk %}
-                                    {{ form.comprobante }}
-                                {% else %}
-                                    <input type="text" class="form-control" value="{{ form.instance.comprobante }}" readonly>
-                                    {% if form.instance.pk %}
-                                        <input type="hidden" name="{{ form.comprobante.html_name }}" value="{{ form.instance.comprobante }}">
-                                    {% endif %}
-                                {% endif %}
-                                {{ form.comprobante.errors }}
-                            </div>
-
-                            {# DOCUMENTO DE PAGO #}
-                            <div class="receipt-field">
-                                {{ form.payment_document.label_tag }}
-                                {% if is_admin  %}
-                                    {{ form.payment_document }}
-                                {% elif is_facturador and form.instance.pk %}
-                                    {# Facturador puede seleccionar el documento de pago en recibos existentes #}
-                                    {{ form.payment_document }}
-                                {% else %}
-                                    <input type="text" class="form-control"
-                                           value="{{ form.instance.payment_document.name|default:'-' }}" readonly>
-                                    {% if form.instance.pk %}
-                                        <input type="hidden" name="{{ form.payment_document.html_name }}"
-                                               value="{{ form.instance.payment_document_id|default:'' }}">
-                                    {% endif %}
-                                {% endif %}
-                                {{ form.payment_document.errors }}
-                            </div>
-
-                            {# BANCO LLEGADA #}
-                            <div class="receipt-field">
-                                {{ form.banco_llegada.label_tag }}
-                                {% if is_admin %}
-                                    {{ form.banco_llegada }}
-                                {% elif is_digitador and not form.instance.pk %}
-                                    {{ form.banco_llegada }}
-                                {% else %}
-                                    <input type="text" class="form-control" value="{{ form.instance.banco_llegada }}" readonly>
-                                    {% if form.instance.pk %}
-                                        <input type="hidden" name="{{ form.banco_llegada.html_name }}" value="{{ form.instance.banco_llegada.id }}">
-                                    {% endif %}
-                                {% endif %}
-                                {{ form.banco_llegada.errors }}
-                            </div>
-
-                                    {# VALOR #}
-                                    <div class="receipt-field">
-                                        {{ form.valor.label_tag }}
-                                        {% if is_admin %}
-                                            {{ form.valor }}
-                                        {% elif is_digitador and not form.instance.pk %}
-                                            {{ form.valor }}
-                                        {% else %}
-                                            <input type="text" class="form-control" value="{{ form.instance.valor|stringformat:'.2f' }}" readonly>
-                                            {% if form.instance.pk %}
-                                                <input type="hidden" name="{{ form.valor.html_name }}" value="{{ form.instance.valor|stringformat:'.2f' }}">
-                                            {% endif %}
-                                        {% endif %}
-                                        {{ form.valor.errors }}
-                                    </div>
-
-                            {# ESTADO PAGO #}
-                            <div class="receipt-field 
-                                {% if form.instance.payment_status == 'Aprobado' %}bg-aprobado
-                                {% elif form.instance.payment_status == 'Rechazado' %}bg-rechazado
-                                {% elif form.instance.payment_status == 'Pendiente' %}bg-pendiente
-                                {% endif %}">
-                                {{ form.payment_status.label_tag }}
-                                {% if is_admin or is_validador %}
-                                    {# Validador puede editar status #}
-                                    {{ form.payment_status }}
-                                {% else %}
-                                    <input type="text" class="form-control" value="{{ form.instance.payment_status }}" readonly>
-                                    <input type="hidden" name="{{ form.payment_status.html_name }}" value="{{ form.instance.payment_status }}">
-                                {% endif %}
-                                {{ form.payment_status.errors }}
-                            </div>
-
-                            {# DELETE BUTTON #}
-                            {# DELETE / UNLINK BUTTONS #}
-                            <div class="receipt-delete-wrapper">
-                                {% comment %} {% if formset.can_delete %}
-                                    {% if is_admin %}
-                                        {# Admin can delete anything #}
-                                        <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
-                                        <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
-                                        <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
-                                    {% elif is_digitador and not form.instance.pk %}
-                                        {# Digitador can delete NEW receipts #}
-                                        <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
-                                        <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
-                                    {% endif %}
-                                {% endif %} {% endcomment %}
-
-                                {# Unlink Logic for Existing Records #}
-                                {% if form.instance.pk %}
-                                    {% if is_admin  %}
-                                        <div class="unlink-checkbox-wrapper" style="display: none;">
-                                            <input type="checkbox" name="unlink_credit" value="{{ form.instance.pk }}">
-                                        </div>
-                                        <button type="button" class="btn btn-warning btn-unlink-receipt" style="margin-left: 5px;">Desvincular</button>
-                                        <button type="button" class="btn btn-secondary btn-undo-unlink" style="display: none; margin-left: 5px;">Re-vincular</button>
-                                    {% endif %}
-                                {% endif %}
-                            </div>
-                        </div>
-                        {{ form.id }}
-                    </div>
-                {% endfor %}
-            </div>
-           
-            {% if request.user.is_superuser or 'Digitador' in user_groups %}
-                <button type="button" id="add-receipt-btn">Añadir Recibo</button>
-            {% endif %} 
-        </fieldset>
-
-
-        <div class="d-flex justify-content-start gap-2 mt-4">
-            <button type="submit" class="btn btn-primary d-flex align-items-center">
-                <img src="{% static 'images/floppy-disk-regular-full.svg' %}" alt="Guardar" width="20" height="20" class="me-2">Guardar Cambios
-            </button>
-            {% comment %} {% if user.is_superuser %}
-            <button type="button" id="btn-delete-transaction" class="btn-delete-transaction btn-accion-icono">
-                <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20" class="me-2">
-            </button>
-            {% endif %} {% endcomment %}
-            <a href="{% url 'record_list' %}" class="btn btn-secondary d-flex align-items-center">Atrás</a>
-        </div>
-    </form>
-
-    {# Modal de Confirmación para Recibos (ya existente) #}
-    <div id="delete-confirm-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h4>Confirmar Eliminación</h4>
-            <p>¿Estás seguro de que quieres eliminar este recibo?</p>
-            <div class="modal-buttons">
-                <button type="button" id="modal-confirm-delete" class="btn btn-danger">Confirmar</button>
-                <button type="button" id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
-            </div>
-        </div>
+    <div class="pv-section-title"><h2>Recibos asociados</h2></div>
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}
+    <div class="pv-callout pv-callout--bad" style="margin: 0 0 12px;" role="alert">
+        {% include 'records/components/icon.html' with name='alert' %}
+        <div>{% for error in formset.non_form_errors %}{{ error }} {% endfor %}</div>
     </div>
+    {% endif %}
 
-    {# NUEVO Modal de Confirmación para Transacción #}
-    <div id="delete-transaction-confirm-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h4>Confirmar Eliminación</h4>
-            <p>¿Estás seguro de que quieres eliminar esta transacción completa y todos sus recibos asociados?</p>
-            <div class="modal-buttons">
-                <a href="{% url 'transaction_delete' object.pk %}" class="btn btn-danger">Confirmar Eliminación</a>
-                <button type="button" class="btn btn-secondary" id="modal-cancel-delete-transaction">Cancelar</button>
+    {# Permisos de los recibos: Admin edita todo; Digitador solo los nuevos; Validador el estado; Facturador el documento de pago. #}
+    <div id="formset-container">
+        {% for form in formset %}
+        <div class="receipt-form-instance pv-receipt {% if form.errors %}has-errors{% endif %}" id="receipt-form-{{ forloop.counter0 }}"
+             {% if form.instance.pk %}data-pay="{{ form.instance.payment_status }}"{% endif %}>
+            <div class="pv-receipt__head">
+                {% if form.instance.pk %}
+                    <h5>Recibo existente #{{ forloop.counter }}</h5>
+                {% else %}
+                    <h5>Nuevo recibo</h5>
+                {% endif %}
+                <div class="pv-receipt__tools receipt-delete-wrapper">
+                    {% if form.instance.pk %}
+                        {% if is_admin %}
+                        <div class="unlink-checkbox-wrapper" style="display: none;">
+                            <input type="checkbox" name="unlink_credit" value="{{ form.instance.pk }}">
+                        </div>
+                        <button type="button" class="pv-btn pv-btn--ghost pv-btn--sm btn-unlink-receipt"
+                                title="Saca el recibo de esta transacción; queda como abono del cliente">Desvincular</button>
+                        <button type="button" class="pv-btn pv-btn--ghost pv-btn--sm btn-undo-unlink" style="display: none;">Volver a vincular</button>
+                        {% endif %}
+                    {% elif formset.can_delete %}
+                        <div class="delete-checkbox" style="display: none;">{{ form.DELETE }}</div>
+                        <button type="button" class="pv-btn pv-btn--danger pv-btn--sm btn-delete-receipt">Quitar</button>
+                        <button type="button" class="pv-btn pv-btn--ghost pv-btn--sm btn-undo-delete" style="display: none;">Deshacer</button>
+                    {% endif %}
+                </div>
             </div>
+
+            {% if form.non_field_errors %}
+            <div class="pv-callout pv-callout--bad non-field-errors" style="margin: 0 0 12px;" role="alert">
+                {% include 'records/components/icon.html' with name='alert' %}
+                <div>{% for error in form.non_field_errors %}{{ error }} {% endfor %}</div>
+            </div>
+            {% endif %}
+
+            <div class="pv-form-grid receipt-form-fields">
+                <div class="pv-field">
+                    {{ form.origen_transaccion.label_tag }}
+                    {% if is_admin %}
+                        {{ form.origen_transaccion }}
+                    {% elif is_digitador and not form.instance.pk %}
+                        {{ form.origen_transaccion }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.origen_transaccion }}" readonly>
+                        {% if form.instance.pk %}
+                            <input type="hidden" name="{{ form.origen_transaccion.html_name }}" value="{{ form.instance.origen_transaccion.id }}">
+                        {% endif %}
+                    {% endif %}
+                    {{ form.origen_transaccion.errors }}
+                    {% if form.instance.pk and form.instance.effective_date_message %}
+                        <span class="pv-field__hint">{{ form.instance.effective_date_message }}</span>
+                    {% endif %}
+                    <span id="effective-date-message-{{ form.prefix }}" class="pv-field__hint"></span>
+                </div>
+
+                <div class="pv-field">
+                    {{ form.fecha.label_tag }}
+                    {% if is_admin or is_digitador and not form.instance.pk %}
+                        <input type="date"
+                               name="{{ form.fecha.html_name }}"
+                               value="{{ form.instance.fecha|date:'Y-m-d' }}"
+                               id="{{ form.fecha.id_for_label }}">
+                    {% else %}
+                        <input type="date" value="{{ form.instance.fecha|date:'Y-m-d' }}" readonly>
+                        {% if form.instance.pk %}
+                            <input type="hidden" name="{{ form.fecha.html_name }}" value="{{ form.instance.fecha|date:'Y-m-d' }}">
+                        {% endif %}
+                    {% endif %}
+                    {{ form.fecha.errors }}
+                </div>
+
+                <div class="pv-field">
+                    {{ form.hora.label_tag }}
+                    {% if is_admin %}
+                        {{ form.hora }}
+                    {% elif is_digitador and not form.instance.pk %}
+                        {{ form.hora }}
+                    {% else %}
+                        <input type="time" value="{{ form.instance.hora|time:'H:i' }}" readonly>
+                        {% if form.instance.pk %}
+                            <input type="hidden" name="{{ form.hora.html_name }}" value="{{ form.instance.hora|time:'H:i' }}">
+                        {% endif %}
+                    {% endif %}
+                    {{ form.hora.errors }}
+                </div>
+
+                <div class="pv-field">
+                    {{ form.comprobante.label_tag }}
+                    {% if is_admin %}
+                        {{ form.comprobante }}
+                    {% elif is_digitador and not form.instance.pk %}
+                        {{ form.comprobante }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.comprobante }}" readonly>
+                        {% if form.instance.pk %}
+                            <input type="hidden" name="{{ form.comprobante.html_name }}" value="{{ form.instance.comprobante }}">
+                        {% endif %}
+                    {% endif %}
+                    {{ form.comprobante.errors }}
+                </div>
+
+                <div class="pv-field">
+                    {{ form.payment_document.label_tag }}
+                    {% if is_admin %}
+                        {{ form.payment_document }}
+                    {% elif is_facturador and form.instance.pk %}
+                        {{ form.payment_document }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.payment_document|default:'-' }}" readonly>
+                        {% if form.instance.pk %}
+                            <input type="hidden" name="{{ form.payment_document.html_name }}"
+                                   value="{{ form.instance.payment_document|default:'' }}">
+                        {% endif %}
+                    {% endif %}
+                    {{ form.payment_document.errors }}
+                </div>
+
+                <div class="pv-field">
+                    {{ form.banco_llegada.label_tag }}
+                    {% if is_admin %}
+                        {{ form.banco_llegada }}
+                    {% elif is_digitador and not form.instance.pk %}
+                        {{ form.banco_llegada }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.banco_llegada }}" readonly>
+                        {% if form.instance.pk %}
+                            <input type="hidden" name="{{ form.banco_llegada.html_name }}" value="{{ form.instance.banco_llegada.id }}">
+                        {% endif %}
+                    {% endif %}
+                    {{ form.banco_llegada.errors }}
+                </div>
+
+                <div class="pv-field">
+                    {{ form.valor.label_tag }}
+                    {% if is_admin %}
+                        {{ form.valor }}
+                    {% elif is_digitador and not form.instance.pk %}
+                        {{ form.valor }}
+                    {% else %}
+                        <input type="text" class="pv-input-num" value="{{ form.instance.valor|stringformat:'.2f' }}" readonly>
+                        {% if form.instance.pk %}
+                            <input type="hidden" name="{{ form.valor.html_name }}" value="{{ form.instance.valor|stringformat:'.2f' }}">
+                        {% endif %}
+                    {% endif %}
+                    {{ form.valor.errors }}
+                </div>
+
+                <div class="pv-field">
+                    {{ form.payment_status.label_tag }}
+                    {% if is_admin or is_validador %}
+                        {{ form.payment_status }}
+                    {% else %}
+                        <input type="text" value="{{ form.instance.payment_status }}" readonly>
+                        <input type="hidden" name="{{ form.payment_status.html_name }}" value="{{ form.instance.payment_status }}">
+                    {% endif %}
+                    {{ form.payment_status.errors }}
+                </div>
+            </div>
+
+            {# Posible duplicado en un recibo nuevo: el digitador confirma que no lo es #}
+            {% if form.confirm_duplicate.errors %}
+            <div class="pv-callout" role="alert">
+                {% include 'records/components/icon.html' with name='alert' %}
+                <div>
+                    {{ form.confirm_duplicate.errors }}
+                    <label class="pv-check" style="margin-top: 8px;">
+                        <input type="checkbox" id="{{ form.confirm_duplicate.id_for_label }}" name="{{ form.confirm_duplicate.html_name }}">
+                        <span>{{ form.confirm_duplicate.label }}</span>
+                    </label>
+                </div>
+            </div>
+            {% endif %}
+            {{ form.id }}
         </div>
+        {% endfor %}
     </div>
 
     <template id="empty-form-template">
-        <div class="receipt-form-instance" id="receipt-form-__prefix__">
-            <h5>Nuevo Recibo</h5>
-            <div class="receipt-form-fields">
-                <div class="receipt-field">
-                    {{ formset.empty_form.origen_transaccion.label_tag }}
-                    {{ formset.empty_form.origen_transaccion }}
-                </div>
-                <div class="receipt-field">
-                    {{ formset.empty_form.fecha.label_tag }}
-                    {{ formset.empty_form.fecha }}
-                </div>
-                <div class="receipt-field">{{ formset.empty_form.hora.label_tag }}{{ formset.empty_form.hora }}</div>
-                <div class="receipt-field">{{ formset.empty_form.comprobante.label_tag }}{{ formset.empty_form.comprobante }}</div>
-                <div class="receipt-field">{{ formset.empty_form.banco_llegada.label_tag }}{{ formset.empty_form.banco_llegada }}</div>
-                <div class="receipt-field">{{ formset.empty_form.valor.label_tag }}{{ formset.empty_form.valor }}</div>
-                <div class="receipt-delete-wrapper">
+        <div class="receipt-form-instance pv-receipt" id="receipt-form-__prefix__">
+            <div class="pv-receipt__head">
+                <h5>Nuevo recibo</h5>
+                <div class="pv-receipt__tools receipt-delete-wrapper">
                     {% if formset.can_delete %}
-                        <div class="delete-checkbox" style="display: none;">{{ formset.empty_form.DELETE }}</div>
-                        <button type="button" class="btn btn-danger btn-delete-receipt">Eliminar</button>
-                        <button type="button" class="btn btn-secondary btn-undo-delete" style="display: none;">Deshacer</button>
+                    <div class="delete-checkbox" style="display: none;">{{ formset.empty_form.DELETE }}</div>
+                    <button type="button" class="pv-btn pv-btn--danger pv-btn--sm btn-delete-receipt">Quitar</button>
+                    <button type="button" class="pv-btn pv-btn--ghost pv-btn--sm btn-undo-delete" style="display: none;">Deshacer</button>
                     {% endif %}
                 </div>
+            </div>
+            <div class="pv-form-grid receipt-form-fields">
+                <div class="pv-field">
+                    {{ formset.empty_form.origen_transaccion.label_tag }}
+                    {{ formset.empty_form.origen_transaccion }}
+                    <span id="effective-date-message-{{ formset.prefix }}-__prefix__" class="pv-field__hint"></span>
+                </div>
+                <div class="pv-field">{{ formset.empty_form.fecha.label_tag }}{{ formset.empty_form.fecha }}</div>
+                <div class="pv-field">{{ formset.empty_form.hora.label_tag }}{{ formset.empty_form.hora }}</div>
+                <div class="pv-field">{{ formset.empty_form.comprobante.label_tag }}{{ formset.empty_form.comprobante }}</div>
+                <div class="pv-field">{{ formset.empty_form.banco_llegada.label_tag }}{{ formset.empty_form.banco_llegada }}</div>
+                <div class="pv-field">{{ formset.empty_form.valor.label_tag }}{{ formset.empty_form.valor }}</div>
             </div>
             {{ formset.empty_form.id }}
         </div>
     </template>
 
-    <style>
-        .transaction-form-table {
-            width: 100%; margin-bottom: 20px; border-collapse: collapse;
-        }
-        .transaction-form-table th, .transaction-form-table td {
-            padding: 12px; vertical-align: top; border-top: 1px solid #dee2e6;
-        }
-        .transaction-form-table th {
-            text-align: left; width: 20%; font-weight: bold;
-        }
-        .transaction-form-table input, .transaction-form-table select, .transaction-form-table textarea {
-            width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
-        }
-        .transaction-form-table .errorlist {
-            color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 10px; margin: 5px 0 0 0; list-style-type: none;
-        }
+    <div class="pv-actionbar">
+        {% if request.user.is_superuser or 'Digitador' in user_groups %}
+        <button type="button" id="add-receipt-btn" class="pv-btn pv-btn--ghost">
+            {% include 'records/components/icon.html' with name='plus' %}Añadir recibo <kbd class="pv-kbd">Alt</kbd><kbd class="pv-kbd">N</kbd>
+        </button>
+        {% endif %}
+        <span class="pv-actionbar__hint"><kbd class="pv-kbd">Ctrl</kbd> + <kbd class="pv-kbd">Enter</kbd> para guardar</span>
+        <a href="{% url 'record_list' %}" class="pv-btn pv-btn--ghost">Atrás</a>
+        <button type="submit" class="pv-btn pv-btn--primary">
+            {% include 'records/components/icon.html' with name='save' %}Guardar cambios
+        </button>
+    </div>
+</form>
 
-        .receipt-form-instance {
-            border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px; background-color: #f9f9f9; transition: background-color 0.3s ease;
-        }
-        .receipt-form-fields {
-            display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-start;
-        }
-        .receipt-field {
-            display: flex; flex-direction: column; flex: 1; min-width: 150px;
-        }
-        .receipt-field label {
-            font-weight: bold; margin-bottom: 5px;
-        }
-        .receipt-field input, .receipt-field select {
-            width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
-        }
-        .receipt-delete-wrapper {
-            flex: 0 0 100px; display: flex; align-items: flex-end; padding-bottom: 8px;
-        }
+<script>
+// Corre en DOMContentLoaded: jQuery y jQuery UI se cargan al final de base.html.
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('transaction-form');
+    const container = document.getElementById('formset-container');
+    const totalForms = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+    const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML;
+    const expectedInput = document.getElementById('id_expected_amount');
+    const addReceiptBtn = document.getElementById('add-receipt-btn');
 
-        .receipt-form-instance.marked-for-deletion {
-            background-color: #f8d7da;
-            opacity: 0.6;
-        }
-        .receipt-form-instance.marked-for-deletion input, .receipt-form-instance.marked-for-deletion select {
-            text-decoration: line-through;
-        }
-        /* --- NUEVO: Estilo para recibos marcados para desvincular --- */
-        .receipt-form-instance.marked-for-unlinking {
-            background-color: #fff3cd; /* Color de advertencia claro */
-            border-color: #ffeeba;
-        }
-        .receipt-form-instance.marked-for-unlinking .receipt-form-fields {
-            opacity: 0.7;
-        }
+    // Los valores se muestran como 1,234.56; las comas se quitan al enviar.
+    const parseAmount = (text) => parseFloat(String(text || '').replace(/,/g, '')) || 0;
+    const formatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
-
-        .receipt-form-instance.has-errors { border-color: red; background-color: #ffebeb; }
-        .non-field-errors { color: red; font-weight: bold; margin-bottom: 10px; }
-        .errorlist { color: red; margin: 5px 0 0 0; padding: 0; list-style-type: none; }
-        #add-receipt-btn { margin-top: 10px; padding: 8px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        #add-receipt-btn:hover { background-color: #218838; }
-        .btn-danger { background-color: #dc3545; color: white; }
-        .btn-danger:hover { background-color: #c82333; }
-
-        /* Modal Styles */
-        .modal { position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; outline: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-        .modal-content { position: relative; background-color: #fefefe; padding: 20px; border: 1px solid #888; width: auto; max-width: 500px; border-radius: 8px; text-align: center; }
-        .modal-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
-        .close-button { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
-    </style>
-
-    {# --- INICIO: NUEVAS CLASES CSS PARA COLORES --- #}
-    <style>
-        .bg-verde {
-            background-color: #28a745 !important; /* Verde éxito */
-            color: white;
-        }
-        .bg-rojo {
-            background-color: #dc3545 !important; /* Rojo peligro */
-            color: white;
-        }
-        .bg-amarillo {
-            background-color: #ffc107 !important; /* Amarillo advertencia */
-            color: black;
-        }
-    </style>
-    {# --- FIN: NUEVAS CLASES CSS PARA COLORES --- #}
-<!-- Al final de records/transaction_form.html -->
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // 1. Obtener elementos y valores iniciales del DOM
-        const summaryContainer = document.getElementById('transaction-summary');
-        if (!summaryContainer) {
-            console.error('El contenedor del resumen #transaction-summary no fue encontrado.');
-            return;
-        }
-
-        const expectedAmount = parseFloat(summaryContainer.dataset.expectedAmount);
-        const initialReceiptsTotal = parseFloat(summaryContainer.dataset.initialReceipts);
-
-        const totalReceiptsDisplay = document.getElementById('total-receipts-display');
-        const differenceDisplay = document.getElementById('transaction-difference-display');
-
-        // 2. Seleccionar todos los checkboxes relevantes
-        const applyCheckboxes = document.querySelectorAll('.apply-credit-checkbox');
-        const unlinkCheckboxes = document.querySelectorAll('.unlink-credit-checkbox');
-
-        // 3. Función para recalcular y actualizar la UI
-        function updateTotals() {
-            let creditsToApplyTotal = 0;
-            applyCheckboxes.forEach(checkbox => {
-                if (checkbox.checked) {
-                    creditsToApplyTotal += parseFloat(checkbox.dataset.value);
-                }
-            });
-
-            let creditsToUnlinkTotal = 0;
-            unlinkCheckboxes.forEach(checkbox => {
-                if (checkbox.checked) {
-                    creditsToUnlinkTotal += parseFloat(checkbox.dataset.value);
-                }
-            });
-
-            // El nuevo total de recibos es:
-            // (Total inicial) + (Abonos que estoy aplicando) - (Recibos que estoy desvinculando)
-            const newTotalReceipts = initialReceiptsTotal + creditsToApplyTotal - creditsToUnlinkTotal;
-            
-            // La nueva diferencia
-            const newDifference = expectedAmount - newTotalReceipts;
-
-            // Actualizar el HTML con los nuevos valores formateados
-            totalReceiptsDisplay.textContent = newTotalReceipts.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
-            differenceDisplay.textContent = newDifference.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
-
-            // Cambiar color de la diferencia si es necesario
-            if (newDifference < 0) {
-                differenceDisplay.style.color = 'red';
-            } else if (newDifference === 0) {
-                differenceDisplay.style.color = 'green';
-            } else {
-                differenceDisplay.style.color = 'orange';
-            }
-        }
-
-        // 4. Añadir "listeners" a todos los checkboxes
-        applyCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', updateTotals);
+    // ── Totales en vivo ───────────────────────────────────────────────────
+    function updateTotals() {
+        let total = 0;
+        container.querySelectorAll('.receipt-form-instance').forEach(function (instance) {
+            if (instance.classList.contains('marked-for-deletion') || instance.classList.contains('marked-for-unlinking')) return;
+            const valor = instance.querySelector('input[name$="-valor"]');
+            if (valor) total += parseAmount(valor.value);
         });
-
-        unlinkCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', updateTotals);
+        document.querySelectorAll('.apply-credit-checkbox:checked').forEach(function (checkbox) {
+            total += parseFloat(checkbox.dataset.value) || 0;
         });
-
-        // 5. (Opcional) Llamar a la función una vez al cargar la página por si hay valores pre-marcados
-        updateTotals();
-    });
-    </script>
-
-    <script>
-    // Usamos jQuery para el autocompletado
-    document.addEventListener('DOMContentLoaded', function() {
-        // --- LÓGICA PARA SALDO DE CLIENTE (NUEVA) ---
-        const clientSelect = document.getElementById('id_cliente');
-        const balanceContainer = document.getElementById('client-balance-container');
-        const balanceDisplay = document.getElementById('client-balance-display');
-
-        function updateBalance(clientId) {
-            if (!clientId) {
-                if(balanceContainer) balanceContainer.style.display = 'none';
-                return;
-            }
-
-            fetch(`/ajax/get_client_balance/?client_id=${clientId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (balanceContainer && balanceDisplay && data.balance !== undefined) {
-                        const balanceValue = parseFloat(data.balance.replace(/,/g, ''));
-                        if (balanceValue > 0) {
-                            balanceDisplay.textContent = `Saldo a favor: $${data.balance}`;
-                            balanceContainer.style.display = 'block';
-                        } else {
-                            balanceContainer.style.display = 'none';
-                        }
-                    } else {
-                       if(balanceContainer) balanceContainer.style.display = 'none';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching client balance:', error);
-                    if(balanceContainer) balanceContainer.style.display = 'none';
-                });
-        }
-
-        if (clientSelect) {
-            // Al cargar la página, verificar si ya hay un cliente seleccionado
-            if (clientSelect.value) {
-                updateBalance(clientSelect.value);
-            }
-            // Al cambiar la selección del cliente
-            clientSelect.addEventListener('change', function() {
-                updateBalance(this.value);
-            });
-        }
-        // --- FIN LÓGICA SALDO CLIENTE ---
-
-        const formsetContainer = document.getElementById('formset-container');
-        const addReceiptBtn = document.getElementById('add-receipt-btn');
-        const totalForms = document.querySelector('#id_receipts-TOTAL_FORMS');
-        const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML;
-        
-        // Modal elements
-        const modal = document.getElementById('delete-confirm-modal');
-        const closeModal = modal.querySelector('.close-button');
-        const confirmDeleteBtn = document.getElementById('modal-confirm-delete');
-        const cancelDeleteBtn = document.getElementById('modal-cancel-delete');
-        let formToMarkForDeletion = null;
-
-        function showModal(formInstance) {
-            formToMarkForDeletion = formInstance;
-            modal.style.display = 'flex';
-        }
-
-        function hideModal() {
-            formToMarkForDeletion = null;
-            modal.style.display = 'none';
-        }
-
-        function markForDeletion(formInstance) {
-            const deleteCheckbox = formInstance.querySelector('[id$="-DELETE"]');
-            if (deleteCheckbox) {
-                deleteCheckbox.checked = true;
-                formInstance.classList.add('marked-for-deletion');
-                formInstance.querySelector('.btn-delete-receipt').style.display = 'none';
-                formInstance.querySelector('.btn-undo-delete').style.display = 'inline-block';
-            }
-        }
-
-        function undoMarkForDeletion(formInstance) {
-            const deleteCheckbox = formInstance.querySelector('[id$="-DELETE"]');
-            if (deleteCheckbox) {
-                deleteCheckbox.checked = false;
-                formInstance.classList.remove('marked-for-deletion');
-                formInstance.querySelector('.btn-delete-receipt').style.display = 'inline-block';
-                formInstance.querySelector('.btn-undo-delete').style.display = 'none';
-            }
-        }
-
-        function markForUnlinking(formInstance) {
-            const unlinkCheckbox = formInstance.querySelector('input[name="unlink_credit"]');
-            if (unlinkCheckbox) {
-                unlinkCheckbox.checked = true;
-                formInstance.classList.add('marked-for-unlinking');
-                formInstance.querySelector('.btn-unlink-receipt').style.display = 'none';
-                formInstance.querySelector('.btn-undo-unlink').style.display = 'inline-block';
-            }
-        }
-
-        function undoMarkForUnlinking(formInstance) {
-            const unlinkCheckbox = formInstance.querySelector('input[name="unlink_credit"]');
-            if (unlinkCheckbox) {
-                unlinkCheckbox.checked = false;
-                formInstance.classList.remove('marked-for-unlinking');
-                formInstance.querySelector('.btn-unlink-receipt').style.display = 'inline-block';
-                formInstance.querySelector('.btn-undo-unlink').style.display = 'none';
-            }
-        }
-        // Event listeners for modal buttons
-        confirmDeleteBtn.addEventListener('click', function() {
-            if (formToMarkForDeletion) {
-                markForDeletion(formToMarkForDeletion);
-            }
-            hideModal();
-        });
-
-        cancelDeleteBtn.addEventListener('click', hideModal);
-        closeModal.addEventListener('click', hideModal);
-        window.addEventListener('click', function(event) {
-            if (event.target == modal) {
-                hideModal();
-            }
-        });
-
-        // Event delegation for delete and undo buttons
-        formsetContainer.addEventListener('click', function(event) {
-            if (event.target.classList.contains('btn-delete-receipt')) {
-                const formInstance = event.target.closest('.receipt-form-instance');
-                showModal(formInstance);
-            }
-            if (event.target.classList.contains('btn-undo-delete')) {
-                const formInstance = event.target.closest('.receipt-form-instance');
-                undoMarkForDeletion(formInstance);
-            }
-            // --- NUEVO: Eventos para desvincular/re-vincular ---
-            if (event.target.classList.contains('btn-unlink-receipt')) {
-                const formInstance = event.target.closest('.receipt-form-instance');
-                markForUnlinking(formInstance);
-            }
-            if (event.target.classList.contains('btn-undo-unlink')) {
-                const formInstance = event.target.closest('.receipt-form-instance');
-                undoMarkForUnlinking(formInstance);
-            }
-        });
-
-        // Add new form
-        if(addReceiptBtn) {
-            addReceiptBtn.addEventListener('click', function() {
-                const formIndex = totalForms.value;
-                const newFormHtml = emptyFormTemplate.replace(/__prefix__/g, formIndex);
-                formsetContainer.insertAdjacentHTML('beforeend', newFormHtml);
-                totalForms.value = parseInt(formIndex) + 1;
-            });
-        }
-
-        // --- CÓDIGO PARA CALCULAR FECHA EFECTIVA ---
-        const receiptFormsetContainer = document.getElementById('formset-container');
-        if (receiptFormsetContainer) {
-            receiptFormsetContainer.addEventListener('change', (e) => {
-                if (e.target.matches('select[name$="-origen_transaccion"]') || e.target.matches('input[name$="-fecha"]')) {
-                    const formPrefix = e.target.name.match(/(receipts-\d+)-/)?.[1] || e.target.name.match(/(form-\d+)-/)?.[1];
-                    if (!formPrefix) return;
-
-                    const formNum = formPrefix.split('-')[1];
-
-                    const origenSelect = document.querySelector(`#id_${formPrefix}-origen_transaccion`);
-                    const fechaInput = document.querySelector(`#id_${formPrefix}-fecha`);
-                    const messageSpan = document.querySelector(`#effective-date-message-${formPrefix}`);
-
-                    if (!origenSelect || !fechaInput || !messageSpan) return;
-
-                    const origenId = origenSelect.value;
-                    const fecha = fechaInput.value;
-
-                    if (origenId && fecha) {
-                        const url = `{% url 'get_effective_date' %}?origen_id=${origenId}&start_date=${fecha}`;
-                        fetch(url)
-                            .then(response => response.json())
-                            .then(data => {
-                                messageSpan.textContent = data.message || '';
-                            })
-                            .catch(error => console.error('Error:', error));
-                    } else {
-                        messageSpan.textContent = '';
-                    }
-                }
-            });
-        }
-
-
-
-        // --- NUEVO: Lógica para el modal de eliminación de transacción ---
-        const deleteTransactionModal = document.getElementById('delete-transaction-confirm-modal');
-        const openDeleteTransactionModalBtn = document.getElementById('btn-delete-transaction');
-        const closeDeleteTransactionModalBtn = deleteTransactionModal.querySelector('.close-button');
-        const cancelDeleteTransactionModalBtn = document.getElementById('modal-cancel-delete-transaction');
-
-        if(openDeleteTransactionModalBtn) {
-            openDeleteTransactionModalBtn.addEventListener('click', function() {
-                deleteTransactionModal.style.display = 'flex';
-            });
-        }
-
-        const closeTxModal = () => deleteTransactionModal.style.display = 'none';
-
-        if(closeDeleteTransactionModalBtn) {
-            closeDeleteTransactionModalBtn.addEventListener('click', closeTxModal);
-        }
-        if(cancelDeleteTransactionModalBtn) {
-            cancelDeleteTransactionModalBtn.addEventListener('click', closeTxModal);
-        }
-
-        window.addEventListener('click', function(event) {
-            if (event.target == deleteTransactionModal) {
-                closeTxModal();
-            }
-        });
-
-        // --- LÓGICA DE CÁLCULO DE TOTALES ---
-        const expectedAmountInput = document.getElementById('id_expected_amount');
-        const totalReceiptsAmountOutput = document.getElementById('id_total_receipts_amount');
-        const differenceOutput = document.getElementById('id_difference');
-
-        function updateTotals() {
-            const parseCustomFloat = (str) => {
-                if (!str) return 0;
-                const cleaned = str.toString().replace(/,/g, '');
-                return parseFloat(cleaned) || 0;
-            };
-
-            let totalReceipts = 0;
-            const valorInputs = formsetContainer.querySelectorAll('input[name$="-valor"]');
-
-            valorInputs.forEach(input => {
-                const formInstance = input.closest('.receipt-form-instance');
-                if (!formInstance) return;
-
-                const isDeleted = formInstance.querySelector('input[type="checkbox"][name$="-DELETE"]')?.checked;
-                const isHidden = formInstance.style.display === 'none';
-
-                if (!isDeleted && !isHidden) {
-                    const value = parseCustomFloat(input.value);
-                    totalReceipts += value;
-                }
-            });
-
-            const expected = parseCustomFloat(expectedAmountInput.value);
-            const difference = expected - totalReceipts;
-
-            const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-            totalReceiptsAmountOutput.value = totalReceipts.toLocaleString('en-US', numberFormatOptions);
-            differenceOutput.value = difference.toLocaleString('en-US', numberFormatOptions);
-
-            differenceOutput.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'text-white', 'text-dark');
-
-            if (difference < -0.001) {
-                differenceOutput.classList.add('bg-warning', 'text-dark');
-            } else if (difference > 0.001) {
-                differenceOutput.classList.add('bg-danger', 'text-white');
-            } else {
-                differenceOutput.classList.add('bg-success', 'text-white');
-            }
-        }
-
-        function formatNumberInput(input) {
-            if (!input || !input.value) {
-                updateTotals();0
-                return;
-            }
-            let value = input.value.trim();
-            const numericValue = parseFloat(value.replace(/,/g, ''));
-            if (isNaN(numericValue)) {
-                updateTotals();
-                return;
-            }
-            const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-            input.value = numericValue.toLocaleString('en-US', numberFormatOptions);
-            updateTotals();
-        }
-
-    function handleTotalsUpdate(e) {
-        const target = e.target;
-        if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
-            let currentValue = target.value;
-
-            // Permitir signo negativo solo al inicio y dígitos, puntos o comas
-            const sanitizedValue = currentValue
-                .replace(/(?!^)-/g, '')  // elimina guiones que no estén al inicio
-                .replace(/[^0-9.,-]/g, ''); // permite números, punto, coma y el guion inicial
-
-            if (currentValue !== sanitizedValue) {
-                target.value = sanitizedValue;
-            }
-
-            updateTotals();
-        }
+        window.pvCaptureSummary(parseAmount(expectedInput ? expectedInput.value : 0), total);
     }
 
-        function handleFormatting(e) {
-            const target = e.target;
-            if (target && (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount')) {
-                formatNumberInput(target);
-            }
-        }
+    const isAmountField = (target) => target && target.matches &&
+        (target.matches('input[name$="-valor"]') || target.id === 'id_expected_amount') && !target.readOnly;
 
-        if (expectedAmountInput) {
-            expectedAmountInput.addEventListener('input', handleTotalsUpdate);
-            expectedAmountInput.addEventListener('blur', handleFormatting);
-        }
-
-        formsetContainer.addEventListener('input', handleTotalsUpdate);
-        formsetContainer.addEventListener('blur', handleFormatting, true);
-
-        // --- Máscara automática HH:MM:SS para campos de hora ---
-        function applyTimeMask(input) {
-            let digits = input.value.replace(/\D/g, '').slice(0, 6);
-            let out = digits;
-            if (digits.length > 4) {
-                out = digits.slice(0, 2) + ':' + digits.slice(2, 4) + ':' + digits.slice(4, 6);
-            } else if (digits.length > 2) {
-                out = digits.slice(0, 2) + ':' + digits.slice(2);
-            }
-            input.value = out;
-        }
-
-        function validateTimeInput(input) {
-            const parts = input.value.split(':');
-            if (parts.length !== 3) return;
-            const [hh, mm, ss] = parts.map(Number);
-            if (hh > 23 || mm > 59 || ss > 59) {
-                input.setCustomValidity('Hora inválida. Use formato HH:MM:SS (00:00:00 – 23:59:59).');
-                input.reportValidity();
-            } else {
-                input.setCustomValidity('');
-            }
-        }
-
-        formsetContainer.addEventListener('input', function(e) {
-            if (e.target.classList.contains('hora-input')) applyTimeMask(e.target);
-        });
-
-        formsetContainer.addEventListener('blur', function(e) {
-            if (e.target.classList.contains('hora-input')) validateTimeInput(e.target);
-        }, true);
-
-        const mainForm = document.getElementById('transaction-form');
-        if (mainForm) {
-            mainForm.addEventListener('submit', function() {
-                if (expectedAmountInput && expectedAmountInput.value) {
-                    expectedAmountInput.value = expectedAmountInput.value.replace(/,/g, '');
-                }
-                const valorInputs = formsetContainer.querySelectorAll('input[name$="-valor"]');
-                valorInputs.forEach(function(input) {
-                    if (input.value) {
-                        input.value = input.value.replace(/,/g, '');
-                    }
-                });
-            });
-        }
-
+    function onAmountInput(event) {
+        if (!isAmountField(event.target)) return;
+        // Signo negativo solo al inicio; dígitos, punto y coma.
+        const clean = event.target.value.replace(/(?!^)-/g, '').replace(/[^0-9.,-]/g, '');
+        if (clean !== event.target.value) event.target.value = clean;
         updateTotals();
+    }
+
+    function onAmountBlur(event) {
+        if (!isAmountField(event.target) || !event.target.value) return;
+        const number = parseFloat(event.target.value.trim().replace(/,/g, ''));
+        if (!isNaN(number)) event.target.value = number.toLocaleString('en-US', formatOptions);
+        updateTotals();
+    }
+
+    form.addEventListener('input', onAmountInput);
+    form.addEventListener('blur', onAmountBlur, true);
+    form.addEventListener('change', function (event) {
+        if (event.target.classList.contains('apply-credit-checkbox')) updateTotals();
     });
-    </script>
-
-    <script>
-    // Usamos $(document).ready() que es el equivalente de jQuery a DOMContentLoaded
-    $(document).ready(function() {
-        // --- LÓGICA DE AUTOCOMPLETADO PARA CLIENTE ---
-        const clientSearchInput = $("#id_client_search");
-        const clientIdHiddenInput = $("#id_cliente_id");
-
-        clientSearchInput.autocomplete({
-            source: "{% url 'client_search_ajax' %}",
-            minLength: 2,
-            select: function(event, ui) {
-                clientIdHiddenInput.val(ui.item.id).trigger('change'); // Asignar ID y disparar 'change'
-                clientSearchInput.val(ui.item.label);
-                updateBalance(ui.item.id); // Actualizar saldo al seleccionar
-                return false;
-            },
-            focus: function(event, ui) {
-                clientSearchInput.val(ui.item.label);
-                return false;
-            }
-        });
-
-        clientSearchInput.on('keyup input', function() {
-            if ($(this).val().trim() === '') {
-                clientIdHiddenInput.val('').trigger('change'); // Limpiar ID y disparar 'change'
-            }
-        });
-
-        // --- LÓGICA DE AUTOCOMPLETADO PARA VENDEDOR ---
-        const sellerSearchInput = $("#id_seller_search");
-        const sellerIdHiddenInput = $("#id_vendedor_id");
-
-        sellerSearchInput.autocomplete({
-            source: "{% url 'seller_search_ajax' %}",
-            minLength: 2,
-            select: function(event, ui) {
-                sellerIdHiddenInput.val(ui.item.id);
-                sellerSearchInput.val(ui.item.label);
-                return false;
-            },
-            focus: function(event, ui) {
-                sellerSearchInput.val(ui.item.label);
-                return false;
-            }
-        });
-
-        sellerSearchInput.on('keyup input', function() {
-            if ($(this).val().trim() === '') {
-                sellerIdHiddenInput.val('');
-            }
+    form.addEventListener('submit', function () {
+        form.querySelectorAll('input[name$="-valor"], #id_expected_amount').forEach(function (input) {
+            if (input.value) input.value = input.value.replace(/,/g, '');
         });
     });
-    </script>
 
+    // ── Añadir, quitar y desvincular recibos ──────────────────────────────
+    if (addReceiptBtn) {
+        addReceiptBtn.addEventListener('click', function () {
+            const index = parseInt(totalForms.value, 10);
+            container.insertAdjacentHTML('beforeend', emptyFormTemplate.replace(/__prefix__/g, index));
+            totalForms.value = index + 1;
+        });
+    }
+
+    function toggle(instance, cssClass, on, hideSelector, showSelector) {
+        instance.classList.toggle(cssClass, on);
+        const hide = instance.querySelector(hideSelector);
+        const show = instance.querySelector(showSelector);
+        if (hide) hide.style.display = on ? 'none' : '';
+        if (show) show.style.display = on ? '' : 'none';
+        updateTotals();
+    }
+
+    container.addEventListener('click', function (event) {
+        const button = event.target.closest('button');
+        if (!button) return;
+        const instance = button.closest('.receipt-form-instance');
+        if (!instance) return;
+
+        if (button.classList.contains('btn-delete-receipt')) {
+            const checkbox = instance.querySelector('[id$="-DELETE"]');
+            if (checkbox) checkbox.checked = true;
+            toggle(instance, 'marked-for-deletion', true, '.btn-delete-receipt', '.btn-undo-delete');
+        } else if (button.classList.contains('btn-undo-delete')) {
+            const checkbox = instance.querySelector('[id$="-DELETE"]');
+            if (checkbox) checkbox.checked = false;
+            toggle(instance, 'marked-for-deletion', false, '.btn-delete-receipt', '.btn-undo-delete');
+        } else if (button.classList.contains('btn-unlink-receipt')) {
+            window.pvConfirm({
+                title: 'Desvincular el recibo',
+                message: 'El recibo saldrá de esta transacción y quedará como abono del cliente. Se aplica al guardar los cambios.',
+                confirmLabel: 'Desvincular'
+            }).then(function (ok) {
+                if (!ok) return;
+                instance.querySelector('input[name="unlink_credit"]').checked = true;
+                toggle(instance, 'marked-for-unlinking', true, '.btn-unlink-receipt', '.btn-undo-unlink');
+            });
+        } else if (button.classList.contains('btn-undo-unlink')) {
+            instance.querySelector('input[name="unlink_credit"]').checked = false;
+            toggle(instance, 'marked-for-unlinking', false, '.btn-unlink-receipt', '.btn-undo-unlink');
+        }
+    });
+
+    // ── Fecha efectiva según el origen ────────────────────────────────────
+    container.addEventListener('change', function (event) {
+        if (!event.target.matches('select[name$="-origen_transaccion"], input[name$="-fecha"]')) return;
+        const match = event.target.name.match(/^(.+-\d+)-/);
+        if (!match) return;
+        const prefix = match[1];
+        const origen = document.getElementById('id_' + prefix + '-origen_transaccion');
+        const fecha = document.getElementById('id_' + prefix + '-fecha');
+        const message = document.getElementById('effective-date-message-' + prefix);
+        if (!origen || !fecha || !message) return;
+        if (!origen.value || !fecha.value) { message.textContent = ''; return; }
+        fetch("{% url 'get_effective_date' %}?origen_id=" + encodeURIComponent(origen.value) + '&start_date=' + encodeURIComponent(fecha.value))
+            .then(function (response) { return response.json(); })
+            .then(function (data) { message.textContent = data.message || ''; })
+            .catch(function () { message.textContent = ''; });
+    });
+
+    // ── Máscara HH:MM:SS ──────────────────────────────────────────────────
+    container.addEventListener('input', function (event) {
+        if (!event.target.classList.contains('hora-input')) return;
+        const digits = event.target.value.replace(/\D/g, '').slice(0, 6);
+        event.target.value = digits.length > 4 ? digits.slice(0, 2) + ':' + digits.slice(2, 4) + ':' + digits.slice(4)
+            : digits.length > 2 ? digits.slice(0, 2) + ':' + digits.slice(2) : digits;
+    });
+    container.addEventListener('blur', function (event) {
+        if (!event.target.classList.contains('hora-input')) return;
+        const parts = event.target.value.split(':');
+        if (parts.length !== 3) return;
+        const invalid = Number(parts[0]) > 23 || Number(parts[1]) > 59 || Number(parts[2]) > 59;
+        event.target.setCustomValidity(invalid ? 'Hora inválida. Use formato HH:MM:SS (00:00:00 – 23:59:59).' : '');
+        if (invalid) event.target.reportValidity();
+    }, true);
+
+    // ── Saldo a favor del cliente ─────────────────────────────────────────
+    const balanceContainer = document.getElementById('client-balance-container');
+    const balanceDisplay = document.getElementById('client-balance-display');
+
+    function updateBalance(clientId) {
+        if (!balanceContainer) return;
+        if (!clientId) { balanceContainer.style.display = 'none'; return; }
+        fetch("{% url 'get_client_balance' %}?client_id=" + encodeURIComponent(clientId))
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                const balance = data.balance !== undefined ? parseFloat(data.balance.replace(/,/g, '')) : 0;
+                balanceContainer.style.display = balance > 0 ? 'block' : 'none';
+                if (balance > 0) balanceDisplay.textContent = 'Saldo a favor: $' + data.balance;
+            })
+            .catch(function () { balanceContainer.style.display = 'none'; });
+    }
+
+    const clientIdField = form.querySelector('[name="cliente_id"]');
+    if (clientIdField) updateBalance(clientIdField.value);
+
+    // ── Autocompletado de cliente y vendedor (solo si el campo es editable) ─
+    function autocomplete(searchId, hiddenId, url, onSelect) {
+        const $search = window.jQuery ? window.jQuery('#' + searchId) : null;
+        if (!$search || !$search.length || !$search.autocomplete || $search.prop('readonly')) return;
+        const $hidden = window.jQuery('#' + hiddenId);
+        $search.autocomplete({
+            source: url,
+            minLength: 2,
+            select: function (event, ui) {
+                $hidden.val(ui.item.id);
+                $search.val(ui.item.label);
+                if (onSelect) onSelect(ui.item.id);
+                return false;
+            },
+            focus: function (event, ui) { $search.val(ui.item.label); return false; }
+        });
+        $search.on('keyup input', function () {
+            if ($search.val().trim() === '') { $hidden.val(''); if (onSelect) onSelect(''); }
+        });
+    }
+    autocomplete('id_client_search', 'id_cliente_id', "{% url 'client_search_ajax' %}", updateBalance);
+    autocomplete('id_seller_search', 'id_vendedor_id', "{% url 'seller_search_ajax' %}");
+
+    updateTotals();
+});
+</script>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/capture.js' %}"></script>
 {% endblock %}

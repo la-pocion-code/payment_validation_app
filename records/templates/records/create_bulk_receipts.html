@@ -1,266 +1,227 @@
-﻿{% extends "records/base.html" %}
+{% extends "records/base.html" %}
 {% load humanize %}
 {% load static %}
 {% load idempotency %}
 
 {% block title %}{{ title }}{% endblock %}
+{% block page_title %}Transacciones{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap">
-  <h1 class="mb-0">{{ title }}</h1>
-  <div class="d-flex align-items-end gap-2">
-    <label for="id_actual_amount" class="form-label">Total Recibos</label>
-    <input type="text" id="id_actual_amount" class="form-control" placeholder="Monto Actual" readonly disabled style="width:140px;">
-    <label for="id_difference_amount" class="form-label">Diferencia</label>
-    <input type="text" id="id_difference_amount" class="form-control" placeholder="Diferencia" readonly disabled style="width:140px;">
-  </div>
+<div class="pv-page-head">
+    <div>
+        <a href="{% url 'record_list' %}" class="pv-back">{% include 'records/components/icon.html' with name='back' %}Transacciones</a>
+        <h1>{{ title }}</h1>
+        <p>Registra la venta y los recibos con los que se pagó.</p>
+    </div>
 </div>
 
-    {% if messages %}
-        <div class="messages">
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
+{# Resumen fijo: lo actualiza updateTotals() con window.pvCaptureSummary (capture.js) #}
+<div class="pv-summary" data-pv-summary data-state="empty" aria-live="polite">
+    <div class="pv-summary__item"><span>Valor de la venta</span><strong data-pv-sum="expected">$ 0</strong></div>
+    <div class="pv-summary__item"><span>Total recibos</span><strong data-pv-sum="receipts">$ 0</strong></div>
+    <div class="pv-summary__item"><span data-pv-sum="difference-label">Diferencia</span><strong data-pv-sum="difference">$ 0</strong></div>
+    <span class="pv-badge pv-badge--muted pv-summary__state" data-pv-sum="state">Sin valores</span>
+</div>
 
-    <form method="post" class="filter-form" data-submit-once>
-        {% csrf_token %}
-        {% submit_token %}
-        {{ transaction_form.status }}
+<form method="post" data-submit-once data-pv-capture data-dup-url="{% url 'check_receipt_duplicate' %}">
+    {% csrf_token %}
+    {% submit_token %}
+    {{ transaction_form.status }}
 
-        <fieldset class="mb-4">
-            <legend>Datos de la Transacción</legend>
+    <section class="pv-card">
+        <div class="pv-card__head"><h2>Datos de la transacción</h2></div>
+        <div class="pv-card__body">
             {% if transaction_form.non_field_errors %}
-                <div class="alert alert-danger">
-                    {% for error in transaction_form.non_field_errors %}
-                        {{ error }}
-                    {% endfor %}
-                </div>
+            <div class="pv-callout pv-callout--bad" style="margin: 0 0 14px;" role="alert">
+                {% include 'records/components/icon.html' with name='alert' %}
+                <div>{% for error in transaction_form.non_field_errors %}{{ error }} {% endfor %}</div>
+            </div>
             {% endif %}
-            <div class="filter-fields">
-            
-                <div class="filter-field">
+            <div class="pv-form-grid">
+                <div class="pv-field">
                     {{ transaction_form.date.label_tag }}
                     {{ transaction_form.date }}
                     {{ transaction_form.date.errors }}
                 </div>
-                <div class="filter-field">
+                <div class="pv-field">
                     {{ transaction_form.client_search.label_tag }}
                     {{ transaction_form.client_search }}
-                    {{ transaction_form.cliente_id }} {# Campo oculto #}
-                    <div id="client-balance-container" class="mt-2" style="display: none;">
-                        <span id="client-balance-display" class="badge bg-success text-white p-2"></span>
+                    {{ transaction_form.cliente_id }}
+                    <div id="client-balance-container" style="display: none; margin-top: 6px;">
+                        <span id="client-balance-display" class="pv-badge pv-badge--info pv-badge--plain"></span>
                     </div>
                     {{ transaction_form.client_search.errors }}
                     {{ transaction_form.cliente_id.errors }}
                 </div>
-                <div class="filter-field">
+                <div class="pv-field">
                     {{ transaction_form.seller_search.label_tag }}
                     {{ transaction_form.seller_search }}
-                    {{ transaction_form.vendedor_id }} {# Campo oculto #}
+                    {{ transaction_form.vendedor_id }}
                     {{ transaction_form.seller_search.errors }}
                     {{ transaction_form.vendedor_id.errors }}
-                </div>  
-                <div class="filter-field">
+                </div>
+                <div class="pv-field">
                     {{ transaction_form.expected_amount.label_tag }}
                     {{ transaction_form.expected_amount }}
                     {{ transaction_form.expected_amount.errors }}
-                </div> 
-                <div class="filter-field">
+                </div>
+                <div class="pv-field">
                     {{ transaction_form.transaction_type.label_tag }}
                     {{ transaction_form.transaction_type }}
                     {{ transaction_form.transaction_type.errors }}
                 </div>
-                <div class="filter-field">
+                <div class="pv-field pv-field--wide">
                     {{ transaction_form.description.label_tag }}
                     {{ transaction_form.description }}
                     {{ transaction_form.description.errors }}
                 </div>
             </div>
-        </fieldset>
-        
-        <!-- Contenedor para Abonos Disponibles (se llenará con AJAX) -->
-        <div id="available-credits-container" class="mt-4">
-            <!-- El contenido de _available_credits_list.html se inyectará aquí -->
         </div>
+    </section>
 
-        <hr class="my-4">
+    {# Abonos disponibles del cliente (se llena por AJAX con _available_credits_list.html) #}
+    <div id="available-credits-container"></div>
 
-        <fieldset>
-            <legend>Recibos</legend>
-            {{ formset.management_form }}
-            
-            {% if formset.non_form_errors %}
-                <div class="alert alert-danger">
-                    {% for error in formset.non_form_errors %}
-                        {{ error }}
-                    {% endfor %}
+    <div class="pv-section-title"><h2>Recibos</h2></div>
+    {{ formset.management_form }}
+
+    {% if formset.non_form_errors %}
+    <div class="pv-callout pv-callout--bad" style="margin: 0 0 12px;" role="alert">
+        {% include 'records/components/icon.html' with name='alert' %}
+        <div>{% for error in formset.non_form_errors %}{{ error }} {% endfor %}</div>
+    </div>
+    {% endif %}
+
+    <div id="receipt-forms-container">
+        {% for form in formset %}
+        <div class="receipt-form-instance pv-receipt{% if form.errors %} has-errors{% endif %}">
+            <div class="pv-receipt__head">
+                <h5>Recibo #{{ forloop.counter }}</h5>
+                <div class="pv-receipt__tools receipt-form-delete-controls">
+                    {% if formset.can_delete %}
+                    <div style="display: none;">{{ form.DELETE }}</div>
+                    <button type="button" class="pv-btn pv-btn--danger pv-btn--sm remove-form-btn">Quitar</button>
+                    {% endif %}
                 </div>
+            </div>
+            {% if form.non_field_errors %}
+            <div class="pv-callout pv-callout--bad" style="margin: 0 0 12px;" role="alert">
+                {% include 'records/components/icon.html' with name='alert' %}
+                <div>{% for error in form.non_field_errors %}{{ error|safe }}{% endfor %}</div>
+            </div>
             {% endif %}
-            <div id="receipt-forms-container">
-                {% for form in formset %}
-                    <div class="receipt-form-instance mb-4 p-3 border rounded{% if form.errors %} has-errors{% endif %}">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5>Recibo #{{ forloop.counter }}</h5>
-                            <div class="receipt-form-delete-controls">
-                                {% if formset.can_delete %}
-                                    <div class="form-check" {% if not form.instance.pk %}style="display: none;"{% endif %}>
-                                        {{ form.DELETE }}
-                                    </div>
-                                    {% if form.instance.pk %}
-                                        <button type="button" class="btn btn-danger btn-sm remove-form-btn">Eliminar</button>
-                                    {% endif %}
-                                {% endif %}
-                            </div>
-                        </div>
-                        <hr>
-                        {% if form.non_field_errors %}
-                            <div class="alert alert-danger">
-                                {% for error in form.non_field_errors %}
-                                    {{ error|safe }}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                        <div class="filter-fields">
-                            <div class="filter-field">
-                                {{ form.origen_transaccion.label_tag }}
-                                {{ form.origen_transaccion }}
-                                <!-- Este es el placeholder para nuestro mensaje dinámico -->
-                                <span id="effective-date-message-{{ forloop.counter0 }}" style="color: #007bff; font-size: 0.9em; display: block;"></span>
-                                {{ form.origen_transaccion.errors }}
-                            </div>
-                            <div class="filter-field">
-                                {{ form.fecha.label_tag }}
-                                {{ form.fecha }}
-                                {{ form.fecha.errors }}
-                            </div>
-                            <div class="filter-field">
-                                {{ form.hora.label_tag }}
-                                {{ form.hora }}
-                                {{ form.hora.errors }}
-                            </div>
-                            <div class="filter-field">
-                                {{ form.comprobante.label_tag }}
-                                {{ form.comprobante }}
-                                {{ form.comprobante.errors }}
-                            </div>
-                            <div class="filter-field">
-                                {{ form.banco_llegada.label_tag }}
-                                {{ form.banco_llegada }}
-                                {{ form.banco_llegada.errors }}
-                            </div>
-                            <div class="filter-field">
-                                {{ form.valor.label_tag }}
-                                {{ form.valor }}
-                                {{ form.valor.errors }}
-                            </div>
-                            {% for field in form.hidden_fields %}
-                                {{ field }}
-                            {% endfor %}
-                            </div>
-                            {# Mostrar la advertencia y el checkbox de confirmación si hay un error en confirm_duplicate #}
-                            {% if form.confirm_duplicate.errors %}
-                                <div class="alert alert-warning mt-2" role="alert">
-                                    {{ form.confirm_duplicate.errors }}
-                                    <div class="form-check mt-2">
-                                        <input type="checkbox" class="form-check-input" id="{{ form.confirm_duplicate.id_for_label }}" name="{{ form.confirm_duplicate.html_name }}">
-                                        <label class="form-check-label" for="{{ form.confirm_duplicate.id_for_label }}">
-                                            {{ form.confirm_duplicate.label }}
-                                        </label>
-                                    </div>
-                                    {# Opcional: Mostrar detalles de los registros similares si los almacenaste en form.similar_records #}
-                                    {% if form.similar_records %}
-                                        <p>Registros similares encontrados:</p>
-                                        <ul>
-                                            {% for similar_record in form.similar_records %}
-                                                <li>{{ similar_record.fecha }} - {{ similar_record.hora }} - {{ similar_record.comprobante }} - {{ similar_record.banco_llegada.name }} - {{ similar_record.valor }}</li>
-                                            {% endfor %}
-                                        </ul>
-                                    {% endif %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-
-           <template id="empty-form-template">
-                <div class="receipt-form-instance mb-4 p-3 border rounded">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5>Recibo</h5>
-                        <div class="receipt-form-delete-controls">
-                            {% if formset.can_delete %}
-                                <div class="form-check" style="display: none;">
-                                    {{ formset.empty_form.DELETE }}
-                                </div>
-                                <button type="button" class="btn btn-danger btn-sm remove-form-btn">Eliminar</button>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <hr>
-                    <!-- INICIO DE LA MODIFICACIÓN -->
-                    <div class="filter-fields">
-                        <div class="filter-field">
-                            {{ formset.empty_form.origen_transaccion.label_tag }}
-                            {{ formset.empty_form.origen_transaccion }}
-                            <!-- El placeholder para nuevos formularios. '__prefix__' será reemplazado por JS -->
-                            <span id="effective-date-message-__prefix__" style="color: #007bff; font-size: 0.9em; display: block;"></span>
-                            {{ formset.empty_form.origen_transaccion.errors }}
-                        </div>
-                        <div class="filter-field">
-                            {{ formset.empty_form.fecha.label_tag }}
-                            {{ formset.empty_form.fecha }}
-                            {{ formset.empty_form.fecha.errors }}
-                        </div>
-                        <div class="filter-field">
-                            {{ formset.empty_form.hora.label_tag }}
-                            {{ formset.empty_form.hora }}
-                            {{ formset.empty_form.hora.errors }}
-                        </div>
-                        <div class="filter-field">
-                            {{ formset.empty_form.comprobante.label_tag }}
-                            {{ formset.empty_form.comprobante }}
-                            {{ formset.empty_form.comprobante.errors }}
-                        </div>
-                        <div class="filter-field">
-                            {{ formset.empty_form.banco_llegada.label_tag }}
-                            {{ formset.empty_form.banco_llegada }}
-                            {{ formset.empty_form.banco_llegada.errors }}
-                        </div>
-                        <div class="filter-field">
-                            {{ formset.empty_form.valor.label_tag }}
-                            {{ formset.empty_form.valor }}
-                            {{ formset.empty_form.valor.errors }}
-                        </div>
-
-                        {# Renderizamos campos ocultos del formulario vacío #}
-                        {% for field in formset.empty_form.hidden_fields %}
-                            {{ field }}
-                        {% endfor %}
-                    </div>
-                    <!-- FIN DE LA MODIFICACIÓN -->
+            <div class="pv-form-grid">
+                <div class="pv-field">
+                    {{ form.origen_transaccion.label_tag }}
+                    {{ form.origen_transaccion }}
+                    <span id="effective-date-message-{{ forloop.counter0 }}" class="pv-field__hint"></span>
+                    {{ form.origen_transaccion.errors }}
                 </div>
-            </template>
-
-
-            <div class="add-receipt-button-container">
-                <button type="button" id="add-form" class="btn btn-secondary btn-sm">Añadir otro recibo</button>
-                <small id="add-form-hint" class="text-danger d-block mt-1" style="display: none;"></small>
+                <div class="pv-field">
+                    {{ form.fecha.label_tag }}
+                    {{ form.fecha }}
+                    {{ form.fecha.errors }}
+                </div>
+                <div class="pv-field">
+                    {{ form.hora.label_tag }}
+                    {{ form.hora }}
+                    {{ form.hora.errors }}
+                </div>
+                <div class="pv-field">
+                    {{ form.comprobante.label_tag }}
+                    {{ form.comprobante }}
+                    {{ form.comprobante.errors }}
+                </div>
+                <div class="pv-field">
+                    {{ form.banco_llegada.label_tag }}
+                    {{ form.banco_llegada }}
+                    {{ form.banco_llegada.errors }}
+                </div>
+                <div class="pv-field">
+                    {{ form.valor.label_tag }}
+                    {{ form.valor }}
+                    {{ form.valor.errors }}
+                </div>
+                {% for field in form.hidden_fields %}{{ field }}{% endfor %}
             </div>
-        </fieldset>
-        
-        <hr class="my-4">
-
-        <div class="filter-actions">
-            <button type="submit" class="btn btn-primary">Guardar Transacción</button>
-            <a href="{% url 'record_list' %}" class="btn btn-secondary">Cancelar</a>
+            {# Posible duplicado: el digitador confirma que no lo es #}
+            {% if form.confirm_duplicate.errors %}
+            <div class="pv-callout" role="alert">
+                {% include 'records/components/icon.html' with name='alert' %}
+                <div>
+                    {{ form.confirm_duplicate.errors }}
+                    <label class="pv-check" style="margin-top: 8px;">
+                        <input type="checkbox" id="{{ form.confirm_duplicate.id_for_label }}" name="{{ form.confirm_duplicate.html_name }}">
+                        <span>{{ form.confirm_duplicate.label }}</span>
+                    </label>
+                    {% if form.similar_records %}
+                    <ul>
+                        {% for similar_record in form.similar_records %}
+                        <li>{{ similar_record.fecha|date:"d/m/Y" }} · {{ similar_record.hora|time:"H:i:s" }} · {{ similar_record.comprobante }} · {{ similar_record.banco_llegada.name }} · ${{ similar_record.valor|intcomma }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
-    </form>
-</div>
+        {% endfor %}
+    </div>
+
+    <template id="empty-form-template">
+        <div class="receipt-form-instance pv-receipt">
+            <div class="pv-receipt__head">
+                <h5>Recibo</h5>
+                <div class="pv-receipt__tools receipt-form-delete-controls">
+                    {% if formset.can_delete %}
+                    <div style="display: none;">{{ formset.empty_form.DELETE }}</div>
+                    <button type="button" class="pv-btn pv-btn--danger pv-btn--sm remove-form-btn">Quitar</button>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="pv-form-grid">
+                <div class="pv-field">
+                    {{ formset.empty_form.origen_transaccion.label_tag }}
+                    {{ formset.empty_form.origen_transaccion }}
+                    <span id="effective-date-message-__prefix__" class="pv-field__hint"></span>
+                </div>
+                <div class="pv-field">
+                    {{ formset.empty_form.fecha.label_tag }}
+                    {{ formset.empty_form.fecha }}
+                </div>
+                <div class="pv-field">
+                    {{ formset.empty_form.hora.label_tag }}
+                    {{ formset.empty_form.hora }}
+                </div>
+                <div class="pv-field">
+                    {{ formset.empty_form.comprobante.label_tag }}
+                    {{ formset.empty_form.comprobante }}
+                </div>
+                <div class="pv-field">
+                    {{ formset.empty_form.banco_llegada.label_tag }}
+                    {{ formset.empty_form.banco_llegada }}
+                </div>
+                <div class="pv-field">
+                    {{ formset.empty_form.valor.label_tag }}
+                    {{ formset.empty_form.valor }}
+                </div>
+                {% for field in formset.empty_form.hidden_fields %}{{ field }}{% endfor %}
+            </div>
+        </div>
+    </template>
+
+    <div class="pv-actionbar">
+        <button type="button" id="add-form" class="pv-btn pv-btn--ghost">
+            {% include 'records/components/icon.html' with name='plus' %}Añadir recibo <kbd class="pv-kbd">Alt</kbd><kbd class="pv-kbd">N</kbd>
+        </button>
+        <span id="add-form-hint" class="pv-muted" style="display: none; font-size: 13px;">Diligencia primero la fecha del pedido.</span>
+        <span class="pv-actionbar__hint"><kbd class="pv-kbd">Ctrl</kbd> + <kbd class="pv-kbd">Enter</kbd> para guardar</span>
+        <a href="{% url 'record_list' %}" class="pv-btn pv-btn--ghost">Cancelar</a>
+        <button type="submit" class="pv-btn pv-btn--primary">
+            {% include 'records/components/icon.html' with name='save' %}Guardar transacción
+        </button>
+    </div>
+</form>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -273,8 +234,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Selectores para Cálculo de Totales (Nuevos) ---
     const expectedAmountInput = document.getElementById('id_expected_amount');
-    const actualAmountOutput = document.getElementById('id_actual_amount');
-    const differenceOutput = document.getElementById('id_difference_amount');
 
     // --- Selectores para Saldo de Cliente (NUEVO) ---
     const clientSelect = document.getElementById('id_cliente_id'); // Ahora escuchamos el campo oculto
@@ -287,9 +246,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    if (!expectedAmountInput || !actualAmountOutput || !differenceOutput) {
-        console.error('Elementos para el cálculo de totales no encontrados. Verifica los IDs.');
-    }
 
     const emptyFormTemplate = emptyFormTemplateEl.innerHTML;
 
@@ -298,7 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ==========================================================
 
     function updateTotals() {
-        if (!expectedAmountInput || !actualAmountOutput || !differenceOutput) return;
+        if (!expectedAmountInput) return;
 
         // Convertir número en formato estándar (1,234.56) a float
         const parseCustomFloat = (str) => {
@@ -335,22 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
         totalReceipts += totalAppliedCredits; // Sumamos los abonos al total de recibos
 
         const expected = parseCustomFloat(expectedAmountInput.value);
-        const difference = expected - totalReceipts;
-
-        const numberFormatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-        actualAmountOutput.value = totalReceipts.toLocaleString('en-US', numberFormatOptions);
-        differenceOutput.value = difference.toLocaleString('en-US', numberFormatOptions);
-
-        // COLORES SEGÚN DIFERENCIA
-        differenceOutput.classList.remove('is-valid', 'is-invalid', 'bg-success', 'bg-danger', 'bg-warning', 'text-white', 'text-dark');
-
-        if (difference < -0.001) { // Excedente
-            differenceOutput.classList.add('bg-warning', 'text-dark');
-        } else if (difference > 0.001) { // Faltante
-            differenceOutput.classList.add('bg-danger', 'text-white');
-        } else { // Correcto
-            differenceOutput.classList.add('bg-success', 'text-white');
-        }
+        window.pvCaptureSummary(expected, totalReceipts);
     }
 
     // ==========================================================
@@ -415,7 +356,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function addForm() {
         if (!isOrderDateFilled()) {
-            alert('Debe diligenciar la Fecha de Pedido antes de añadir recibos.');
+            window.pvToast('Diligencia la fecha del pedido antes de añadir recibos.', 'warning');
             if (transactionDateField) transactionDateField.focus();
             return;
         }
@@ -442,10 +383,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function handleContainerClick(e) {
-        if (e.target && e.target.classList.contains('remove-form-btn')) {
+        if (e.target && e.target.closest('.remove-form-btn')) {
             const visibleForms = container.querySelectorAll('.receipt-form-instance:not([style*="display: none"])').length;
             if (visibleForms < 1) {
-                alert('Debe haber al menos un recibo.');
+                window.pvToast('Debe haber al menos un recibo.', 'warning');
                 return;
             }
             const formInstance = e.target.closest('.receipt-form-instance');
@@ -484,11 +425,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- CÓDIGO PARA CALCULAR FECHA EFECTIVA (Existente) ---
     container.addEventListener('change', (e) => {
         if (e.target.matches('select[name$="-origen_transaccion"]') || e.target.matches('input[name$="-fecha"]')) {
-            const formPrefixMatch = e.target.name.match(/form-(\d+)-/);
+            // El prefijo del formset es «receipts» (antes se buscaba «form» y el aviso nunca aparecía).
+            const formPrefixMatch = e.target.name.match(/^(.+)-(\d+)-/);
             if (!formPrefixMatch) return;
-            const formNum = formPrefixMatch[1];
-            const origenSelect = document.querySelector(`#id_form-${formNum}-origen_transaccion`);
-            const fechaInput = document.querySelector(`#id_form-${formNum}-fecha`);
+            const formPrefix = formPrefixMatch[1];
+            const formNum = formPrefixMatch[2];
+            const origenSelect = document.querySelector(`#id_${formPrefix}-${formNum}-origen_transaccion`);
+            const fechaInput = document.querySelector(`#id_${formPrefix}-${formNum}-fecha`);
             const messageSpan = document.querySelector(`#effective-date-message-${formNum}`);
             if (!origenSelect || !fechaInput || !messageSpan) return;
             const origenId = origenSelect.value;
@@ -500,7 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(data => {
                         messageSpan.textContent = data.message || '';
                     })
-      _             .catch(error => {
+                    .catch(error => {
                         console.error('Error al calcular fecha efectiva:', error);
                         messageSpan.textContent = '';
                     });
@@ -722,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
     container.addEventListener('blur', handleFormatting, true);
 
     // --- LIMPIEZA ANTES DE ENVIAR EL FORMULARIO ---
-    const mainForm = document.querySelector('form.filter-form');
+    const mainForm = document.querySelector('form[data-pv-capture]');
     if (mainForm) {
         mainForm.addEventListener('submit', function() {
             // Desformatear el campo 'expected_amount'
@@ -796,15 +739,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selectedOptionText === 'FLETE') {
             // Si es FLETE, cambiamos el valor del campo de estado a 'No Facturable'
             statusInput.value = 'No Facturable';
-            console.log("Estado cambiado a: No Facturable");
         } else {
             // Si se selecciona cualquier otra cosa, lo volvemos a poner en 'Pendiente'
             // Esto es importante si el usuario se equivoca y cambia de opinión
             statusInput.value = 'Pendiente';
-            console.log("Estado cambiado a: Pendiente");
         }
     });
 });
 </script>
+{% endblock %}
 
+{% block extra_js %}
+<script src="{% static 'js/capture.js' %}"></script>
 {% endblock %}

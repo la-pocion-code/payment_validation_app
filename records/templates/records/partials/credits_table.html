@@ -1,0 +1,130 @@
+{% load humanize %}
+{% comment %}
+Resultados de la lista de recibos. Se pinta dentro de credit_list.html y es también lo
+que la vista devuelve sola a las peticiones HTMX (filtros y paginación).
+El cambio de estado y la casilla «Revisado» los maneja app.js (data-pv-status / data-pv-review).
+{% endcomment %}
+<div id="pv-results" class="pv-results pv-card">
+    <div class="pv-table-foot" style="border-top: 0; border-bottom: 1px solid var(--pv-line);">
+        <span>
+            <strong style="color: var(--pv-ink-strong);">{{ page_obj.paginator.count|intcomma }}</strong>
+            {% if page_obj.paginator.count == 1 %}recibo{% else %}recibos{% endif %}
+            · suman <strong style="color: var(--pv-ink-strong);">${{ total_valor|floatformat:"0"|intcomma }}</strong>
+            {% if is_paginated %}· página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}{% endif %}
+        </span>
+        {% if can_review %}
+        <a href="{% url 'export_credits_csv' %}?{{ querystring }}" class="pv-btn pv-btn--ghost pv-btn--sm"
+           data-pv-download title="Descarga los recibos filtrados">
+            {% include 'records/components/icon.html' with name='download' %}<span data-pv-label>Exportar</span>
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="pv-table-wrap">
+        <table class="pv-table">
+            <thead>
+                <tr>
+                    <th style="width: 44px;" title="Revisado">Rev.</th>
+                    <th>Recibo</th>
+                    <th>Cliente</th>
+                    <th>Transacción</th>
+                    <th>Banco</th>
+                    <th class="pv-num">Valor</th>
+                    <th>Estado del pago</th>
+                    <th>Nota</th>
+                    <th>Subido</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for credit in credits %}
+                {% with client=credit.display_client %}
+                <tr class="pv-row {% if can_open_detail %}pv-clickable{% endif %} {% if credit.revisado %}is-reviewed{% endif %}"
+                    {% if can_open_detail %}data-href="{% url 'credit_detail' credit.pk %}"{% endif %}>
+                    <td data-pv-stop>
+                        <input type="checkbox" class="pv-checkbox" data-pv-review
+                               data-url="{% url 'toggle_credit_revisado' credit.pk %}"
+                               aria-label="Marcar el recibo {{ credit.comprobante }} como revisado"
+                               {% if credit.revisado %}checked{% endif %}
+                               {% if not can_review %}disabled{% endif %}>
+                    </td>
+                    <td>
+                        <div class="pv-cell-main pv-mono">
+                            {% if can_open_detail %}<a class="pv-link" href="{% url 'credit_detail' credit.pk %}">{{ credit.comprobante }}</a>{% else %}{{ credit.comprobante }}{% endif %}
+                        </div>
+                        <div class="pv-cell-sub">{{ credit.fecha|date:"d/m/Y" }} · {{ credit.hora|time:"H:i:s" }}</div>
+                    </td>
+                    <td>
+                        {% if client.name %}
+                        <div class="pv-cell-main">{{ client.name }}</div>
+                        <div class="pv-cell-sub">{{ client.dni }}</div>
+                        {% else %}<span class="pv-muted">Sin cliente</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if credit.transaction %}
+                        <div class="pv-mono">{{ credit.transaction.unique_transaction_id }}</div>
+                        <div class="pv-cell-sub">
+                            {{ credit.transaction.transaction_type.name }} ·
+                            <span class="pv-dot {% if credit.transaction.status == 'Facturado' %}pv-dot--ok{% elif credit.transaction.status == 'Pendiente' %}pv-dot--warn{% elif credit.transaction.status == 'Anulado' %}pv-dot--bad{% endif %}">{{ credit.transaction.status }}</span>
+                        </div>
+                        {% else %}<span class="pv-badge pv-badge--info pv-badge--plain">Abono sin transacción</span>{% endif %}
+                    </td>
+                    <td>
+                        {{ credit.banco_llegada.name }}
+                        {% if credit.payment_document %}<div class="pv-cell-sub">Doc. {{ credit.payment_document }}</div>{% endif %}
+                    </td>
+                    <td class="pv-num">${{ credit.valor|intcomma }}</td>
+                    <td data-pv-stop>
+                        {% if can_validate %}
+                        <select class="pv-status" data-pv-status data-state="{{ credit.payment_status }}"
+                                data-url="{% url 'update_credit_status' credit.pk %}"
+                                data-label="recibo {{ credit.comprobante }}{% if client.name %} de {{ client.name }}{% endif %} por ${{ credit.valor|intcomma }}"
+                                aria-label="Estado del recibo {{ credit.comprobante }}">
+                            {% for key, label in credit.APROVED_CHOICES %}
+                            <option value="{{ key }}" {% if credit.payment_status == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <span class="pv-badge {% if credit.payment_status == 'Aprobado' %}pv-badge--ok{% elif credit.payment_status == 'Rechazado' %}pv-badge--bad{% else %}pv-badge--warn{% endif %}">{{ credit.get_payment_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="pv-note" {% if credit.note %}title="{{ credit.note }}"{% endif %}>
+                        {% if credit.note %}{{ credit.note|truncatechars:28 }}{% else %}<span class="pv-muted">—</span>{% endif %}
+                    </td>
+                    <td>
+                        {{ credit.uploaded_by.username|default:"Sistema" }}
+                        <div class="pv-cell-sub">{{ credit.creado|date:"d/m/Y H:i" }}</div>
+                    </td>
+                </tr>
+                {% endwith %}
+                {% empty %}
+                <tr>
+                    <td colspan="9">
+                        <div class="pv-empty">
+                            <strong>No hay recibos con estos filtros</strong>
+                            Prueba con otro estado o limpia los filtros.
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <div class="pv-table-foot">
+        <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count|intcomma }}</span>
+        <div class="pv-pager">
+            {% if page_obj.has_previous %}
+            <a class="pv-btn pv-btn--ghost pv-btn--sm" href="?{{ querystring }}&amp;page={{ page_obj.previous_page_number }}"
+               hx-get="{% url 'credit_list' %}?{{ querystring }}&amp;page={{ page_obj.previous_page_number }}"
+               hx-target="#pv-results" hx-swap="outerHTML show:top" hx-push-url="true">Anterior</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a class="pv-btn pv-btn--ghost pv-btn--sm" href="?{{ querystring }}&amp;page={{ page_obj.next_page_number }}"
+               hx-get="{% url 'credit_list' %}?{{ querystring }}&amp;page={{ page_obj.next_page_number }}"
+               hx-target="#pv-results" hx-swap="outerHTML show:top" hx-push-url="true">Siguiente</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>

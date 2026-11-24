@@ -1,8 +1,10 @@
 import logging
 import csv
+import re
+from django import forms
 from django.views.decorators.http import require_POST
 from io import TextIOWrapper
-from django.db.models import Q, Count, F, Prefetch
+from django.db.models import Q, Count, F, Prefetch, Sum
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -34,7 +36,7 @@ from .idempotency import (
 from .services import CSVProcessor 
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm 
-from .utils import calculate_effective_date, stream_csv
+from .utils import calculate_effective_date, stream_csv, user_group_names
 from .forms import BulkClientUploadForm
 from django.utils import timezone
 from django.db.models import Q
@@ -318,6 +320,12 @@ class CreditCreateView(LoginRequiredMixin, CreateView):
     def form_invalid(self, form):
         # Registrar en la bandeja el duplicado detectado en clean(). Solo se llega
         # aquí si la llave de idempotencia no vio un reenvío.
+        # Segundo chequeo de reenvío. Con varios workers, dos POST del mismo formulario
+        # pueden cruzarse: este pasó la fase 1 antes de que el otro confirmara, y su
+        # clean() ya vio el recibo recién guardado. No es un duplicado: es el mismo envío.
+        prior = already_submitted(self.request)
+        if prior is not None:
+            return duplicate_response(self.request, prior.token, noun='abono')
         flush_duplicate_attempts(self.request, [form])
 
         # Si el formulario es inválido específicamente por una advertencia de duplicado similar...
@@ -364,11 +372,34 @@ class CreditListView(LoginRequiredMixin, FilterView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Listado de Recibos'
-        # FilterView añade el objeto 'filter' al contexto automáticamente.
-        # Podemos usarlo para obtener la URL con los filtros actuales para la paginación.
-        context['filter_params'] = self.request.GET.urlencode()
+        context['title'] = 'Recibos'
+        params = self.request.GET.copy()
+        params.pop('page', None)
+        context['querystring'] = params.urlencode()
+        context['filter_params'] = context['querystring']
+
+        user = self.request.user
+        groups = user_group_names(user)
+        context['can_validate'] = user.is_superuser or 'Validador' in groups
+        context['can_review'] = user.is_superuser or bool(groups & {'Validador', 'Contabilidad'})
+        context['can_open_detail'] = user.is_superuser or bool(
+            groups & {'Admin', 'Digitador', 'Validador', 'Contabilidad'})
+        context['has_advanced_filters'] = any(
+            self.request.GET.get(name) for name in self.ADVANCED_FILTERS)
+        # Suma de lo filtrado (todas las páginas): una consulta, no depende de las filas.
+        filtered = context['filter'].qs.order_by().values('pk')
+        context['total_valor'] = FinancialRecord.objects.filter(pk__in=filtered).aggregate(
+            total=Sum('valor'))['total'] or Decimal('0')
         return context
+
+    ADVANCED_FILTERS = ('transaction_id', 'transaccion_presencia', 'valor', 'uploaded_by',
+                        'vendedor', 'facturador')
+
+    def get_template_names(self):
+        # Las peticiones HTMX (filtros en vivo, paginación) reciben solo la tabla.
+        if self.request.headers.get('HX-Request'):
+            return ['records/partials/credits_table.html']
+        return [self.template_name]
     
 
 @method_decorator(group_required('Admin', 'Digitador',  'Validador', 'Contabilidad'), name='dispatch')
@@ -1493,12 +1524,24 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
             return redirect(self.get_success_url())
 
         else:
+            # Segundo chequeo de reenvío. Con varios workers, dos POST del mismo formulario
+            # pueden cruzarse: este pasó la fase 1 antes de que el otro confirmara, y su
+            # clean() ya vio el recibo recién guardado. No es un duplicado: es el mismo envío.
+            prior = already_submitted(self.request)
+            if prior is not None:
+                return duplicate_response(self.request, prior.token, noun='cambio')
             flush_duplicate_attempts(self.request, formset.forms)
             messages.error(self.request, 'Por favor, corrija los errores en el formulario.')
             return self.render_to_response(self.get_context_data(form=form, formset=formset))
 
     
     def form_invalid(self, form):
+        # Segundo chequeo de reenvío. Con varios workers, dos POST del mismo formulario
+        # pueden cruzarse: este pasó la fase 1 antes de que el otro confirmara, y su
+        # clean() ya vio el recibo recién guardado. No es un duplicado: es el mismo envío.
+        prior = already_submitted(self.request)
+        if prior is not None:
+            return duplicate_response(self.request, prior.token, noun='cambio')
         messages.error(self.request, 'Por favor, corrija los errores en el formulario de la transacción.')
         context = self.get_context_data(form=form)
         formset = context['formset']
@@ -2104,6 +2147,12 @@ def create_bulk_receipts(request):
             # Registrar en la bandeja los duplicados detectados. Solo se llega aquí
             # si la llave de idempotencia no vio un reenvío, así que un reintento por
             # red inestable ya no genera falsos positivos.
+            # Segundo chequeo de reenvío. Con varios workers, dos POST del mismo formulario
+            # pueden cruzarse: este pasó la fase 1 antes de que el otro confirmara, y su
+            # clean() ya vio el recibo recién guardado. No es un duplicado: es el mismo envío.
+            prior = already_submitted(request)
+            if prior is not None:
+                return duplicate_response(request, prior.token, noun='registro')
             flush_duplicate_attempts(request, formset.forms)
             messages.error(request, 'Por favor, corrija los errores en el formulario.')
             logger.debug(f"DEBUG: Transaction Form Errors: {transaction_form.errors}")
@@ -2635,3 +2684,118 @@ def update_credit_client(request, pk):
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error inesperado: {str(e)}'}, status=500)
 
+
+
+# ───────────────────────── Buscador global y aviso previo de duplicados ─────────────────────────
+
+_SEARCH_ROLES = {'Admin', 'Digitador', 'Facturador', 'Validador', 'Contabilidad'}
+
+
+def _search_amount(text):
+    """
+    Interpreta lo escrito en el buscador como un valor en pesos ('150000', '150.000',
+    '1.055.635,50'). Devuelve None si no lo parece; se exige al menos 1.000 para no
+    confundir un fragmento de comprobante con un valor.
+    """
+    cleaned = text.replace('$', '').replace(' ', '')
+    if re.fullmatch(r'\d{1,3}(\.\d{3})+(,\d{1,2})?', cleaned):
+        cleaned = cleaned.replace('.', '').replace(',', '.')
+    elif re.fullmatch(r'\d+([.,]\d{1,2})?', cleaned):
+        cleaned = cleaned.replace(',', '.')
+    else:
+        return None
+    try:
+        amount = Decimal(cleaned)
+    except InvalidOperation:
+        return None
+    return amount if amount >= 1000 else None
+
+
+@login_required
+def global_search(request):
+    """
+    Buscador de la barra superior: transacciones (ID, factura o cliente), recibos
+    (comprobante o valor exacto) y clientes. Devuelve el parcial que HTMX pinta bajo
+    la caja de búsqueda; pocas filas por grupo para que responda rápido.
+    """
+    query = ' '.join(request.GET.get('q', '').split())
+    user = request.user
+    groups = user_group_names(user)
+    context = {'q': query, 'searched': False}
+
+    if (user.is_superuser or groups & _SEARCH_ROLES) and len(query) >= 2:
+        context['searched'] = True
+        context['transactions'] = list(
+            Transaction.objects.filter(
+                Q(unique_transaction_id__icontains=query) | Q(numero_factura__icontains=query)
+                | Q(cliente__name__icontains=query) | Q(cliente__dni__icontains=query)
+            ).select_related('cliente').order_by('-id')[:6])
+
+        receipt_match = Q(comprobante__icontains=query)
+        amount = _search_amount(query)
+        if amount is not None:
+            receipt_match |= Q(valor=amount)
+        context['receipts'] = list(
+            FinancialRecord.objects.filter(receipt_match)
+            .select_related('cliente', 'transaction__cliente', 'banco_llegada')
+            .order_by('-id')[:6])
+
+        context['clients'] = list(
+            Client.objects.filter(Q(name__icontains=query) | Q(dni__icontains=query))
+            .order_by('name')[:5])
+
+        context['can_edit_transaction'] = user.is_superuser or bool(
+            groups & {'Digitador', 'Facturador', 'Validador'})
+        context['can_open_receipt'] = user.is_superuser or bool(
+            groups & {'Admin', 'Digitador', 'Validador', 'Contabilidad'})
+        context['empty'] = not (context['transactions'] or context['receipts'] or context['clients'])
+
+    return render(request, 'records/partials/search_results.html', context)
+
+
+class _DuplicateProbeForm(forms.Form):
+    fecha = forms.DateField()
+    hora = forms.TimeField()
+    banco_llegada = forms.ModelChoiceField(queryset=Bank.objects.all())
+    valor = forms.DecimalField()
+    comprobante = forms.CharField(required=False)
+
+
+@login_required
+@group_required('Admin', 'Digitador')
+def check_receipt_duplicate(request):
+    """
+    Aviso previo mientras se digita un recibo: dice si ya existe uno igual o parecido.
+
+    Solo lectura y sin efectos: no registra DuplicateRecordAttempt. La regla que decide
+    al guardar sigue siendo FinancialRecordForm.clean(); si esa cambia, cambiar esta.
+    """
+    probe = _DuplicateProbeForm(request.GET)
+    if not probe.is_valid():
+        return JsonResponse({'status': 'incomplete'})
+    data = probe.cleaned_data
+    comprobante = data['comprobante'].strip()
+    same = FinancialRecord.objects.filter(
+        fecha=data['fecha'], hora=data['hora'],
+        banco_llegada=data['banco_llegada'], valor=data['valor'])
+
+    if comprobante:
+        exact = same.filter(comprobante=comprobante).select_related('transaction').first()
+        if exact:
+            where = (f'en la transacción {exact.transaction.unique_transaction_id}'
+                     if exact.transaction else 'como abono sin transacción')
+            return JsonResponse({
+                'status': 'exact',
+                'message': f'Este recibo ya está registrado {where}. No se podrá guardar de nuevo.',
+            })
+        same = same.exclude(comprobante=comprobante)
+
+    similar = list(same.values_list('comprobante', flat=True)[:3])
+    if similar:
+        return JsonResponse({
+            'status': 'similar',
+            'message': 'Ya hay un recibo con la misma fecha, hora, banco y valor '
+                       f'(comprobante {", ".join(similar)}). Al guardar se te pedirá confirmar '
+                       'que no es un duplicado.',
+        })
+    return JsonResponse({'status': 'none'})

@@ -1,23 +1,26 @@
 {% load humanize %}
 {% if credits %}
-<fieldset class="mt-4">
-    <legend>Abonos Disponibles para Aplicar</legend>
-    <p>Este cliente tiene un saldo a favor. Selecciona los abonos que deseas aplicar a esta transacción.</p>
-    
-    <div class="available-credits-list p-3 border rounded bg-light">
+<section class="pv-card" style="margin-top: 16px;">
+    <div class="pv-card__head">
+        <h2>Abonos disponibles del cliente</h2>
+        <span class="pv-card__hint">Marca los que quieras aplicar a esta venta</span>
+    </div>
+    <div class="pv-card__body available-credits-list">
         {% for credit in credits %}
-        <div class="form-check">
-            <input class="form-check-input apply-credit-checkbox" 
-                   type="checkbox" 
-                   name="apply_credit" 
+        <label class="pv-credit-option" for="apply_credit_{{ credit.pk }}">
+            <input class="pv-checkbox apply-credit-checkbox"
+                   type="checkbox"
+                   name="apply_credit"
                    value="{{ credit.pk }}"
                    data-value="{{ credit.valor|stringformat:'f' }}"
                    id="apply_credit_{{ credit.pk }}">
-            <label class="form-check-label" for="apply_credit_{{ credit.pk }}">
-                Aplicar Abono: {{ credit.fecha|date:'Y-m-d' }} - {{ credit.comprobante }} - Estado: {{ credit.payment_status }} -  Valor: ${{ credit.valor|floatformat:2|intcomma }}
-            </label>
-        </div>
+            <span>
+                <span class="pv-mono">{{ credit.comprobante }}</span>
+                <span class="pv-muted">· {{ credit.fecha|date:'d/m/Y' }} · {{ credit.payment_status }}</span>
+            </span>
+            <strong>${{ credit.valor|floatformat:2|intcomma }}</strong>
+        </label>
         {% endfor %}
     </div>
-</fieldset>
+</section>
 {% endif %}

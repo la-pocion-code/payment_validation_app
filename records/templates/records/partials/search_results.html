@@ -1,0 +1,66 @@
+{% load humanize %}
+{% comment %}
+Resultados del buscador de la barra superior (vista global_search). HTMX lo pinta dentro
+de #pv-search-results; app.js maneja teclado (flechas, Enter, Esc).
+{% endcomment %}
+{% if not searched %}
+<div class="pv-search__hint">Escribe al menos 2 letras o números: ID de transacción, comprobante, factura, cliente o valor.</div>
+{% elif empty %}
+<div class="pv-search__hint"><strong>Sin resultados para «{{ q }}»</strong>Revisa el número o prueba con menos caracteres.</div>
+{% else %}
+{% if transactions %}
+<div class="pv-search__group">Transacciones</div>
+{% for t in transactions %}
+<a class="pv-search__item" role="option"
+   href="{% if can_edit_transaction %}{% url 'transaction_update' t.pk %}{% else %}{% url 'transaction_detail' t.pk %}{% endif %}">
+    {% include 'records/components/icon.html' with name='transactions' %}
+    <span class="pv-search__text">
+        <span class="pv-search__main pv-mono">{{ t.unique_transaction_id }}</span>
+        <span class="pv-search__sub">{{ t.cliente.name|default:"Sin cliente" }} · {{ t.date|date:"d/m/Y" }}{% if t.numero_factura %} · Factura {{ t.numero_factura }}{% endif %}</span>
+    </span>
+    <span class="pv-search__meta">
+        ${{ t.expected_amount|floatformat:"0"|intcomma }}
+        <span class="pv-badge {% if t.status == 'Facturado' %}pv-badge--ok{% elif t.status == 'Anulado' %}pv-badge--bad{% elif t.status == 'Pendiente' %}pv-badge--warn{% else %}pv-badge--muted{% endif %}">{{ t.status }}</span>
+    </span>
+</a>
+{% endfor %}
+{% endif %}
+
+{% if receipts %}
+<div class="pv-search__group">Recibos</div>
+{% for r in receipts %}
+{% with c=r.display_client %}
+<a class="pv-search__item" role="option"
+   href="{% if can_open_receipt %}{% url 'credit_detail' r.pk %}{% else %}{% url 'credit_list' %}?comprobante={{ r.comprobante|urlencode }}{% endif %}">
+    {% include 'records/components/icon.html' with name='receipt' %}
+    <span class="pv-search__text">
+        <span class="pv-search__main pv-mono">{{ r.comprobante }}</span>
+        <span class="pv-search__sub">{% if c.name %}{{ c.name }} · {% endif %}{{ r.fecha|date:"d/m/Y" }} · {{ r.banco_llegada.name }}</span>
+    </span>
+    <span class="pv-search__meta">
+        ${{ r.valor|floatformat:"0"|intcomma }}
+        <span class="pv-badge {% if r.payment_status == 'Aprobado' %}pv-badge--ok{% elif r.payment_status == 'Rechazado' %}pv-badge--bad{% else %}pv-badge--warn{% endif %}">{{ r.payment_status }}</span>
+    </span>
+</a>
+{% endwith %}
+{% endfor %}
+{% endif %}
+
+{% if clients %}
+<div class="pv-search__group">Clientes</div>
+{% for c in clients %}
+<a class="pv-search__item" role="option" href="{% url 'record_list' %}?cliente={{ c.dni|urlencode }}&amp;status=">
+    {% include 'records/components/icon.html' with name='users' %}
+    <span class="pv-search__text">
+        <span class="pv-search__main">{{ c.name }}</span>
+        <span class="pv-search__sub">{{ c.dni }} · ver sus transacciones</span>
+    </span>
+</a>
+{% endfor %}
+{% endif %}
+
+<div class="pv-search__foot">
+    <a class="pv-search__item pv-search__item--more" role="option" href="{% url 'record_list' %}?cliente={{ q|urlencode }}&amp;status=">Transacciones del cliente «{{ q }}»</a>
+    <a class="pv-search__item pv-search__item--more" role="option" href="{% url 'credit_list' %}?comprobante={{ q|urlencode }}">Recibos con comprobante «{{ q }}»</a>
+</div>
+{% endif %}

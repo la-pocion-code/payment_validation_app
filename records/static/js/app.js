@@ -107,8 +107,10 @@
     window.addEventListener('pageshow', function () { pending = 0; if (progress) progress.classList.remove('is-active'); });
 
     // Peticiones HTMX.
-    document.body.addEventListener('htmx:beforeRequest', progressStart);
-    document.body.addEventListener('htmx:afterRequest', progressDone);
+    // (El buscador tiene su propio indicador: no mueve la barra con cada tecla.)
+    function isSearch(event) { return event.target && event.target.id === 'pv-search-input'; }
+    document.body.addEventListener('htmx:beforeRequest', function (event) { if (!isSearch(event)) progressStart(); });
+    document.body.addEventListener('htmx:afterRequest', function (event) { if (!isSearch(event)) progressDone(); });
     document.body.addEventListener('htmx:responseError', function (event) {
         var status = event.detail.xhr ? event.detail.xhr.status : 0;
         window.pvToast(
@@ -206,6 +208,179 @@
         field.dispatchEvent(new Event('change', { bubbles: true }));
     });
     document.addEventListener('change', function () { syncChips(); });
+
+    // ── Confirmación ───────────────────────────────────────────────────────
+    /**
+     * Diálogo de confirmación propio (reemplaza a confirm()). Devuelve una promesa
+     * que resuelve a true/false. opts: { title, message, confirmLabel, danger }
+     */
+    window.pvConfirm = function (opts) {
+        opts = opts || {};
+        if (typeof HTMLDialogElement === 'undefined') {
+            return Promise.resolve(window.confirm((opts.title ? opts.title + '\n\n' : '') + (opts.message || '')));
+        }
+        return new Promise(function (resolve) {
+            var dialog = document.createElement('dialog');
+            dialog.className = 'pv-dialog';
+            var title = document.createElement('h3');
+            title.textContent = opts.title || '¿Confirmas?';
+            var text = document.createElement('p');
+            text.textContent = opts.message || '';
+            var actions = document.createElement('div');
+            actions.className = 'pv-dialog__actions';
+            var cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'pv-btn pv-btn--ghost';
+            cancel.textContent = 'Cancelar';
+            var accept = document.createElement('button');
+            accept.type = 'button';
+            accept.className = 'pv-btn ' + (opts.danger ? 'pv-btn--solid-danger' : 'pv-btn--primary');
+            accept.textContent = opts.confirmLabel || 'Confirmar';
+            actions.appendChild(cancel);
+            actions.appendChild(accept);
+            dialog.appendChild(title);
+            dialog.appendChild(text);
+            dialog.appendChild(actions);
+            document.body.appendChild(dialog);
+            var answer = false;
+            cancel.addEventListener('click', function () { dialog.close(); });
+            accept.addEventListener('click', function () { answer = true; dialog.close(); });
+            dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
+            dialog.addEventListener('close', function () { dialog.remove(); resolve(answer); });
+            dialog.showModal();
+            accept.focus();
+        });
+    };
+
+    function csrfToken() {
+        var field = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        return field ? field.value : '';
+    }
+
+    function postForm(url, fields) {
+        var body = new FormData();
+        Object.keys(fields).forEach(function (key) { body.append(key, fields[key]); });
+        return fetch(url, {
+            method: 'POST', credentials: 'same-origin', body: body,
+            headers: { 'X-CSRFToken': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || (response.status === 403
+                        ? 'No tienes permiso para esa acción.'
+                        : 'No se pudo guardar (error ' + response.status + ').'));
+                }
+                return data;
+            });
+        }, function () {
+            throw new Error('Sin conexión con el servidor. El cambio no se guardó.');
+        });
+    }
+
+    // ── Recibos: estado del pago y «Revisado» sin salir de la lista ────────
+    document.addEventListener('focusin', function (event) {
+        var select = event.target.closest && event.target.closest('[data-pv-status]');
+        if (select) select.dataset.previous = select.value;
+    });
+    document.addEventListener('change', function (event) {
+        var select = event.target.closest('[data-pv-status]');
+        if (select) {
+            var previous = select.dataset.previous || select.getAttribute('data-state');
+            var next = select.value;
+            var label = select.options[select.selectedIndex].text;
+            window.pvConfirm({
+                title: 'Cambiar el estado a «' + label + '»',
+                message: 'Se actualizará el ' + (select.getAttribute('data-label') || 'recibo') + '.',
+                confirmLabel: 'Sí, cambiar',
+                danger: next === 'Rechazado'
+            }).then(function (ok) {
+                if (!ok) { select.value = previous; return; }
+                select.disabled = true;
+                postForm(select.getAttribute('data-url'), { payment_status: next })
+                    .then(function () {
+                        select.setAttribute('data-state', next);
+                        select.dataset.previous = next;
+                        window.pvToast('Estado cambiado a ' + label + '.', 'success');
+                    })
+                    .catch(function (error) {
+                        select.value = previous;
+                        window.pvToast(error.message, 'error');
+                    })
+                    .then(function () { select.disabled = false; });
+            });
+            return;
+        }
+        var review = event.target.closest('[data-pv-review]');
+        if (review) {
+            var checked = review.checked;
+            var row = review.closest('tr');
+            if (row) row.classList.toggle('is-reviewed', checked);
+            postForm(review.getAttribute('data-url'), { revisado: checked ? 'true' : 'false' })
+                .catch(function (error) {
+                    review.checked = !checked;
+                    if (row) row.classList.toggle('is-reviewed', !checked);
+                    window.pvToast(error.message, 'error');
+                });
+        }
+    });
+
+    // ── Buscador global ────────────────────────────────────────────────────
+    var searchForm = document.getElementById('pv-search');
+    if (searchForm) {
+        var searchInput = document.getElementById('pv-search-input');
+        var searchPanel = document.getElementById('pv-search-results');
+        var searchItems = function () { return Array.prototype.slice.call(searchPanel.querySelectorAll('a.pv-search__item')); };
+        var openSearch = function () {
+            if (searchPanel.innerHTML.trim() === '') return;
+            searchPanel.hidden = false;
+            searchInput.setAttribute('aria-expanded', 'true');
+        };
+        var closeSearch = function () {
+            searchPanel.hidden = true;
+            searchInput.setAttribute('aria-expanded', 'false');
+        };
+        var moveSearch = function (step) {
+            var items = searchItems();
+            if (!items.length) return;
+            var index = items.findIndex(function (item) { return item.classList.contains('is-active'); });
+            if (index >= 0) items[index].classList.remove('is-active');
+            index = (index + step + items.length) % items.length;
+            if (index < 0) index = 0;
+            items[index].classList.add('is-active');
+            items[index].scrollIntoView({ block: 'nearest' });
+        };
+
+        searchPanel.addEventListener('htmx:afterSwap', function () {
+            var first = searchItems()[0];
+            if (first) first.classList.add('is-active');
+            if (document.activeElement === searchInput) openSearch();
+        });
+        searchInput.addEventListener('focus', openSearch);
+        searchInput.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowDown') { event.preventDefault(); openSearch(); moveSearch(1); }
+            else if (event.key === 'ArrowUp') { event.preventDefault(); moveSearch(-1); }
+            else if (event.key === 'Escape') { closeSearch(); searchInput.blur(); }
+        });
+        searchForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            var active = searchPanel.querySelector('a.pv-search__item.is-active') || searchItems()[0];
+            if (active && !searchPanel.hidden) { progressStart(); window.location = active.href; }
+        });
+        document.addEventListener('click', function (event) {
+            if (!searchForm.contains(event.target)) closeSearch();
+        });
+        // Atajos: «/» o Ctrl+K llevan al buscador desde cualquier parte.
+        document.addEventListener('keydown', function (event) {
+            var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable;
+            var slash = event.key === '/' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey;
+            var ctrlK = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k';
+            if (slash || ctrlK) {
+                event.preventDefault();
+                searchInput.focus();
+                searchInput.select();
+            }
+        });
+    }
 
     // ── Sesión por vencer ──────────────────────────────────────────────────
     // La sesión dura 1 hora desde la última petición (SESSION_SAVE_EVERY_REQUEST).
