@@ -3,8 +3,8 @@
   "private": true,
   "description": "Solo para compilar el CSS (Tailwind). El resultado se versiona en records/static/css/app.css: Railway no necesita Node.",
   "scripts": {
-    "build:css": "tailwindcss -i frontend/app.css -o records/static/css/app.css --minify",
-    "watch:css": "tailwindcss -i frontend/app.css -o records/static/css/app.css --watch"
+    "build:css": "tailwindcss -i app.css -o ../records/static/css/app.css --minify",
+    "watch:css": "tailwindcss -i app.css -o ../records/static/css/app.css --watch"
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.1.11",

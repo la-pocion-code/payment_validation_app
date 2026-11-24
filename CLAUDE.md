@@ -167,7 +167,7 @@ Transacciones (filtros en vivo, chips de estado, filas desplegables, paginación
 (`create_bulk_receipts.html`, `transaction_form.html`) y catálogos; mientras tanto ya se
 ven con la marca gracias al «puente» de estilos.
 
-- **CSS**: fuente en `frontend/app.css`; `npm run build:css` genera
+- **CSS**: fuente en `frontend/app.css`; `cd frontend && npm install && npm run build:css` genera
   `records/static/css/app.css`, que **se versiona** (Railway no usa Node). Tras cambiar
   clases `tw:` en una plantilla hay que recompilar y commitear el CSS.
 - Tailwind va **con prefijo `tw:` y sin preflight** porque Bootstrap y jQuery UI siguen

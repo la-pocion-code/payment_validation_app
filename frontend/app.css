@@ -1,7 +1,7 @@
 /*
  * Hoja de estilos de la aplicación (Tailwind v4).
  *
- *   npm run build:css   →  records/static/css/app.css   (se versiona; Railway no usa Node)
+ *   cd frontend && npm run build:css   →  records/static/css/app.css   (se versiona; Railway no usa Node)
  *
  * Tres partes:
  *   1. Tokens de marca de La Poción y utilidades de Tailwind con prefijo `tw:`.
