@@ -814,3 +814,50 @@ class LoginConGoogleTests(TestCase):
 
         self.assertRedirects(respuesta, reverse('login'))
         self.assertContains(respuesta, 'El inicio de sesión expiró')
+
+
+class ListaDeTransaccionesTests(DatosBase):
+    """Filtros en vivo: la misma vista sirve la página completa y, a HTMX, solo la tabla."""
+
+    def setUp(self):
+        super().setUp()
+        for estado, comprobante in (('Pendiente', 'L-1'), ('Facturado', 'L-2')):
+            transaccion = Transaction.objects.create(
+                date=timezone.now().date(), cliente=self.cliente, vendedor=self.vendedor,
+                transaction_type=self.tipo, expected_amount=Decimal('50000.00'),
+                status=estado, created_by=self.user,
+            )
+            FinancialRecord.objects.create(
+                fecha=timezone.now().date(), hora='09:00:00', comprobante=comprobante,
+                banco_llegada=self.banco, origen_transaccion=self.origen,
+                valor=Decimal('50000.00'), transaction=transaccion, uploaded_by=self.user,
+            )
+
+    def test_la_pagina_completa_trae_el_marco_y_la_tabla(self):
+        html = self.client.get(reverse('record_list')).content.decode()
+        self.assertIn('<html', html)
+        self.assertIn('id="pv-results"', html)
+        self.assertIn('pv-sidebar', html)
+
+    def test_htmx_recibe_solo_la_tabla(self):
+        respuesta = self.client.get(reverse('record_list'), HTTP_HX_REQUEST='true')
+        html = respuesta.content.decode()
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertNotIn('<html', html)
+        self.assertTrue(html.lstrip().startswith('<div id="pv-results"'))
+
+    def test_sin_filtro_muestra_pendientes_y_el_desplegable_lo_refleja(self):
+        respuesta = self.client.get(reverse('record_list'))
+        estados = {t.status for t in respuesta.context['object_list']}
+        self.assertEqual(estados, {'Pendiente'})
+        self.assertEqual(respuesta.context['filter'].form['status'].value(), 'Pendiente')
+
+    def test_estado_vacio_muestra_todas(self):
+        respuesta = self.client.get(reverse('record_list'), {'status': ''})
+        self.assertEqual(len(respuesta.context['object_list']), 2)
+
+    def test_el_reporte_exporta_lo_mismo_que_se_ve(self):
+        self.user.is_superuser = True
+        self.user.save()
+        html = self.client.get(reverse('record_list')).content.decode()
+        self.assertIn(reverse('export_transactions_csv') + '?status=Pendiente', html)

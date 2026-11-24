@@ -1,365 +1,105 @@
 {% extends 'records/base.html' %}
-{% load humanize %}
 {% load static %}
 
-{% block title %}Registros Financieros{% endblock %}
+{% block title %}Transacciones{% endblock %}
+{% block page_title %}Transacciones{% endblock %}
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Transacciones</h2>
-    <h3>{{ title }}</h3>
+<div class="pv-page-head">
+    <div>
+        <h1>Transacciones</h1>
+        <p>Ventas registradas, sus recibos y lo que falta por validar o facturar.</p>
+    </div>
     {% if user.is_superuser or "Digitador" in user_groups %}
-    <a href="{% url 'record_create' %}" class="btn btn-success">
-        <i class="fas fa-plus"></i> Nuevo Registro
+    <a href="{% url 'record_create' %}" class="pv-btn pv-btn--primary">
+        {% include 'records/components/icon.html' with name='plus' %}Nuevo registro
     </a>
     {% endif %}
 </div>
 
+{# Los resultados se actualizan solos al cambiar un filtro (HTMX); sin JavaScript, el botón Filtrar sigue funcionando. #}
+<form method="get" action="{% url 'record_list' %}" class="pv-card pv-filters" data-pv-filters
+      hx-get="{% url 'record_list' %}" hx-target="#pv-results" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="submit, change, input delay:450ms" hx-sync="this:replace">
 
-{# Filtros#}
-<div class="filter-container">
-    <form method="get" action="" class="filter-form">
-        {% csrf_token %}
-        <div class="filter-fields">
-            <div class="filter-field">
-                {{ filter.form.id.label_tag }}
-                {{ filter.form.unique_transaction_id }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.date__gte.label_tag }}
-                {{ filter.form.date__gte }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.date__lte.label_tag }}
-                {{ filter.form.date__lte }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.cliente.label_tag }}
-                {{ filter.form.cliente }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.vendedor.label_tag }}
-                {{ filter.form.vendedor }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.facturador.label_tag }}
-                {{ filter.form.facturador }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.numero_factura.label_tag }}
-                {{ filter.form.numero_factura }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.valor.label_tag }}
-                {{ filter.form.valor }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.status.label_tag }}
-                {{ filter.form.status }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.transaction_type.label_tag }}
-                {{ filter.form.transaction_type }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.receipt_status.label_tag }}
-                {{ filter.form.receipt_status }}
-            </div>
-            <div class="filter-field">
-                {{ filter.form.origen_transaccion.label_tag }}
-                {{ filter.form.origen_transaccion }}
-            </div>
+    <div class="pv-chips" role="group" aria-label="Estado de la transacción">
+        <button type="button" class="pv-chip" data-pv-set="status" data-value="Pendiente">Pendientes</button>
+        <button type="button" class="pv-chip" data-pv-set="status" data-value="Facturado">Facturadas</button>
+        <button type="button" class="pv-chip" data-pv-set="status" data-value="No Facturable">No facturables</button>
+        <button type="button" class="pv-chip" data-pv-set="status" data-value="Anulado">Anuladas</button>
+        <button type="button" class="pv-chip" data-pv-set="status" data-value="">Todas</button>
+    </div>
 
-
+    <div class="pv-filters__grid">
+        <div class="pv-field">
+            <label for="{{ filter.form.id.id_for_label }}">ID de transacción</label>
+            {{ filter.form.id }}
         </div>
-        <div class="filter-actions">
-            <button type="submit" class="btn btn-primary">Filtrar</button>
-            <a href="{% url 'record_list' %}" class="btn-limpiar" title="Limpiar Filtros">
-                <img src="{% static 'images/icon_clear_filters.svg' %}" alt="Limpiar Filtros" width="20" height="20">
-            </a>
-            {% if user.is_superuser %}
-                <a href="{% url 'export_transactions_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn-limpiar" title="Exportar a CSV">
-                    <img src="{% static 'images/icon_export_csv.svg' %}" alt="Exportar a CSV" width="20" height="20">
-                </a>
-            {% endif %}
+        <div class="pv-field">
+            <label for="{{ filter.form.cliente.id_for_label }}">Cliente (nombre o documento)</label>
+            {{ filter.form.cliente }}
         </div>
-
-    </form>
-</div>
-{# Transacciones #}
-<table border="1" class="transaction-table">
-    <thead>
-        <tr>
-            <th></th> {# For expand/collapse button #}
-            <th>ID</th>
-            <th>Fecha</th>
-            <th>Tipo Transacción</th>
-            <th>Cliente</th>
-            <th>Vendedor</th>
-            <th>Facturador</th>
-            <th># de factura</th>
-            <th>Valor Recibos</th>
-            <th>Valor Venta</th>
-            <th>Diferencia</th>
-            <th>Status</th>
-            <th>Acciones</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for transaction in object_list %}
-        <tr class="transaction-row" data-transaction-id="{{ transaction.pk }}">
-            <td><button class="toggle-receipts-btn" data-transaction-id="{{ transaction.pk }}">+</button></td>
-            <td>{{ transaction.unique_transaction_id }}</td>
-            <td>{{ transaction.date|date:"d/m/Y" }}</td>
-            <td>{{ transaction.transaction_type.name }}</td>
-            <td>{{ transaction.cliente }}</td>
-            <td>{{ transaction.vendedor }}</td>
-            <td>{{ transaction.facturador }}</td>
-            <td>{{ transaction.numero_factura }}</td>
-            <td>${{ transaction.receipts_total_calc|intcomma }}</td>
-            <td>${{ transaction.expected_amount|intcomma }}</td>
-            
-            <!-- Celda Diferencia con color condicional -->
-            <td>
-                <span class="status-badge-generic
-                    {% if transaction.difference_calc >= -1000 and transaction.difference_calc <= 1000 %}
-                        bg-verde
-                    {% elif transaction.difference_calc > 1000 %}
-                        bg-rojo
-                    {% else %}
-                        bg-amarillo
-                    {% endif %}">
-                    {{ transaction.difference_calc|intcomma }}
-                </span>
-            </td>
-
-            <!-- Celda Status con color condicional -->
-            <td>
-                <span class="status-badge-generic
-                    {% if transaction.status == 'Facturado' %}bg-verde
-                    {% elif transaction.status == 'Anulado' %}bg-rojo
-                    {% elif transaction.status == 'Pendiente' %}bg-amarillo
-                    {% endif %}">{{ transaction.status }}</span>
-            </td>
-            <td>
-                {# EDITAR #}
-               {% if user.is_superuser or 'Facturador' in user_groups or 'Validador' in user_groups   or 'Digitador' in user_groups%}
-                <a href="{% url 'transaction_update' transaction.pk %}" class="btn-accion-icono" title="Editar">
-                    <img src="{% static 'images/pen-solid-full.svg' %}" alt="Editar" width="20" height="20">
-                </a> |
-                {% endif %}
-                {# HISTORIAL #}
-                <a href="{% url 'transaction_detail' transaction.pk %}" class="btn-accion-icono" title="Historial">
-                    <img src="{% static 'images/book-solid-full.svg' %}" alt="Historial" width="20" height="20"></a>
-                {% comment %} {% if user.is_superuser %}
-                    | {# ELIMINAR #}
-                    {# Mantén 'btn-delete-transaction' para que tu JS lo capture y añade 'btn-accion-icono' para los estilos #}
-                    <button type="button" class="btn-delete-transaction btn-accion-icono" title="Eliminar" data-url="{% url 'transaction_delete' transaction.pk %}">
-                        <img src="{% static 'images/trash-solid-full.svg' %}" alt="Eliminar" width="20" height="20">
-                    </button>
-                {% endif %} {% endcomment %}
-
-
-            </td>
-        </tr>
-        <tr class="receipts-row" id="receipts-{{ transaction.pk }}" style="display: none;">
-            <td colspan="10">
-                <div class="receipts-container">
-                    <h4>Recibos para Transacción #{{ transaction.unique_transaction_id }}</h4>
-                    {% if transaction.receipts.all %}
-                    <table class="receipts-table" border="1">
-                        <thead>
-                            <tr>
-                                <th>Origenes de Transacción</th>
-                                <th>Fecha</th>
-                                <th>Hora</th>
-                                <th>Comprobante</th>
-                                <th>Banco Llegada</th>
-                                <th>Valor</th>
-                                <th>Estado Pago</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for receipt in transaction.receipts.all %}
-                            <tr>
-                                <td>{{ receipt.origen_transaccion.name }}
-                                    {% if receipt.effective_date_message %}
-                                        <small style="color: #007bff; display: block;">{{ receipt.effective_date_message }}</small>
-                                    {% endif %}
-                                </td>
-                                <td>{{ receipt.fecha|date:"d/m/Y" }}</td>
-                                <td>{{ receipt.hora|time:"H:i:s" }}</td>
-                                <td>{{ receipt.comprobante }}</td>
-                                <td>{{ receipt.banco_llegada.name }}</td>
-                                <td>${{ receipt.valor|intcomma }}</td>
-                                <td>
-                                    <span class="status-badge 
-                                        {% if receipt.payment_status == 'Aprobado' %}status-aprobado
-                                        {% elif receipt.payment_status == 'Rechazado' %}status-rechazado
-                                        {% elif receipt.payment_status == 'Pendiente' %}status-pendiente
-                                        {% endif %}">
-                                        {{ receipt.get_payment_status_display }}
-                                    </span>
-                                </td>  
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% else %}
-                    <p>No hay recibos asociados a esta transacción.</p>
-                    {% endif %}
-                </div>
-            </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="10">No hay transacciones para mostrar.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-{# Modal de Confirmación #}
-<div id="delete-confirm-modal" class="custom-modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close-button">&times;</span>
-        <h4>Confirmar Eliminación</h4>
-        <p>¿Estás seguro de que quieres eliminar esta transacción?</p>
-        <div class="modal-buttons">
-            <button type="button" id="modal-confirm-delete" class="btn btn-danger">Confirmar</button>
-            <button type="button" id="modal-cancel-delete" class="btn btn-secondary">Cancelar</button>
+        <div class="pv-field">
+            <label for="{{ filter.form.date__gte.id_for_label }}">Fecha desde</label>
+            {{ filter.form.date__gte }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.date__lte.id_for_label }}">Fecha hasta</label>
+            {{ filter.form.date__lte }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.status.id_for_label }}">Estado</label>
+            {{ filter.form.status }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.receipt_status.id_for_label }}">Estado de los recibos</label>
+            {{ filter.form.receipt_status }}
         </div>
     </div>
-</div>
 
-{% if is_paginated %}
-  <div>
-    {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&amp;{{ key }}={{ value }}{% endif %}{% endfor %}">Anterior</a>
-    {% endif %}
-    <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-    {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&amp;{{ key }}={{ value }}{% endif %}{% endfor %}">Siguiente</a>
-    {% endif %}
-  </div>
-{% endif %}
+    <div class="pv-filters__more" id="pv-more-filters" {% if not has_advanced_filters %}hidden{% endif %}>
+        <div class="pv-filters__grid" style="margin-top: 12px;">
+            <div class="pv-field">
+                <label for="{{ filter.form.vendedor.id_for_label }}">Vendedor</label>
+                {{ filter.form.vendedor }}
+            </div>
+            <div class="pv-field">
+                <label for="{{ filter.form.facturador.id_for_label }}">Facturador</label>
+                {{ filter.form.facturador }}
+            </div>
+            <div class="pv-field">
+                <label for="{{ filter.form.numero_factura.id_for_label }}"># de factura</label>
+                {{ filter.form.numero_factura }}
+            </div>
+            <div class="pv-field">
+                <label for="{{ filter.form.valor.id_for_label }}">Valor de la venta</label>
+                {{ filter.form.valor }}
+            </div>
+            <div class="pv-field">
+                <label for="{{ filter.form.transaction_type.id_for_label }}">Tipo de transacción</label>
+                {{ filter.form.transaction_type }}
+            </div>
+            <div class="pv-field">
+                <label for="{{ filter.form.origen_transaccion.id_for_label }}">Origen del pago</label>
+                {{ filter.form.origen_transaccion }}
+            </div>
+        </div>
+    </div>
 
-<style>
-    .receipts-container { padding: 10px; background-color: #f9f9f9; border-top: 1px solid #eee; margin-top: 5px; }
-    .receipts-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .receipts-table th, .receipts-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    .receipts-table th { background-color: #e0e0e0; }
-    .toggle-receipts-btn { cursor: pointer; background: none; border: 1px solid #ccc; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
-    .btn-link-style { background: none; border: none; color: #FF0082; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; }
-    .btn-link-style:hover { color: #EA5455; }
+    <div class="pv-filters__actions">
+        <button type="submit" class="pv-btn pv-btn--primary pv-btn--sm">
+            {% include 'records/components/icon.html' with name='filter' %}Filtrar
+        </button>
+        <button type="button" class="pv-btn pv-btn--ghost pv-btn--sm" data-pv-more-filters
+                aria-controls="pv-more-filters" aria-expanded="{% if has_advanced_filters %}true{% else %}false{% endif %}">
+            <span data-pv-label>{% if has_advanced_filters %}Menos filtros{% else %}Más filtros{% endif %}</span>
+        </button>
+        <a href="{% url 'record_list' %}" class="pv-btn pv-btn--ghost pv-btn--sm">Limpiar</a>
+        <span class="pv-filters__hint" data-pv-filter-count></span>
+    </div>
+</form>
 
-    /* Modal Styles */
-    .modal { position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; outline: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-    .modal-content { position: relative; background-color: #fefefe; padding: 20px; border: 1px solid #888; width: auto; max-width: 500px; border-radius: 8px; text-align: center; }
-    .modal-buttons { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
-    .close-button { position: absolute; top: 10px; right: 15px; font-size: 28px; font-weight: bold; cursor: pointer; }
-
-    /* --- INICIO: Estilos para badges de estado y diferencia --- */
-    .status-badge-generic {
-        display: inline-block;
-        padding: 0.35em 0.65em;
-        font-size: .85em; /* Ligeramente más grande para la tabla principal */
-        font-weight: 700;
-        line-height: 1;
-        text-align: center;
-        white-space: nowrap;
-        vertical-align: baseline;
-        border-radius: 0.375rem; /* Bordes redondeados */
-    }
-    .bg-verde {
-        background-color: #28a745; color: white;
-    }
-    .bg-rojo {
-        background-color: #dc3545; color: white;
-    }
-    .bg-amarillo {
-        background-color: #ffc107; color: black;
-    }
-    /* --- FIN: Estilos para badges --- */
-</style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // --- Toggle Receipts --- //
-    document.querySelectorAll('.toggle-receipts-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const transactionId = this.dataset.transactionId;
-            const receiptsRow = document.getElementById(`receipts-${transactionId}`);
-            if (receiptsRow.style.display === 'none') {
-                receiptsRow.style.display = 'table-row';
-                this.textContent = '-';
-            } else {
-                receiptsRow.style.display = 'none';
-                this.textContent = '+';
-            }
-        });
-    });
-
-    // --- Delete Transaction Modal --- //
-    const modal = document.getElementById('delete-confirm-modal');
-    const closeModal = modal.querySelector('.close-button');
-    const confirmDeleteBtn = document.getElementById('modal-confirm-delete');
-    const cancelDeleteBtn = document.getElementById('modal-cancel-delete');
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    let urlToDelete = null;
-    let rowToDelete = null;
-
-    document.querySelectorAll('.btn-delete-transaction').forEach(button => {
-        button.addEventListener('click', function() {
-            urlToDelete = this.dataset.url;
-            rowToDelete = this.closest('tr');
-            modal.style.display = 'flex';
-        });
-    });
-
-    closeModal.addEventListener('click', () => modal.style.display = 'none');
-    cancelDeleteBtn.addEventListener('click', () => modal.style.display = 'none');
-    window.addEventListener('click', (event) => {
-        if (event.target == modal) {
-            modal.style.display = 'none';
-        }
-    });
-
-    confirmDeleteBtn.addEventListener('click', function() {
-        if (!urlToDelete) return;
-
-        fetch(urlToDelete, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest' // To help Django view identify AJAX
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Remove the main row and the receipts row
-                const receiptsRow = document.getElementById(`receipts-${rowToDelete.dataset.transactionId}`);
-                rowToDelete.remove();
-                if (receiptsRow) {
-                    receiptsRow.remove();
-                }
-                // Optionally, show a success message (e.g., using a toast library)
-                alert(data.message || 'Transacción eliminada exitosamente.');
-            } else {
-                alert(data.message || 'Ocurrió un error al eliminar la transacción.');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Ocurrió un error de red.');
-        })
-        .finally(() => {
-            modal.style.display = 'none';
-            urlToDelete = null;
-            rowToDelete = null;
-        });
-    });
-});
-</script>
+{% include 'records/partials/transactions_table.html' %}
 
 {% endblock %}

@@ -158,6 +158,31 @@ Swagger en `/api/v1/docs/`.
   sobre recibos hay que pasar `modificado=timezone.now()`.
 - `odoo_id` en `Client` y `Transaction` para la referencia cruzada con Odoo.
 
+## Interfaz (Tailwind + HTMX sobre plantillas Django)
+
+Migración por pantallas; no hay SPA. Estado: **hechos** el marco (`base.html`: barra lateral
+plegable, avisos tipo toast, barra de progreso, aviso de sesión por vencer) y la lista de
+Transacciones (filtros en vivo, chips de estado, filas desplegables, paginación parcial).
+**Pendientes** de rediseño propio: lista/detalle de Recibos, formularios de captura
+(`create_bulk_receipts.html`, `transaction_form.html`) y catálogos; mientras tanto ya se
+ven con la marca gracias al «puente» de estilos.
+
+- **CSS**: fuente en `frontend/app.css`; `npm run build:css` genera
+  `records/static/css/app.css`, que **se versiona** (Railway no usa Node). Tras cambiar
+  clases `tw:` en una plantilla hay que recompilar y commitear el CSS.
+- Tailwind va **con prefijo `tw:` y sin preflight** porque Bootstrap y jQuery UI siguen
+  cargados para las pantallas sin migrar (comparten nombres como `mb-3` o `collapse`).
+  Cuando se migre la última, se retiran Bootstrap, jQuery UI y `custom.css`.
+- **Componentes** `pv-*` (shell, tarjeta, tabla, badge, chips, toast) definidos en
+  `frontend/app.css`; iconos en `records/templates/records/components/icon.html`.
+- **Colores**: los de la identidad de marca — rosa `#E50076` principal, púrpura `#5C0F8B`
+  secundario, teal `#1DCAD3` para datos, texto `#54565A`.
+- **HTMX**: la vista devuelve el parcial (`records/templates/records/partials/`) cuando
+  llega la cabecera `HX-Request` (ver `TransactionListView.get_template_names`). El JS común
+  está en `records/static/js/app.js` (`window.pvToast(mensaje, tipo)` para avisos).
+- La suite usa el storage con manifiesto: tras añadir un estático nuevo, correr
+  `python manage.py collectstatic --noinput` antes de `manage.py test`.
+
 ## Convenciones
 
 - Español en UI y mensajes de commit.

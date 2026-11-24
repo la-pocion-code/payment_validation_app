@@ -214,3 +214,5 @@ __marimo__/
 # graphify knowledge-graph output
 graphify-out/
 .graphify_python
+# Frontend (solo build del CSS)
+node_modules/

@@ -1,0 +1,171 @@
+{% load humanize %}
+{% comment %}
+Resultados de la lista de transacciones. Se pinta dentro de records_list.html y es
+también lo que la vista devuelve sola a las peticiones HTMX (filtros y paginación).
+{% endcomment %}
+<div id="pv-results" class="pv-results pv-card">
+    <div class="pv-table-foot" style="border-top: 0; border-bottom: 1px solid var(--pv-line);">
+        <span>
+            <strong style="color: var(--pv-ink-strong);">{{ page_obj.paginator.count|intcomma }}</strong>
+            {% if page_obj.paginator.count == 1 %}transacción{% else %}transacciones{% endif %}
+            {% if is_paginated %}· página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}{% endif %}
+        </span>
+        {% if user.is_superuser %}
+        <a href="{% url 'export_transactions_csv' %}?{{ querystring }}" class="pv-btn pv-btn--ghost pv-btn--sm"
+           data-pv-download title="Descarga un CSV con las transacciones filtradas y sus recibos">
+            {% include 'records/components/icon.html' with name='download' %}<span data-pv-label>Exportar CSV</span>
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="pv-table-wrap">
+        <table class="pv-table">
+            <thead>
+                <tr>
+                    <th style="width: 44px;"><span class="tw:sr-only">Ver recibos</span></th>
+                    <th>Transacción</th>
+                    <th>Cliente</th>
+                    <th>Vendedor</th>
+                    <th>Factura</th>
+                    <th class="pv-num">Recibos</th>
+                    <th class="pv-num">Venta</th>
+                    <th class="pv-num">Diferencia</th>
+                    <th>Estado</th>
+                    <th><span class="tw:sr-only">Acciones</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transaction in object_list %}
+                {% with receipts=transaction.receipts.all %}
+                <tr class="pv-row" data-transaction-id="{{ transaction.pk }}">
+                    <td>
+                        <button type="button" class="pv-expand" data-pv-expand aria-expanded="false"
+                                aria-controls="receipts-{{ transaction.pk }}"
+                                title="Ver los {{ receipts|length }} recibos">
+                            {% include 'records/components/icon.html' with name='chevron' %}
+                        </button>
+                    </td>
+                    <td>
+                        <div class="pv-cell-main pv-mono">{{ transaction.unique_transaction_id }}</div>
+                        <div class="pv-cell-sub">{{ transaction.date|date:"d/m/Y" }} · {{ transaction.transaction_type.name }}</div>
+                    </td>
+                    <td>
+                        {% if transaction.cliente %}
+                        <div class="pv-cell-main">{{ transaction.cliente.name }}</div>
+                        <div class="pv-cell-sub">{{ transaction.cliente.dni }}</div>
+                        {% else %}<span class="pv-muted">Sin cliente</span>{% endif %}
+                    </td>
+                    <td>{{ transaction.vendedor }}</td>
+                    <td>
+                        {% if transaction.numero_factura %}
+                        <div class="pv-cell-main">{{ transaction.numero_factura }}</div>
+                        <div class="pv-cell-sub">{{ transaction.facturador|default:"" }}</div>
+                        {% else %}<span class="pv-muted">—</span>{% endif %}
+                    </td>
+                    <td class="pv-num">
+                        ${{ transaction.receipts_total_calc|intcomma }}
+                        <div class="pv-cell-sub">{{ receipts|length }} recibo{{ receipts|length|pluralize }}</div>
+                    </td>
+                    <td class="pv-num">${{ transaction.expected_amount|intcomma }}</td>
+                    <td class="pv-num">
+                        {% if transaction.difference_calc >= -1000 and transaction.difference_calc <= 1000 %}
+                        <span class="pv-badge pv-badge--ok" title="El valor recibido cuadra con la venta">{{ transaction.difference_calc|intcomma }}</span>
+                        {% elif transaction.difference_calc > 1000 %}
+                        <span class="pv-badge pv-badge--bad" title="Falta dinero por recibir">{{ transaction.difference_calc|intcomma }}</span>
+                        {% else %}
+                        <span class="pv-badge pv-badge--warn" title="Se recibió más que el valor de la venta">{{ transaction.difference_calc|intcomma }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="pv-badge {% if transaction.status == 'Facturado' %}pv-badge--ok{% elif transaction.status == 'Anulado' %}pv-badge--bad{% elif transaction.status == 'Pendiente' %}pv-badge--warn{% else %}pv-badge--muted{% endif %}">{{ transaction.status }}</span>
+                    </td>
+                    <td>
+                        <div class="pv-row-actions">
+                            {% if user.is_superuser or 'Facturador' in user_groups or 'Validador' in user_groups or 'Digitador' in user_groups %}
+                            <a href="{% url 'transaction_update' transaction.pk %}" title="Editar" aria-label="Editar transacción {{ transaction.unique_transaction_id }}">
+                                {% include 'records/components/icon.html' with name='edit' %}
+                            </a>
+                            {% endif %}
+                            <a href="{% url 'transaction_detail' transaction.pk %}" title="Historial" aria-label="Historial de la transacción {{ transaction.unique_transaction_id }}">
+                                {% include 'records/components/icon.html' with name='history' %}
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                <tr class="pv-detail receipts-row" id="receipts-{{ transaction.pk }}" hidden>
+                    <td colspan="10">
+                        <div class="pv-detail__inner">
+                            {% if receipts %}
+                            <h4>Recibos de la transacción {{ transaction.unique_transaction_id }}</h4>
+                            <table class="pv-subtable">
+                                <thead>
+                                    <tr>
+                                        <th>Origen</th>
+                                        <th>Fecha</th>
+                                        <th>Hora</th>
+                                        <th>Comprobante</th>
+                                        <th>Banco de llegada</th>
+                                        <th style="text-align: right;">Valor</th>
+                                        <th>Estado del pago</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for receipt in receipts %}
+                                    <tr>
+                                        <td>
+                                            {{ receipt.origen_transaccion.name }}
+                                            {% with aviso=receipt.effective_date_message %}
+                                            {% if aviso %}<div class="pv-cell-sub" style="color: var(--pv-info);">{{ aviso }}</div>{% endif %}
+                                            {% endwith %}
+                                        </td>
+                                        <td>{{ receipt.fecha|date:"d/m/Y" }}</td>
+                                        <td>{{ receipt.hora|time:"H:i:s" }}</td>
+                                        <td class="pv-mono">{{ receipt.comprobante }}</td>
+                                        <td>{{ receipt.banco_llegada.name }}</td>
+                                        <td class="pv-num" style="text-align: right;">${{ receipt.valor|intcomma }}</td>
+                                        <td>
+                                            <span class="pv-badge {% if receipt.payment_status == 'Aprobado' %}pv-badge--ok{% elif receipt.payment_status == 'Rechazado' %}pv-badge--bad{% else %}pv-badge--warn{% endif %}">{{ receipt.get_payment_status_display }}</span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <span class="pv-muted">Esta transacción aún no tiene recibos asociados.</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endwith %}
+                {% empty %}
+                <tr>
+                    <td colspan="10">
+                        <div class="pv-empty">
+                            <strong>No hay transacciones con estos filtros</strong>
+                            Prueba con otro estado o limpia los filtros.
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <div class="pv-table-foot">
+        <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count|intcomma }}</span>
+        <div class="pv-pager">
+            {% if page_obj.has_previous %}
+            <a class="pv-btn pv-btn--ghost pv-btn--sm" href="?{{ querystring }}&amp;page={{ page_obj.previous_page_number }}"
+               hx-get="{% url 'record_list' %}?{{ querystring }}&amp;page={{ page_obj.previous_page_number }}"
+               hx-target="#pv-results" hx-swap="outerHTML show:top" hx-push-url="true">Anterior</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a class="pv-btn pv-btn--ghost pv-btn--sm" href="?{{ querystring }}&amp;page={{ page_obj.next_page_number }}"
+               hx-get="{% url 'record_list' %}?{{ querystring }}&amp;page={{ page_obj.next_page_number }}"
+               hx-target="#pv-results" hx-swap="outerHTML show:top" hx-push-url="true">Siguiente</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>

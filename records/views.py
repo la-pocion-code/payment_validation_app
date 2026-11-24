@@ -1180,11 +1180,10 @@ class TransactionListView(LoginRequiredMixin, FilterView):
         """
         queryset = super().get_queryset()
         user = self.request.user
-        
-        # Apply default status filter only if the user hasn't explicitly filtered by status
-        if 'status' not in self.request.GET:
-            queryset = queryset.filter(status='Pendiente')
-        
+
+        # El estado por defecto (Pendiente) lo aplica el propio filtro: ver
+        # get_filterset_kwargs().
+
         # Lógica específica para el rol 'Facturador'
         if user.groups.filter(name='Facturador').exists() and not user.is_superuser:
             queryset = queryset.annotate(
@@ -1203,8 +1202,39 @@ class TransactionListView(LoginRequiredMixin, FilterView):
             )
         ).order_by('-id')
 
+    # Filtros que viven en el panel «Más filtros».
+    ADVANCED_FILTERS = ('vendedor', 'facturador', 'numero_factura', 'valor',
+                        'transaction_type', 'origen_transaccion')
+
+    def get_filterset_kwargs(self, filterset_class):
+        """
+        Sin `status` en la URL la lista muestra las Pendientes. Se inyecta en los
+        datos del filtro (en vez de filtrar el queryset aparte) para que el
+        desplegable «Estado» muestre lo que de verdad se está viendo. `status=`
+        vacío sigue significando «todas».
+        """
+        kwargs = super().get_filterset_kwargs(filterset_class)
+        data = self.request.GET.copy()
+        if 'status' not in data:
+            data['status'] = 'Pendiente'
+        kwargs['data'] = data
+        self.effective_filters = data
+        return kwargs
+
+    def get_template_names(self):
+        # HTMX (filtros en vivo y paginación) solo necesita la tabla.
+        if self.request.headers.get('HX-Request'):
+            return ['records/partials/transactions_table.html']
+        return super().get_template_names()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        # Filtros vigentes sin la página: para paginar y para que el reporte CSV
+        # exporte exactamente lo que se ve en pantalla.
+        params = self.effective_filters.copy()
+        params.pop('page', None)
+        context['querystring'] = params.urlencode()
+        context['has_advanced_filters'] = any(params.get(name) for name in self.ADVANCED_FILTERS)
         # Total de recibos y diferencia calculados sobre los recibos ya precargados.
         # Las propiedades Transaction.receipts_total / .difference lanzan un
         # aggregate cada vez que se nombran: en la plantilla eran hasta 5 consultas
