@@ -480,6 +480,11 @@ class TransactionForm(forms.ModelForm):
                         # 'readonly' lo muestra pero no permite edición.
                         field.widget.attrs['readonly'] = True
 
+        # Al editar, «creado por» no es un dato del formulario: la plantilla no lo envía y,
+        # al faltar, cada guardado lo dejaba vacío.
+        if self.instance.pk:
+            self.fields.pop('created_by', None)
+
         # --- PASO 3: Configurar valores iniciales para transacciones NUEVAS ---
         if not self.instance.pk:
             self.fields['status'].initial = 'Pendiente'

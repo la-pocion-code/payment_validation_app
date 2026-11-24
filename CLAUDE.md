@@ -59,6 +59,14 @@ importación masiva CSV/Excel y detección de duplicados. Desplegada en **Railwa
 - Grupos Django: **Admin**, **Digitador** (crear registros), **Facturador** (editar factura),
   **Validador** (cambiar `payment_status`).
 - Usuarios nuevos quedan en espera hasta que un Admin aprueba su `AccessRequest`.
+- **Sin rol no se ve nada**: `records.middleware.RoleRequiredMiddleware` manda a
+  `request_access` (403 JSON en AJAX y `/api/`) a todo usuario con sesión que no sea
+  superusuario ni tenga grupo, y le crea o reabre su `AccessRequest` para que aparezca en
+  «Usuarios». Las vistas conservan además su propio `group_required`.
+- **Editar transacción no debe escribir si nada cambió**: `TransactionUpdateView.form_valid`
+  compara contra lo guardado antes de `save()`; los campos ocultos de los roles de solo
+  lectura deben enviar el valor exacto (hora con segundos, observación vacía y no «None»).
+  Hay pruebas (`GuardarSinCambiosTests`) que envían el formulario tal cual lo pinta cada rol.
 
 ## Comandos de desarrollo
 

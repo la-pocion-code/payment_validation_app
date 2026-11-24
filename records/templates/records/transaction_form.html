@@ -158,8 +158,9 @@
                     {% if is_admin %}
                         {{ form.description }}
                     {% else %}
-                        <textarea rows="2" readonly>{{ form.instance.description }}</textarea>
-                        <input type="hidden" name="{{ form.description.name }}" value="{{ form.instance.description }}">
+                        {# default_if_none: sin él, una observación vacía se enviaba como el texto «None» y quedaba guardada así. #}
+                        <textarea rows="2" readonly>{{ form.instance.description|default_if_none:"" }}</textarea>
+                        <input type="hidden" name="{{ form.description.name }}" value="{{ form.instance.description|default_if_none:'' }}">
                     {% endif %}
                     {{ form.description.errors }}
                 </div>
@@ -281,9 +282,10 @@
                     {% elif is_digitador and not form.instance.pk %}
                         {{ form.hora }}
                     {% else %}
-                        <input type="time" value="{{ form.instance.hora|time:'H:i' }}" readonly>
+                        {# Con segundos (H:i:s): con H:i, guardar sin tocar nada cambiaba 10:15:37 por 10:15:00. #}
+                        <input type="text" value="{{ form.instance.hora|time:'H:i:s' }}" readonly>
                         {% if form.instance.pk %}
-                            <input type="hidden" name="{{ form.hora.html_name }}" value="{{ form.instance.hora|time:'H:i' }}">
+                            <input type="hidden" name="{{ form.hora.html_name }}" value="{{ form.instance.hora|time:'H:i:s' }}">
                         {% endif %}
                     {% endif %}
                     {{ form.hora.errors }}

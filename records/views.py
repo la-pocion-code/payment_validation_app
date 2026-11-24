@@ -1435,7 +1435,15 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                         self.object.facturador = self.request.user.username
                     # -------------------- FIN: Nueva lógica para asignar facturador ---------------------
 
-                    self.object.save()
+                    # Solo se guarda (y solo queda en el historial) si de verdad cambió algo:
+                    # pulsar «Guardar» sin tocar nada no debe figurar como una modificación.
+                    # Se compara contra lo guardado y no con form.has_changed(): los roles
+                    # de solo lectura no envían todos los campos y el formulario los daría
+                    # por cambiados.
+                    stored = Transaction.objects.get(pk=self.object.pk)
+                    if any(getattr(stored, f.attname) != getattr(self.object, f.attname)
+                           for f in Transaction._meta.concrete_fields if f.name != 'updated_at'):
+                        self.object.save()
 
                     # 🔹 Desvincular recibos marcados
                     credit_ids_to_unlink = self.request.POST.getlist('unlink_credit')

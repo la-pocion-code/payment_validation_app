@@ -5,6 +5,7 @@ aviso previo de duplicado y el segundo chequeo de reenvío con varios workers.
 """
 
 import uuid
+from html.parser import HTMLParser
 from decimal import Decimal
 from unittest import mock
 
@@ -86,10 +87,10 @@ class BuscadorGlobalTests(ConRecibos):
     def test_sin_resultados_lo_dice(self):
         self.assertContains(self.buscar('zzzz-no-existe'), 'Sin resultados')
 
-    def test_usuario_sin_rol_no_ve_resultados(self):
+    def test_usuario_sin_rol_no_llega_al_buscador(self):
         self.entrar_como('')
-        respuesta = self.buscar('M0320')
-        self.assertFalse(respuesta.context['searched'])
+        respuesta = self.client.get(reverse('global_search'), {'q': 'M0320'})
+        self.assertRedirects(respuesta, reverse('request_access'))
 
     def test_facturador_va_a_la_lista_porque_no_abre_el_detalle(self):
         self.entrar_como('Facturador')
@@ -557,3 +558,202 @@ class CatalogosClientesYUsuariosTests(ConRecibos):
                                      {'is_active': 'on', 'groups': [validador.pk]}, **self.AJAX)
         self.assertTrue(respuesta.json()['success'])
         self.assertEqual(list(self.user.groups.values_list('name', flat=True)), ['Validador'])
+
+
+class _Formulario(HTMLParser):
+    """Lo que un navegador enviaría de <form id="transaction-form"> (sin el <template>)."""
+
+    def __init__(self):
+        super().__init__()
+        self.datos = []
+        self.dentro = False
+        self.plantilla = 0
+        self.select = None
+        self.textarea = None
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == 'form' and a.get('id') == 'transaction-form':
+            self.dentro = True
+        if tag == 'template':
+            self.plantilla += 1
+        if not self.dentro or self.plantilla:
+            return
+        if tag == 'input' and a.get('name'):
+            if a.get('type') in ('checkbox', 'radio') and 'checked' not in a:
+                return
+            if a.get('type') != 'submit':
+                self.datos.append((a['name'], a.get('value', '')))
+        elif tag == 'select' and a.get('name'):
+            self.select = [a['name'], None, None]
+        elif tag == 'option' and self.select is not None:
+            if self.select[2] is None:
+                self.select[2] = a.get('value', '')
+            if 'selected' in a:
+                self.select[1] = a.get('value', '')
+        elif tag == 'textarea' and a.get('name'):
+            self.textarea = [a['name'], '']
+
+    def handle_data(self, data):
+        if self.textarea is not None:
+            self.textarea[1] += data
+
+    def handle_endtag(self, tag):
+        if tag == 'template':
+            self.plantilla -= 1
+        elif tag == 'select' and self.select is not None:
+            nombre, elegido, primero = self.select
+            self.datos.append((nombre, elegido if elegido is not None else (primero or '')))
+            self.select = None
+        elif tag == 'textarea' and self.textarea is not None:
+            self.datos.append((self.textarea[0], self.textarea[1].strip('\n')))
+            self.textarea = None
+        elif tag == 'form':
+            self.dentro = False
+
+
+class GuardarSinCambiosTests(ConRecibos):
+    """
+    Abrir una transacción y pulsar «Guardar» sin tocar nada no debe cambiar datos ni dejar
+    rastro en el historial. Antes, con un rol de solo lectura, la hora del recibo perdía
+    los segundos, «creado por» quedaba vacío y la observación se guardaba como «None».
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.transaccion.numero_factura = 'FV-900'
+        self.transaccion.facturador = 'venriquez'
+        self.transaccion.status = 'Facturado'
+        self.transaccion.description = None
+        self.transaccion.save()
+        self.recibo.hora = '09:07:37'
+        self.recibo.payment_document = 'BAN-25154'
+        self.recibo.save()
+        self.url = reverse('transaction_update', args=[self.transaccion.pk])
+
+    def enviar_tal_cual(self, **cambios):
+        pagina = self.client.get(self.url)
+        self.assertEqual(pagina.status_code, 200)
+        formulario = _Formulario()
+        formulario.feed(pagina.content.decode())
+        datos = {}
+        for nombre, valor in formulario.datos:
+            datos[nombre] = valor
+        datos.update(cambios)
+        return self.client.post(self.url, datos)
+
+    def historial(self):
+        return (Transaction.history.filter(id=self.transaccion.pk).count(),
+                FinancialRecord.history.filter(id=self.recibo.pk).count())
+
+    def test_ningun_rol_deja_historial_ni_cambia_datos_al_guardar_sin_tocar(self):
+        antes = self.historial()
+        roles = ['Digitador', 'Validador', 'Facturador', 'Contabilidad', None]
+        for rol in roles:
+            with self.subTest(rol=rol or 'superusuario'):
+                if rol:
+                    self.entrar_como(rol)
+                else:
+                    self.client.force_login(User.objects.create_superuser('jefe', password='clave-larga-123'))
+                respuesta = self.enviar_tal_cual()
+                self.assertEqual(respuesta.status_code, 302, getattr(respuesta, 'context', None) and respuesta.context['form'].errors)
+                self.assertEqual(self.historial(), antes)
+                self.transaccion.refresh_from_db()
+                self.recibo.refresh_from_db()
+                self.assertEqual(str(self.recibo.hora), '09:07:37')
+                self.assertEqual(self.recibo.payment_document, 'BAN-25154')
+                self.assertEqual(self.transaccion.created_by, self.user)
+                self.assertIsNone(self.transaccion.description)
+                self.assertEqual((self.transaccion.numero_factura, self.transaccion.facturador, self.transaccion.status),
+                                 ('FV-900', 'venriquez', 'Facturado'))
+
+    def test_un_cambio_real_si_se_guarda_y_queda_a_nombre_de_quien_lo_hizo(self):
+        validador = self.entrar_como('Validador')
+        respuesta = self.enviar_tal_cual(**{'receipts-0-payment_status': 'Aprobado'})
+        self.assertEqual(respuesta.status_code, 302)
+        self.recibo.refresh_from_db()
+        self.assertEqual(self.recibo.payment_status, 'Aprobado')
+        self.assertEqual(str(self.recibo.hora), '09:07:37')
+        ultimo = FinancialRecord.history.filter(id=self.recibo.pk).first()
+        self.assertEqual([c.field for c in ultimo.diff_against(ultimo.prev_record).changes if c.field != 'modificado'],
+                         ['payment_status'])
+        self.assertEqual(ultimo.history_user, validador)
+
+    def test_el_facturador_sigue_pudiendo_facturar(self):
+        self.transaccion.numero_factura = None
+        self.transaccion.facturador = None
+        self.transaccion.status = 'Pendiente'
+        self.transaccion.save()
+        facturador = self.entrar_como('Facturador')
+        respuesta = self.enviar_tal_cual(numero_factura='FV-901', status='Facturado')
+        self.assertEqual(respuesta.status_code, 302)
+        self.transaccion.refresh_from_db()
+        self.assertEqual((self.transaccion.numero_factura, self.transaccion.status, self.transaccion.facturador),
+                         ('FV-901', 'Facturado', facturador.username))
+        self.assertEqual(self.transaccion.created_by, self.user)
+
+    def test_ver_un_recibo_no_escribe_nada(self):
+        self.entrar_como('Validador')
+        antes = self.historial()
+        for url in (reverse('credit_list'), reverse('credit_detail', args=[self.recibo.pk]), self.url,
+                    reverse('transaction_detail', args=[self.transaccion.pk]), reverse('record_list')):
+            self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.historial(), antes)
+
+
+class SinRolNoVeNadaTests(ConRecibos):
+    """Todo usuario debe tener un rol; sin él solo ve «acceso pendiente» y aparece en Usuarios."""
+
+    ABIERTAS = {'login', 'logout', 'request_access', 'access_denied'}
+
+    def rutas(self):
+        from django.urls import get_resolver
+        for patron in get_resolver('records.urls').url_patterns:
+            nombre = getattr(patron, 'name', None)
+            if not nombre or nombre in self.ABIERTAS:
+                continue
+            kwargs = {k: ('DUPLICATE' if k == 'key' else 1) for k in patron.pattern.converters}
+            yield nombre, reverse(nombre, kwargs=kwargs)
+
+    def test_sin_rol_todas_las_rutas_llevan_a_acceso_pendiente(self):
+        from .models import AccessRequest
+        sin_rol = self.entrar_como('')
+        AccessRequest.objects.filter(user=sin_rol).delete()
+        for nombre, url in self.rutas():
+            with self.subTest(ruta=nombre):
+                respuesta = self.client.get(url)
+                self.assertEqual(respuesta.status_code, 302, nombre)
+                self.assertEqual(respuesta.url, reverse('request_access'), nombre)
+        # Las que antes se colaban:
+        self.assertEqual(self.client.get(reverse('export_credits_csv')).status_code, 302)
+        self.assertEqual(self.client.get(reverse('transaction_update', args=[self.transaccion.pk])).status_code, 302)
+        ajax = self.client.get(reverse('client_search_ajax'), {'term': 'CLI'}, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(ajax.status_code, 403)
+        self.assertEqual(self.client.get('/api/v1/transactions/').status_code, 403)
+        # Puede ver su pantalla de espera y salir.
+        self.assertEqual(self.client.get(reverse('request_access')).status_code, 200)
+        # Y quedó en la lista para que le asignen rol.
+        self.assertTrue(AccessRequest.objects.filter(user=sin_rol, approved=False).exists())
+
+    def test_aparece_en_usuarios_y_al_darle_rol_entra(self):
+        sin_rol = self.entrar_como('')
+        self.client.get(reverse('record_list'))
+        admin = User.objects.create_superuser('jefe', password='clave-larga-123')
+        self.client.force_login(admin)
+        pagina = self.client.get(reverse('access_request_list'))
+        self.assertIn(sin_rol, [r.user for r in pagina.context['requests']])
+
+        sin_rol.groups.add(Group.objects.get_or_create(name='Validador')[0])
+        self.client.force_login(sin_rol)
+        self.assertEqual(self.client.get(reverse('credit_list')).status_code, 200)
+
+    def test_quitarle_los_roles_a_alguien_lo_devuelve_a_pendientes(self):
+        from .models import AccessRequest
+        self.user.groups.clear()
+        self.client.force_login(self.user)
+        self.assertRedirects(self.client.get(reverse('record_list')), reverse('request_access'))
+        self.assertTrue(AccessRequest.objects.filter(user=self.user, approved=False).exists())
+
+    def test_el_administrador_no_necesita_rol(self):
+        self.client.force_login(User.objects.create_superuser('jefe', password='clave-larga-123'))
+        self.assertEqual(self.client.get(reverse('record_list')).status_code, 200)

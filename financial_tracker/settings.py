@@ -68,6 +68,7 @@ MIDDLEWARE = [
     'simple_history.middleware.HistoryRequestMiddleware',
     'records.middleware.SocialAuthErrorsMiddleware',
     'records.middleware.ProtectedDeleteMiddleware',
+    'records.middleware.RoleRequiredMiddleware',
 ]
 
 ROOT_URLCONF = 'financial_tracker.urls'
