@@ -20,6 +20,7 @@ from django.contrib.auth.models import Group, User
 from django.db import connection, connections, transaction
 from django.test import Client as DjangoClient
 from django.test import RequestFactory, TestCase, TransactionTestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -617,7 +618,7 @@ class ExportTransaccionesCsvTests(DatosBase):
         respuesta = self.client.get(reverse('export_transactions_csv'))
         self.assertEqual(respuesta.status_code, 200)
         # utf-8-sig quita el BOM que la vista agrega para Excel.
-        contenido = respuesta.content.decode('utf-8-sig')
+        contenido = b''.join(respuesta.streaming_content).decode('utf-8-sig')
         return list(csv.reader(io.StringIO(contenido), delimiter=';'))
 
     def test_el_reporte_trae_el_tipo_de_transaccion(self):
@@ -672,7 +673,7 @@ class ExportRecibosCsvTests(DatosBase):
         respuesta = self.client.get(reverse('export_credits_csv'))
         self.assertEqual(respuesta.status_code, 200)
         encabezado, *datos = list(csv.reader(
-            io.StringIO(respuesta.content.decode('utf-8-sig')), delimiter=';'))
+            io.StringIO(b''.join(respuesta.streaming_content).decode('utf-8-sig')), delimiter=';'))
 
         columna = encabezado.index('Tipo de Transacción')
         self.assertEqual(encabezado[columna - 1], 'Asociado a Transacción ID')
@@ -680,3 +681,136 @@ class ExportRecibosCsvTests(DatosBase):
         por_comprobante = {fila[encabezado.index('Comprobante')]: fila for fila in datos}
         self.assertEqual(por_comprobante['PAGO-CON-TRANSACCION'][columna], self.tipo.name)
         self.assertEqual(por_comprobante['ABONO-SUELTO'][columna], 'N/A')
+
+
+class RendimientoListasTests(DatosBase):
+    """
+    La lista de inicio hacía varias consultas por cada fila (total de recibos,
+    diferencia, cliente, vendedor, banco...). Con un solo worker eso dejaba la app
+    lenta para todos. El número de consultas no debe crecer con las filas.
+    """
+
+    def _crear_transacciones(self, cuantas, desde=0):
+        for i in range(desde, desde + cuantas):
+            transaccion = Transaction.objects.create(
+                date=timezone.now().date(),
+                cliente=self.cliente,
+                vendedor=self.vendedor,
+                transaction_type=self.tipo,
+                expected_amount=Decimal('100000.00'),
+                created_by=self.user,
+            )
+            for j in range(2):
+                FinancialRecord.objects.create(
+                    fecha=timezone.now().date(),
+                    hora='09:00:00',
+                    comprobante=f'PAGO-{i}-{j}',
+                    banco_llegada=self.banco,
+                    origen_transaccion=self.origen,
+                    valor=Decimal('30000.00'),
+                    transaction=transaccion,
+                    uploaded_by=self.user,
+                )
+
+    def _consultas(self, url):
+        with CaptureQueriesContext(connection) as contexto:
+            respuesta = self.client.get(url)
+        self.assertEqual(respuesta.status_code, 200)
+        return len(contexto), respuesta
+
+    def test_la_lista_de_transacciones_no_consulta_por_fila(self):
+        self._crear_transacciones(2)
+        con_pocas, _ = self._consultas(reverse('record_list'))
+        self._crear_transacciones(15, desde=2)
+        con_muchas, respuesta = self._consultas(reverse('record_list'))
+
+        self.assertEqual(con_pocas, con_muchas)
+        self.assertEqual(len(respuesta.context['object_list']), 17)
+
+    def test_total_de_recibos_y_diferencia_siguen_siendo_correctos(self):
+        self._crear_transacciones(1)
+        respuesta = self.client.get(reverse('record_list'))
+        transaccion = respuesta.context['object_list'][0]
+
+        self.assertEqual(transaccion.receipts_total_calc, Decimal('60000.00'))
+        self.assertEqual(transaccion.difference_calc, Decimal('40000.00'))
+        # Deben coincidir con las propiedades del modelo que usa el resto del código.
+        self.assertEqual(transaccion.receipts_total_calc, transaccion.receipts_total)
+        self.assertEqual(transaccion.difference_calc, transaccion.difference)
+
+    def test_la_lista_de_recibos_no_consulta_por_fila(self):
+        self._crear_transacciones(2)
+        con_pocas, _ = self._consultas(reverse('credit_list'))
+        self._crear_transacciones(15, desde=2)
+        con_muchas, _ = self._consultas(reverse('credit_list'))
+
+        self.assertEqual(con_pocas, con_muchas)
+
+
+class ExportsEnStreamingTests(DatosBase):
+    """
+    Los exports se envían por tandas. Armarlos enteros en memoria superaba el
+    timeout de gunicorn y dejaba la app caída mientras el proxy reintentaba.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user.is_superuser = True
+        self.user.save()
+
+    def test_los_reportes_son_respuestas_en_streaming(self):
+        for nombre in ('export_transactions_csv', 'export_credits_csv', 'export_duplicate_attempts_csv'):
+            with self.subTest(nombre=nombre):
+                respuesta = self.client.get(reverse(nombre))
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertTrue(respuesta.streaming)
+                self.assertIn('attachment', respuesta['Content-Disposition'])
+                self.assertTrue(b''.join(respuesta.streaming_content))
+
+    def test_el_reporte_de_transacciones_no_consulta_por_fila(self):
+        transaccion = Transaction.objects.create(
+            date=timezone.now().date(), cliente=self.cliente, vendedor=self.vendedor,
+            transaction_type=self.tipo, expected_amount=Decimal('100000.00'), created_by=self.user,
+        )
+        for i in range(30):
+            FinancialRecord.objects.create(
+                fecha=timezone.now().date(), hora='09:00:00', comprobante=f'EXP-{i}',
+                banco_llegada=self.banco, origen_transaccion=self.origen,
+                valor=Decimal('1000.00'), transaction=transaccion, uploaded_by=self.user,
+            )
+        with CaptureQueriesContext(connection) as contexto:
+            respuesta = self.client.get(reverse('export_transactions_csv'))
+            filas = b''.join(respuesta.streaming_content).decode('utf-8-sig').strip().splitlines()
+
+        self.assertEqual(len(filas), 31)  # encabezado + 30 recibos
+        # Sesión, usuario y el SELECT del reporte: nada que dependa de las 30 filas.
+        self.assertLess(len(contexto), 10)
+
+    def test_el_export_antiguo_redirige_al_reporte_detallado(self):
+        respuesta = self.client.get(reverse('export_csv') + '?status=Pendiente')
+        self.assertRedirects(
+            respuesta, reverse('export_transactions_csv') + '?status=Pendiente',
+            fetch_redirect_response=False,
+        )
+
+
+@override_settings(SECURE_SSL_REDIRECT=False)
+class LoginConGoogleTests(TestCase):
+    """
+    Volver de Google con la sesión vencida (o con el botón Atrás) lanzaba
+    AuthStateMissing y el usuario veía un error 500, varias veces al día.
+    """
+
+    def test_callback_con_sesion_vencida_redirige_al_login_con_aviso(self):
+        # Google devuelve state y code, pero la sesión que guardaba el state ya no está.
+        respuesta = self.client.get(
+            '/social/complete/google-oauth2/', {'state': 'abc123', 'code': 'xyz'}, follow=True)
+
+        self.assertRedirects(respuesta, reverse('login'))
+        self.assertContains(respuesta, 'El inicio de sesión expiró')
+
+    def test_callback_sin_parametros_redirige_al_login_con_aviso(self):
+        respuesta = self.client.get('/social/complete/google-oauth2/', follow=True)
+
+        self.assertRedirects(respuesta, reverse('login'))
+        self.assertContains(respuesta, 'El inicio de sesión expiró')

@@ -1,9 +1,12 @@
+import logging
 import csv
 from io import TextIOWrapper
 from datetime import datetime
 from django.db import transaction, IntegrityError
 from .models import FinancialRecord, Bank, OrigenTransaccion, Client
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 class CSVProcessor:
     """
@@ -113,7 +116,7 @@ class CSVProcessor:
                 self.results['line_errors'].append(f"Línea {i}: {e}")
 
         if records_to_process:
-            print(f"DEBUG: Intentando procesar {len(records_to_process)} registros.")
+            logger.debug(f"DEBUG: Intentando procesar {len(records_to_process)} registros.")
             
             # --- INICIO DE LA SOLUCIÓN ---
             # 1. Eliminar duplicados DENTRO del propio archivo CSV antes de comparar con la BD.
@@ -177,7 +180,7 @@ class CSVProcessor:
                     
                     self.results['duplicates'] = len(records_to_process) - self.results['created']
 
-                    print(f"DEBUG: Creados {self.results['created']} | Duplicados {self.results['duplicates']}")
+                    logger.debug(f"DEBUG: Creados {self.results['created']} | Duplicados {self.results['duplicates']}")
 
             except Exception as e:
                 raise Exception(f"Error durante la creación masiva de registros: {e}")

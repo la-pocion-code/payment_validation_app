@@ -1,1 +1,1 @@
-web: python manage.py collectstatic --noinput && python manage.py migrate && gunicorn financial_tracker.wsgi:application --bind 0.0.0.0:$PORT
+web: python manage.py collectstatic --noinput && python manage.py migrate && gunicorn financial_tracker.wsgi:application --bind 0.0.0.0:$PORT --worker-class gthread --workers 3 --threads 4 --timeout 120 --graceful-timeout 30 --max-requests 1000 --max-requests-jitter 100 --access-logfile -

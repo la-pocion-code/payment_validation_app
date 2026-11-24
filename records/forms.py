@@ -1,3 +1,4 @@
+import logging
 # records/forms.py
 
 from django import forms
@@ -9,6 +10,8 @@ from django.contrib.auth.forms import UserChangeForm
 from django.utils.html import format_html
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
+
+logger = logging.getLogger(__name__)
 
 class AccessRequestApprovalForm(forms.ModelForm):
     ACTION_CHOICES = [
@@ -414,10 +417,10 @@ class BaseFinancialRecordFormSet(BaseModelFormSet):
                     form.cleaned_data.get('banco_llegada'),
                     form.cleaned_data.get('valor')
                 )
-                print(f"DEBUG: Formset clean - receipts_identifier: {receipts_identifier}")
-                print(f"DEBUG: Formset clean - current receipts list: {receipts}")
+                logger.debug(f"DEBUG: Formset clean - receipts_identifier: {receipts_identifier}")
+                logger.debug(f"DEBUG: Formset clean - current receipts list: {receipts}")
                 if receipts_identifier in receipts:
-                    print(f"DEBUG: Formset clean - DUPLICATE DETECTED: {receipts_identifier}")
+                    logger.debug(f"DEBUG: Formset clean - DUPLICATE DETECTED: {receipts_identifier}")
                     form.add_error(None, "Hay registros duplicados en el conjunto de formularios.")
                 receipts.append(receipts_identifier)
 

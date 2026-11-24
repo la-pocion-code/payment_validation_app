@@ -1,7 +1,8 @@
+import logging
 import csv
 from django.views.decorators.http import require_POST
 from io import TextIOWrapper
-from django.db.models import Q, Count, F
+from django.db.models import Q, Count, F, Prefetch
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -33,13 +34,15 @@ from .idempotency import (
 from .services import CSVProcessor 
 from django.template.loader import render_to_string
 from .forms import AccessRequestApprovalForm 
-from .utils import calculate_effective_date
+from .utils import calculate_effective_date, stream_csv
 from .forms import BulkClientUploadForm
 from django.utils import timezone
 from django.db.models import Q
 import json
 from decimal import Decimal, InvalidOperation
 import zoneinfo
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -177,7 +180,7 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     def test_func(self):
         is_superuser = self.request.user.is_superuser
         if not is_superuser:
-            print(f"Permission denied for user {self.request.user.username}: Not a superuser.")
+            logger.debug(f"Permission denied for user {self.request.user.username}: Not a superuser.")
         return is_superuser
 
     # Este método maneja las solicitudes DELETE (si el frontend las envía)
@@ -187,14 +190,14 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             try:
                 if not self.test_func():
-                    print(f"Permission denied during AJAX delete for user {request.user.username}.")
+                    logger.debug(f"Permission denied during AJAX delete for user {request.user.username}.")
                     return JsonResponse({'success': False, 'message': 'No tienes permisos para realizar esta acción.'}, status=403)
 
                 self.object.delete()
-                print(f"Returning JSON success response for record {self.object.pk}")
+                logger.debug(f"Returning JSON success response for record {self.object.pk}")
                 return JsonResponse({'success': True, 'message': self.success_message})
             except Exception as e:
-                print(f"Error deleting record: {e}")
+                logger.debug(f"Error deleting record: {e}")
                 return JsonResponse({'success': False, 'message': str(e)}, status=500)
         
         # Para solicitudes no-AJAX, procede con el comportamiento por defecto de DeleteView
@@ -207,15 +210,15 @@ class RecordDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
             self.object = self.get_object() # Obtener el objeto antes de la eliminación
             try:
                 if not self.test_func(): # Reutilizar la verificación de permisos
-                    print(f"Permission denied during AJAX POST delete for user {request.user.username}.")
+                    logger.debug(f"Permission denied during AJAX POST delete for user {request.user.username}.")
                     return JsonResponse({'success': False, 'message': 'No tienes permisos para realizar esta acción.'}, status=403)
 
                 self.object.delete() # Eliminar el objeto
                 messages.success(request, self.success_message) # Añadir mensaje de éxito
-                print(f"Returning JSON success response for record {self.object.pk} via POST.")
+                logger.debug(f"Returning JSON success response for record {self.object.pk} via POST.")
                 return JsonResponse({'success': True, 'message': self.success_message})
             except Exception as e:
-                print(f"Error deleting record via POST: {e}")
+                logger.debug(f"Error deleting record via POST: {e}")
                 return JsonResponse({'success': False, 'message': str(e)}, status=500)
         
         # Para solicitudes POST no-AJAX, o si no es AJAX, se usa el comportamiento por defecto de DeleteView
@@ -354,7 +357,10 @@ class CreditListView(LoginRequiredMixin, FilterView):
         queryset = FinancialRecord.objects.all().order_by('-creado') # Eliminado el filtro transaction__isnull=True
         # Optimizar la carga de datos relacionados para evitar N+1 queries
         # Esto cargará el cliente directo y el cliente de la transacción en una sola consulta.
-        return queryset.select_related('cliente', 'transaction__cliente', 'banco_llegada', 'uploaded_by')
+        return queryset.select_related(
+            'cliente', 'transaction__cliente', 'transaction__transaction_type',
+            'banco_llegada', 'uploaded_by'
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -393,7 +399,6 @@ class CreditDetailView(LoginRequiredMixin, DetailView): # Añadido decorador de 
         if self.request.user.is_superuser:
             context['banks'] = Bank.objects.all()
             context['origenes'] = OrigenTransaccion.objects.all()
-            context['clients'] = Client.objects.all().order_by('name')
         
         return context
 
@@ -1187,7 +1192,31 @@ class TransactionListView(LoginRequiredMixin, FilterView):
                 num_approved_receipts=Count('receipts', filter=Q(receipts__payment_status='Aprobado'))
             ).filter(num_receipts__gt=0, num_receipts=F('num_approved_receipts'))
 
-        return queryset.prefetch_related('receipts').order_by('-id')
+        # Todo lo que pinta la tabla llega en 3 consultas fijas (transacciones,
+        # recibos y sus catálogos), sin importar cuántas filas tenga la página.
+        return queryset.select_related(
+            'cliente', 'vendedor', 'transaction_type'
+        ).prefetch_related(
+            Prefetch(
+                'receipts',
+                queryset=FinancialRecord.objects.select_related('banco_llegada', 'origen_transaccion'),
+            )
+        ).order_by('-id')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Total de recibos y diferencia calculados sobre los recibos ya precargados.
+        # Las propiedades Transaction.receipts_total / .difference lanzan un
+        # aggregate cada vez que se nombran: en la plantilla eran hasta 5 consultas
+        # por fila.
+        transactions = list(context['object_list'])
+        for t in transactions:
+            t.receipts_total_calc = sum(
+                (r.valor for r in t.receipts.all() if r.valor is not None), Decimal('0.00')
+            )
+            t.difference_calc = t.expected_amount - t.receipts_total_calc
+        context['object_list'] = transactions
+        return context
 
 @method_decorator(group_required('Admin', 'Validador', 'Facturador','Digitador', 'Contabilidad'), name='dispatch')
 class TransactionDetailView(LoginRequiredMixin, DetailView):
@@ -1717,34 +1746,15 @@ def restore_transaction_view(request, history_id):
 
 @login_required
 def export_csv(request):
-    if not request.user.is_superuser:
-        messages.error(request, 'No tienes permisos para realizar esta acción.')
-        return redirect('record_list')
-
-    filterset = FinancialRecordFilter(request.GET, queryset=FinancialRecord.objects.all().order_by('-creado'))
-
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="financial_records.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow([
-        'FECHA', 'HORA', '#COMPROBANTE', 'BANCO LLEGADA', 'ORIGEN TRANSACCION', 'VALOR', 'STATUS', '# DE FACTURA', 'FACTURADOR'
-    ])
-
-    for record in filterset.qs:
-        writer.writerow([
-            record.fecha.strftime('%d/%m/%Y'),
-            record.hora.strftime('%H:%M:%S'),
-            record.comprobante,
-            record.banco_llegada.name,
-            record.origen_transaccion.name if record.origen_transaccion else '',
-            record.valor,
-            record.status,
-            record.numero_factura,
-            record.facturador,
-        ])
-
-    return response
+    """
+    Export antiguo a nivel de recibo. Leía campos que se movieron a Transaction
+    (status, numero_factura, facturador) y fallaba; se conserva la URL y se
+    delega en el reporte detallado, que trae esas mismas columnas.
+    """
+    url = reverse('export_transactions_csv')
+    if request.GET:
+        url = f'{url}?{request.GET.urlencode()}'
+    return redirect(url)
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
@@ -1770,6 +1780,7 @@ def export_transactions_csv(request):
         transaction__id__in=filtered_transaction_ids
     ).select_related(
         'transaction',
+        'transaction__cliente',
         'transaction__vendedor',
         'transaction__transaction_type',
         'banco_llegada',
@@ -1778,15 +1789,7 @@ def export_transactions_csv(request):
         'transaction__created_by'
     ).order_by('-transaction__date', '-id')
 
-    # 4. Preparar la respuesta HTTP que devolverá el archivo CSV
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="reporte_detallado_recibos.csv"'
-    response.write(u'\ufeff'.encode('utf8')) # Añade BOM para compatibilidad con Excel
-
-    writer = csv.writer(response, delimiter=';')
-    
-    # 5. Escribir la fila de encabezados en el CSV
-    writer.writerow([
+    header = [
         # Campos de la Transacción
         'ID Transaccion',
         'Fecha Transaccion',
@@ -1808,36 +1811,38 @@ def export_transactions_csv(request):
         'Valor Recibo',
         'Estado Pago Recibo',
         'Subido por',
-    ])
+    ]
 
-    # 6. Iterar sobre cada recibo y escribir sus datos en una fila del CSV
-    for receipt in receipts_queryset:
-        transaction = receipt.transaction
-        writer.writerow([
-            # Datos de la Transacción (se repiten para cada recibo)
-            transaction.unique_transaction_id,
-            transaction.date.strftime('%d/%m/%Y'),
-            transaction.cliente,
-            transaction.vendedor.name if transaction.vendedor else '',
-            transaction.transaction_type.name if transaction.transaction_type else '',
-            transaction.description,
-            transaction.status,
-            transaction.numero_factura,
-            transaction.facturador,
-            transaction.created_by.username if transaction.created_by else '',
-            # Datos del Recibo
-            receipt.id,
-            receipt.fecha.strftime('%d/%m/%Y'),
-            receipt.hora.strftime('%H:%M:%S'),
-            receipt.comprobante,
-            receipt.banco_llegada.name if receipt.banco_llegada else '',
-            receipt.origen_transaccion.name if receipt.origen_transaccion else '',
-            receipt.valor,
-            receipt.payment_status,
-            receipt.uploaded_by.username if receipt.uploaded_by else '',
-        ])
+    def rows():
+        # iterator() trae los recibos por tandas: el reporte completo no se carga
+        # en memoria y se va enviando mientras se lee.
+        for receipt in receipts_queryset.iterator(chunk_size=2000):
+            transaction = receipt.transaction
+            yield [
+                # Datos de la Transacción (se repiten para cada recibo)
+                transaction.unique_transaction_id,
+                transaction.date.strftime('%d/%m/%Y'),
+                transaction.cliente,
+                transaction.vendedor.name if transaction.vendedor else '',
+                transaction.transaction_type.name if transaction.transaction_type else '',
+                transaction.description,
+                transaction.status,
+                transaction.numero_factura,
+                transaction.facturador,
+                transaction.created_by.username if transaction.created_by else '',
+                # Datos del Recibo
+                receipt.id,
+                receipt.fecha.strftime('%d/%m/%Y'),
+                receipt.hora.strftime('%H:%M:%S'),
+                receipt.comprobante,
+                receipt.banco_llegada.name if receipt.banco_llegada else '',
+                receipt.origen_transaccion.name if receipt.origen_transaccion else '',
+                receipt.valor,
+                receipt.payment_status,
+                receipt.uploaded_by.username if receipt.uploaded_by else '',
+            ]
 
-    return response
+    return stream_csv('reporte_detallado_recibos.csv', header, rows(), delimiter=';', bom=True)
 
 @user_passes_test(lambda u: u.is_superuser)
 def csv_upload_view(request):
@@ -1861,7 +1866,7 @@ def csv_upload_view(request):
                 
                 # DEBUG: Verificar el número total de registros financieros después de la carga
                 total_records = FinancialRecord.objects.count()
-                print(f"DEBUG: Total FinancialRecords in DB after upload: {total_records}")
+                logger.debug(f"DEBUG: Total FinancialRecords in DB after upload: {total_records}")
 
             except Exception as e:
                 # Capturamos cualquier error inesperado durante el procesamiento
@@ -1917,34 +1922,33 @@ class DuplicateAttemptsHistoryListView(LoginRequiredMixin, UserPassesTestMixin, 
         return DuplicateRecordAttempt.objects.all().order_by('-timestamp')
 
 
-@method_decorator(group_required('Admin'), name='dispatch')
+@login_required
+@group_required('Admin')
 def export_duplicate_attempts_csv(request):
     if not request.user.is_superuser:
         messages.error(request, 'No tienes permisos para realizar esta acción.')
         return redirect('duplicate_attempts_history_list')
 
-    filterset = DuplicateRecordAttemptFilter(request.GET, queryset=DuplicateRecordAttempt.objects.all().order_by('-timestamp'))
+    filterset = DuplicateRecordAttemptFilter(
+        request.GET,
+        queryset=DuplicateRecordAttempt.objects.select_related('user', 'resolved_by').order_by('-timestamp'),
+    )
 
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="duplicate_attempts.csv"'
+    def rows():
+        for attempt in filterset.qs.iterator(chunk_size=2000):
+            yield [
+                attempt.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                attempt.user.username,
+                str(attempt.data),
+                attempt.resolved_by.username if attempt.resolved_by else 'N/A',
+                attempt.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if attempt.resolved_at else 'N/A',
+            ]
 
-    writer = csv.writer(response)
-    writer.writerow([
-        'Timestamp', 'User', 'Data', 'Resolved By', 'Resolved At'
-    ])
-
-    for attempt in filterset.qs:
-        resolved_by_username = attempt.resolved_by.username if attempt.resolved_by else 'N/A'
-        resolved_at_timestamp = attempt.resolved_at.strftime('%Y-%m-%d %H:%M:%S') if attempt.resolved_at else 'N/A'
-        writer.writerow([
-            attempt.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-            attempt.user.username,
-            str(attempt.data),
-            resolved_by_username,
-            resolved_at_timestamp
-        ])
-
-    return response
+    return stream_csv(
+        'duplicate_attempts.csv',
+        ['Timestamp', 'User', 'Data', 'Resolved By', 'Resolved At'],
+        rows(),
+    )
 
 @login_required
 @never_cache
@@ -2069,11 +2073,11 @@ def create_bulk_receipts(request):
             # red inestable ya no genera falsos positivos.
             flush_duplicate_attempts(request, formset.forms)
             messages.error(request, 'Por favor, corrija los errores en el formulario.')
-            print(f"DEBUG: Transaction Form Errors: {transaction_form.errors}")
-            print(f"DEBUG: Formset Errors: {formset.errors}")
+            logger.debug(f"DEBUG: Transaction Form Errors: {transaction_form.errors}")
+            logger.debug(f"DEBUG: Formset Errors: {formset.errors}")
             for i, form in enumerate(formset):
                 if form.errors:
-                    print(f"DEBUG: Form {i} Errors: {form.errors}")
+                    logger.debug(f"DEBUG: Form {i} Errors: {form.errors}")
 
             context = {
                 'transaction_form': transaction_form,
@@ -2533,39 +2537,30 @@ def export_credits_csv(request):
     credit_filter = CreditFilter(request.GET, queryset=queryset)
     filtered_queryset = credit_filter.qs
 
-    # 3. Configuramos la respuesta HTTP para que sea un archivo CSV.
-    response = HttpResponse(
-        content_type='text/csv',
-        headers={'Content-Disposition': 'attachment; filename="recibos.csv"'},
-    )
-    response.write(u'\ufeff'.encode('utf8')) # BOM para que Excel abra bien los caracteres especiales (UTF-8)
-
-    # 4. Creamos el escritor CSV y definimos las columnas.
-    writer = csv.writer(response, delimiter=';')
-    writer.writerow([
+    header = [
         'ID', 'Cliente', 'Fecha', 'Hora', 'Comprobante', 'Banco',
         'Valor', 'Estado de Pago', 'Subido por', 'Asociado a Transacción ID',
         'Tipo de Transacción'
-    ])
+    ]
 
-    # 5. Iteramos sobre los recibos filtrados y escribimos cada fila en el CSV.
-    for credit in filtered_queryset:
-        writer.writerow([
-            credit.id,
-            credit.display_client(), # Usamos la propiedad que ya muestra el cliente correcto
-            credit.fecha,
-            credit.hora,
-            credit.comprobante,
-            credit.banco_llegada.name if credit.banco_llegada else '',
-            credit.valor,
-            credit.get_payment_status_display(), # Usamos el método para obtener el texto legible del estado
-            credit.uploaded_by.username if credit.uploaded_by else 'Sistema',
-            credit.transaction.unique_transaction_id if credit.transaction else 'N/A',
-            credit.transaction.transaction_type.name if credit.transaction else 'N/A'
-        ])
+    # 3. Las filas se generan y se envían por tandas (ver stream_csv).
+    def rows():
+        for credit in filtered_queryset.iterator(chunk_size=2000):
+            yield [
+                credit.id,
+                credit.display_client(),  # Muestra el cliente correcto (directo o de la transacción)
+                credit.fecha,
+                credit.hora,
+                credit.comprobante,
+                credit.banco_llegada.name if credit.banco_llegada else '',
+                credit.valor,
+                credit.get_payment_status_display(),  # Texto legible del estado
+                credit.uploaded_by.username if credit.uploaded_by else 'Sistema',
+                credit.transaction.unique_transaction_id if credit.transaction else 'N/A',
+                credit.transaction.transaction_type.name if credit.transaction else 'N/A',
+            ]
 
-    # 6. Devolvemos la respuesta.
-    return response
+    return stream_csv('recibos.csv', header, rows(), delimiter=';', bom=True)
 
 
 @require_POST

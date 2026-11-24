@@ -117,20 +117,20 @@
             <td>{{ transaction.vendedor }}</td>
             <td>{{ transaction.facturador }}</td>
             <td>{{ transaction.numero_factura }}</td>
-            <td>${{ transaction.receipts_total|intcomma }}</td>
+            <td>${{ transaction.receipts_total_calc|intcomma }}</td>
             <td>${{ transaction.expected_amount|intcomma }}</td>
             
             <!-- Celda Diferencia con color condicional -->
             <td>
                 <span class="status-badge-generic
-                    {% if transaction.difference >= -1000 and transaction.difference <= 1000 %}
+                    {% if transaction.difference_calc >= -1000 and transaction.difference_calc <= 1000 %}
                         bg-verde
-                    {% elif transaction.difference > 1000 %}
+                    {% elif transaction.difference_calc > 1000 %}
                         bg-rojo
                     {% else %}
                         bg-amarillo
                     {% endif %}">
-                    {{ transaction.difference|intcomma }}
+                    {{ transaction.difference_calc|intcomma }}
                 </span>
             </td>
 

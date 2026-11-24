@@ -1,4 +1,6 @@
 from .models import DuplicateRecordAttempt, AccessRequest
+from .utils import user_group_names as _user_group_names
+
 
 def duplicate_attempts_count(request):
     if request.user.is_authenticated and request.user.is_superuser:
@@ -11,15 +13,10 @@ def pending_requests_count(request):
         return {'pending_requests_count': AccessRequest.objects.filter(approved=False).count()}
     return {}
 
-# tu_app/context_processors.py
 
 def user_group_names(request):
     """
     Agrega una lista de los nombres de los grupos a los que pertenece el usuario
     actual al contexto de la plantilla.
     """
-    if request.user.is_authenticated:
-        # Obtiene una lista de los nombres de los grupos del usuario
-        groups = [group.name for group in request.user.groups.all()]
-        return {'user_groups': groups}
-    return {'user_groups': []} # Retorna una lista vacía si el usuario no está autenticado
+    return {'user_groups': list(_user_group_names(request.user))}

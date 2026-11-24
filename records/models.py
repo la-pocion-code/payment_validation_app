@@ -215,6 +215,11 @@ class Transaction(models.Model):
     class Meta:
         verbose_name = "Transacción"
         verbose_name_plural = "Transacciones"
+        indexes = [
+            # La lista de inicio filtra por estado y ordena por -id.
+            models.Index(fields=['status', '-id'], name='trx_status_id_idx'),
+            models.Index(fields=['date'], name='trx_date_idx'),
+        ]
 
     def __str__(self):
         return self.description if self.description else f"Transacción {self.id}"
@@ -273,6 +278,15 @@ class FinancialRecord(models.Model):
         verbose_name = "Registro Financiero"
         verbose_name_plural = "Registros Financieros"
         unique_together = ['fecha', 'hora', 'comprobante', 'banco_llegada', 'valor']
+        indexes = [
+            models.Index(fields=['payment_status'], name='rec_status_idx'),
+            # Recibos de una transacción por estado (lista del Facturador).
+            models.Index(fields=['transaction', 'payment_status'], name='rec_trx_status_idx'),
+            # Saldo a favor de un cliente (Client.available_balance).
+            models.Index(fields=['cliente', 'payment_status'], name='rec_client_status_idx'),
+            # La lista de recibos ordena por -creado.
+            models.Index(fields=['-creado'], name='rec_creado_idx'),
+        ]
 
     def display_client(self):
         """
