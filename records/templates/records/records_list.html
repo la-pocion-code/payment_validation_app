@@ -20,6 +20,7 @@
 
 {# Los resultados se actualizan solos al cambiar un filtro (HTMX); sin JavaScript, el botón Filtrar sigue funcionando. #}
 <form method="get" action="{% url 'record_list' %}" class="pv-card pv-filters" data-pv-filters
+      {% if status_is_default %}data-pv-default-field="status"{% endif %}
       hx-get="{% url 'record_list' %}" hx-target="#pv-results" hx-swap="outerHTML" hx-push-url="true"
       hx-trigger="submit, change, input delay:450ms" hx-sync="this:replace">
 

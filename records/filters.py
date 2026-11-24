@@ -37,14 +37,16 @@ class FinancialRecordFilter(django_filters.FilterSet):
 
 
 class DuplicateRecordAttemptFilter(django_filters.FilterSet):
+    # Por FECHA (timestamp__date): comparando contra el instante, «Hasta hoy» dejaba fuera
+    # todo lo ocurrido hoy después de las 00:00.
     timestamp__gte = django_filters.DateFilter(
-        field_name='timestamp',
+        field_name='timestamp__date',
         lookup_expr='gte',
         label='Desde',
         widget=forms.DateInput(attrs={'type': 'date'})
     )
     timestamp__lte = django_filters.DateFilter(
-        field_name='timestamp',
+        field_name='timestamp__date',
         lookup_expr='lte',
         label='Hasta',
         widget=forms.DateInput(attrs={'type': 'date'})
@@ -64,7 +66,9 @@ class DuplicateRecordAttemptFilter(django_filters.FilterSet):
         fields = ['user', 'timestamp__gte', 'timestamp__lte', 'banco']
 
 class TransactionFilter(django_filters.FilterSet):
-    id = django_filters.NumberFilter(
+    # Texto y no número: el ID es alfanumérico (NOV2426WC000002DCC0). Con NumberFilter no
+    # se podían escribir letras y los ceros a la izquierda se perdían.
+    id = django_filters.CharFilter(
         field_name='unique_transaction_id',
         lookup_expr='icontains',
         label='ID Transacción'

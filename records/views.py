@@ -1275,6 +1275,10 @@ class TransactionListView(LoginRequiredMixin, FilterView):
         params.pop('page', None)
         context['querystring'] = params.urlencode()
         context['has_advanced_filters'] = any(params.get(name) for name in self.ADVANCED_FILTERS)
+        # «Pendiente» puesto por omisión (nadie eligió estado): si la persona busca por
+        # factura, cliente, etc., la interfaz pasa a «Todas», como hacía el formulario
+        # anterior. Si no, buscar una factura —que está Facturada— no encontraba nada.
+        context['status_is_default'] = 'status' not in self.request.GET
         # Total de recibos y diferencia calculados sobre los recibos ya precargados.
         # Las propiedades Transaction.receipts_total / .difference lanzan un
         # aggregate cada vez que se nombran: en la plantilla eran hasta 5 consultas

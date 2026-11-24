@@ -757,3 +757,192 @@ class SinRolNoVeNadaTests(ConRecibos):
     def test_el_administrador_no_necesita_rol(self):
         self.client.force_login(User.objects.create_superuser('jefe', password='clave-larga-123'))
         self.assertEqual(self.client.get(reverse('record_list')).status_code, 200)
+
+
+class FiltrosTests(base.DatosBase):
+    """Cada filtro de cada lista devuelve lo que promete (página completa y parcial HTMX)."""
+
+    def setUp(self):
+        super().setUp()
+        from .models import Bank, Client, OrigenTransaccion, Seller, TransactionType
+        self.admin = User.objects.create_superuser('jefe', email='jefe@lapocion.com', password='clave-larga-123')
+        self.client.force_login(self.admin)
+        hoy = timezone.now().date()
+        self.hoy = hoy
+        self.ayer = hoy - timezone.timedelta(days=1)
+        self.hace10 = hoy - timezone.timedelta(days=10)
+        self.banco2 = Bank.objects.create(name='DAVIVIENDA')
+        self.origen2 = OrigenTransaccion.objects.create(name='DATAFONO')
+        self.vendedor2 = Seller.objects.create(name='LAURA GOMEZ')
+        self.cliente2 = Client.objects.create(name='DROGUERIA CENTRAL', dni='800555210')
+        self.tipo2 = TransactionType.objects.create(name='FLETE')
+
+        def tx(**kw):
+            datos = dict(date=hoy, cliente=self.cliente, vendedor=self.vendedor, transaction_type=self.tipo,
+                         expected_amount=Decimal('100000.00'), created_by=self.admin)
+            datos.update(kw)
+            return Transaction.objects.create(**datos)
+
+        def recibo(comprobante, **kw):
+            datos = dict(fecha=hoy, hora='09:00:00', comprobante=comprobante, banco_llegada=self.banco,
+                         origen_transaccion=self.origen, valor=Decimal('100000.00'), uploaded_by=self.admin)
+            datos.update(kw)
+            return FinancialRecord.objects.create(**datos)
+
+        self.pendiente = tx()
+        self.facturada = tx(status='Facturado', numero_factura='FV-55501', facturador='venriquez',
+                            vendedor=self.vendedor2, cliente=self.cliente2, date=self.ayer,
+                            expected_amount=Decimal('250000.00'))
+        self.anulada = tx(status='Anulado', date=self.hace10, transaction_type=self.tipo2,
+                          expected_amount=Decimal('75000.00'))
+        self.sin_recibos = tx(expected_amount=Decimal('9000.00'))
+
+        self.r_pend = recibo('PEND-1', transaction=self.pendiente)
+        self.r_fact = recibo('FACT-1', transaction=self.facturada, payment_status='Aprobado', banco_llegada=self.banco2,
+                             origen_transaccion=self.origen2, valor=Decimal('250000.00'), fecha=self.ayer,
+                             uploaded_by=self.user, revisado=True)
+        self.r_anul = recibo('ANUL-1', transaction=self.anulada, payment_status='Rechazado', fecha=self.hace10,
+                             valor=Decimal('75000.00'))
+        self.abono = recibo('ABONO-9', cliente=self.cliente2, valor=Decimal('20000.00'), hora='11:00:00')
+
+    # ── Transacciones ──
+    def transacciones(self, **params):
+        respuesta = self.client.get(reverse('record_list'), params)
+        self.assertEqual(respuesta.status_code, 200)
+        ids = {t.pk for t in respuesta.context['object_list']}
+        parcial = self.client.get(reverse('record_list'), params, HTTP_HX_REQUEST='true')
+        self.assertEqual({t.pk for t in parcial.context['object_list']}, ids)
+        return ids
+
+    def test_transacciones_cada_filtro(self):
+        todas = {self.pendiente.pk, self.facturada.pk, self.anulada.pk, self.sin_recibos.pk}
+        casos = [
+            ({}, {self.pendiente.pk, self.sin_recibos.pk}),                      # sin nada: Pendientes
+            ({'status': ''}, todas),
+            ({'status': 'Facturado'}, {self.facturada.pk}),
+            ({'status': 'Anulado'}, {self.anulada.pk}),
+            ({'status': 'No Facturable'}, set()),
+            ({'status': '', 'numero_factura': 'FV-55501'}, {self.facturada.pk}),
+            ({'status': '', 'numero_factura': '5550'}, {self.facturada.pk}),      # parte del número
+            ({'status': '', 'numero_factura': 'fv-555'}, {self.facturada.pk}),    # sin importar mayúsculas
+            ({'status': '', 'numero_factura': 'NO-EXISTE'}, set()),
+            ({'status': '', 'id': self.facturada.unique_transaction_id}, {self.facturada.pk}),
+            ({'status': '', 'id': self.facturada.unique_transaction_id[-6:].lower()}, {self.facturada.pk}),
+            ({'status': '', 'cliente': 'drogueria'}, {self.facturada.pk}),
+            ({'status': '', 'cliente': '800555'}, {self.facturada.pk}),
+            ({'status': '', 'vendedor': 'laura'}, {self.facturada.pk}),
+            ({'status': '', 'facturador': 'venri'}, {self.facturada.pk}),
+            ({'status': '', 'valor': '75000'}, {self.anulada.pk}),
+            ({'status': '', 'transaction_type': self.tipo2.pk}, {self.anulada.pk}),
+            ({'status': '', 'origen_transaccion': self.origen2.pk}, {self.facturada.pk}),
+            ({'status': '', 'receipt_status': 'Aprobado'}, {self.facturada.pk}),
+            ({'status': '', 'receipt_status': 'Rechazado'}, {self.anulada.pk}),
+            ({'status': '', 'receipt_status': 'Pendiente'}, {self.pendiente.pk}),
+            ({'status': '', 'date__gte': self.ayer.isoformat()}, todas - {self.anulada.pk}),
+            ({'status': '', 'date__lte': self.ayer.isoformat()}, {self.facturada.pk, self.anulada.pk}),
+            ({'status': '', 'date__gte': self.ayer.isoformat(), 'date__lte': self.ayer.isoformat()}, {self.facturada.pk}),
+            ({'status': 'Pendiente', 'cliente': 'CLIENTE PRUEBA'}, {self.pendiente.pk, self.sin_recibos.pk}),
+            ({'status': 'Facturado', 'vendedor': 'laura', 'numero_factura': 'FV'}, {self.facturada.pk}),
+        ]
+        for params, esperado in casos:
+            with self.subTest(filtros=params):
+                self.assertEqual(self.transacciones(**params), esperado)
+
+    def test_buscar_una_factura_desde_la_vista_inicial_la_encuentra(self):
+        """
+        Regresión: la lista abre en Pendientes y una factura está Facturada. La pantalla
+        marca que ese «Pendiente» es por omisión para soltarlo al usar otro filtro.
+        """
+        inicial = self.client.get(reverse('record_list')).content.decode()
+        self.assertIn('data-pv-default-field="status"', inicial)
+        elegido = self.client.get(reverse('record_list'), {'status': 'Pendiente'}).content.decode()
+        self.assertNotIn('data-pv-default-field', elegido)
+        # Lo que envía la pantalla al escribir la factura (estado ya en «Todas»):
+        self.assertEqual(self.transacciones(status='', numero_factura='FV-55501'), {self.facturada.pk})
+
+    def test_el_id_de_transaccion_acepta_letras(self):
+        html = self.client.get(reverse('record_list')).content.decode()
+        campo = html[html.index('name="id"') - 80: html.index('name="id"') + 40]
+        self.assertIn('type="text"', campo)
+
+    def test_exportar_respeta_los_filtros(self):
+        respuesta = self.client.get(reverse('export_transactions_csv'), {'status': '', 'numero_factura': 'FV-55501'})
+        contenido = b''.join(respuesta.streaming_content).decode('utf-8-sig')
+        self.assertIn('FV-55501', contenido)
+        self.assertNotIn(self.pendiente.unique_transaction_id, contenido)
+
+    # ── Recibos ──
+    def recibos(self, **params):
+        respuesta = self.client.get(reverse('credit_list'), params)
+        self.assertEqual(respuesta.status_code, 200)
+        ids = {r.pk for r in respuesta.context['credits']}
+        parcial = self.client.get(reverse('credit_list'), params, HTTP_HX_REQUEST='true')
+        self.assertEqual({r.pk for r in parcial.context['credits']}, ids)
+        return ids
+
+    def test_recibos_cada_filtro(self):
+        todos = {self.r_pend.pk, self.r_fact.pk, self.r_anul.pk, self.abono.pk}
+        casos = [
+            ({}, todos),
+            ({'payment_status': 'Pendiente'}, {self.r_pend.pk, self.abono.pk}),
+            ({'payment_status': 'Aprobado'}, {self.r_fact.pk}),
+            ({'payment_status': 'Rechazado'}, {self.r_anul.pk}),
+            ({'comprobante': 'fact'}, {self.r_fact.pk}),
+            ({'comprobante': '-1'}, {self.r_pend.pk, self.r_fact.pk, self.r_anul.pk}),
+            ({'display_client': 'drogueria'}, {self.r_fact.pk, self.abono.pk}),     # por transacción y por abono
+            ({'display_client': '900123'}, {self.r_pend.pk, self.r_anul.pk}),
+            ({'transaction_id': self.facturada.unique_transaction_id[-6:]}, {self.r_fact.pk}),
+            ({'transaccion_presencia': 'sin'}, {self.abono.pk}),
+            ({'transaccion_presencia': 'con'}, todos - {self.abono.pk}),
+            ({'banco_llegada': self.banco2.pk}, {self.r_fact.pk}),
+            ({'valor': '250000'}, {self.r_fact.pk}),
+            ({'valor': '20000'}, {self.abono.pk}),
+            ({'uploaded_by': self.user.pk}, {self.r_fact.pk}),
+            ({'vendedor': self.vendedor2.pk}, {self.r_fact.pk}),
+            ({'facturador': 'venriquez'}, {self.r_fact.pk}),
+            ({'ocultar_revisados': 'on'}, todos - {self.r_fact.pk}),
+            ({'fecha__gte': self.ayer.isoformat()}, todos - {self.r_anul.pk}),
+            ({'fecha__lte': self.ayer.isoformat()}, {self.r_fact.pk, self.r_anul.pk}),
+            ({'payment_status': 'Pendiente', 'transaccion_presencia': 'sin', 'display_client': 'DROG'}, {self.abono.pk}),
+        ]
+        for params, esperado in casos:
+            with self.subTest(filtros=params):
+                self.assertEqual(self.recibos(**params), esperado)
+
+    def test_exportar_recibos_respeta_los_filtros(self):
+        respuesta = self.client.get(reverse('export_credits_csv'), {'comprobante': 'FACT'})
+        contenido = b''.join(respuesta.streaming_content).decode('utf-8-sig')
+        self.assertIn('FACT-1', contenido)
+        self.assertNotIn('PEND-1', contenido)
+
+    # ── Clientes y duplicados ──
+    def test_clientes_por_nombre_y_documento(self):
+        def clientes(**params):
+            return {c.pk for c in self.client.get(reverse('Client_list'), params).context['clients']}
+        self.assertEqual(clientes(), {self.cliente.pk, self.cliente2.pk})
+        self.assertEqual(clientes(name='drog'), {self.cliente2.pk})
+        self.assertEqual(clientes(dni='900123'), {self.cliente.pk})
+        self.assertEqual(clientes(name='central', dni='999'), set())
+
+    def test_historial_de_duplicados_por_usuario_fecha_y_banco(self):
+        uno = DuplicateRecordAttempt.objects.create(user=self.admin, data={'comprobante': 'A', 'banco_llegada': 'BANCOLOMBIA'})
+        dos = DuplicateRecordAttempt.objects.create(user=self.user, data={'comprobante': 'B', 'banco_llegada': 'DAVIVIENDA'},
+                                                    is_resolved=True)
+
+        def intentos(**params):
+            return {a.pk for a in self.client.get(reverse('duplicate_attempts_history_list'), params).context['attempts']}
+        self.assertEqual(intentos(), {uno.pk, dos.pk})
+        self.assertEqual(intentos(user=self.user.pk), {dos.pk})
+        self.assertEqual(intentos(banco='davi'), {dos.pk})
+        self.assertEqual(intentos(timestamp__gte=self.hoy.isoformat()), {uno.pk, dos.pk})
+        self.assertEqual(intentos(timestamp__gte=(self.hoy + timezone.timedelta(days=2)).isoformat()), set())
+        # «Hasta hoy» incluye lo de hoy (antes lo dejaba fuera).
+        hoy_local = timezone.localdate()
+        self.assertEqual(intentos(timestamp__lte=hoy_local.isoformat()), {uno.pk, dos.pk})
+        self.assertEqual(intentos(timestamp__lte=(hoy_local - timezone.timedelta(days=1)).isoformat()), set())
+        # La bandeja solo muestra los que faltan por resolver.
+        self.assertEqual({a.pk for a in self.client.get(reverse('duplicate_attempts_list')).context['attempts']}, {uno.pk})
+
+    def test_el_buscador_encuentra_la_factura(self):
+        respuesta = self.client.get(reverse('global_search'), {'q': 'FV-55501'})
+        self.assertEqual(respuesta.context['transactions'], [self.facturada])

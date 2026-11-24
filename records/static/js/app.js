@@ -207,6 +207,31 @@
         });
     }
     syncChips();
+
+    // Filtro puesto por omisión (p. ej. Estado = Pendiente al abrir Transacciones): vale
+    // mientras nadie busque otra cosa. Al usar cualquier otro filtro sin haber elegido
+    // estado, se suelta («Todas»); si no, buscar una factura solo miraría las Pendientes.
+    // En fase de captura: corre antes de que HTMX lea los valores del formulario.
+    function releaseDefault(event) {
+        var form = event.target.closest && event.target.closest('form[data-pv-default-field]');
+        if (!form || !event.target.name) return;
+        var name = form.getAttribute('data-pv-default-field');
+        if (event.target.name === name) {            // la persona eligió estado: se respeta
+            form.removeAttribute('data-pv-default-field');
+            return;
+        }
+        if (event.target.value === '') return;
+        var field = form.elements[name];
+        form.removeAttribute('data-pv-default-field');
+        if (field && field.value !== '') {
+            field.value = '';
+            syncChips();
+            markFilters();
+        }
+    }
+    document.addEventListener('input', releaseDefault, true);
+    document.addEventListener('change', releaseDefault, true);
+
     document.addEventListener('click', function (event) {
         var chip = event.target.closest('[data-pv-set]');
         if (!chip) return;
