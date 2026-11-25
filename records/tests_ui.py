@@ -902,6 +902,10 @@ class FiltrosTests(base.DatosBase):
             ({'origen_transaccion': self.origen2.pk}, {self.r_fact.pk}),
             ({'origen_transaccion': self.origen.pk}, todos - {self.r_fact.pk}),
             ({'origen_transaccion': self.origen2.pk, 'payment_status': 'Pendiente'}, set()),
+            ({'transaction_type': self.tipo2.pk}, {self.r_anul.pk}),
+            ({'transaction_type': self.tipo.pk}, {self.r_pend.pk, self.r_fact.pk}),   # el abono no tiene tipo
+            ({'transaction_type': self.tipo.pk, 'payment_status': 'Aprobado'}, {self.r_fact.pk}),
+            ({'transaction_type': self.tipo2.pk, 'transaccion_presencia': 'sin'}, set()),
             ({'valor': '250000'}, {self.r_fact.pk}),
             ({'valor': '20000'}, {self.abono.pk}),
             ({'uploaded_by': self.user.pk}, {self.r_fact.pk}),
@@ -925,6 +929,11 @@ class FiltrosTests(base.DatosBase):
         contenido = b''.join(respuesta.streaming_content).decode('utf-8-sig')
         self.assertIn('FACT-1', contenido)
         self.assertNotIn('PEND-1', contenido)
+        respuesta = self.client.get(reverse('export_credits_csv'), {'transaction_type': self.tipo2.pk})
+        contenido = b''.join(respuesta.streaming_content).decode('utf-8-sig')
+        self.assertIn('ANUL-1', contenido)
+        self.assertNotIn('PEND-1', contenido)
+        self.assertNotIn('ABONO-9', contenido)
 
     def test_recibos_muestra_todos_los_filtros_sin_boton(self):
         html = self.client.get(reverse('credit_list')).content.decode()
@@ -932,7 +941,7 @@ class FiltrosTests(base.DatosBase):
         self.assertNotIn('pv-more-filters', html)
         for campo in ('display_client', 'comprobante', 'fecha__gte', 'fecha__lte', 'banco_llegada',
                       'origen_transaccion', 'payment_status', 'valor', 'transaction_id',
-                      'transaccion_presencia', 'uploaded_by', 'vendedor', 'facturador'):
+                      'transaccion_presencia', 'transaction_type', 'uploaded_by', 'vendedor', 'facturador'):
             self.assertIn(f'name="{campo}"', html)
         self.assertIn('DATAFONO', html)
 

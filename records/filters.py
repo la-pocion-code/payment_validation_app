@@ -1,5 +1,5 @@
 import django_filters
-from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client, OrigenTransaccion, Seller
+from .models import FinancialRecord, DuplicateRecordAttempt, Bank, Transaction, Client, OrigenTransaccion, Seller, TransactionType
 from django.contrib.auth.models import User
 from django import forms
 from django.db.models import Q
@@ -212,6 +212,14 @@ class CreditFilter(django_filters.FilterSet):
         label='Origen de la transacción',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
+    # Tipo de la transacción a la que está asociado el recibo (Pedido, Flete…). Un abono
+    # sin transacción no tiene tipo, así que al elegir uno queda fuera.
+    transaction_type = django_filters.ModelChoiceFilter(
+        field_name='transaction__transaction_type',
+        queryset=TransactionType.objects.all(),
+        label='Tipo de transacción',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     # Filtro personalizado para buscar por el cliente mostrado (directo o a través de la transacción)
     display_client = django_filters.CharFilter(
@@ -274,7 +282,7 @@ class CreditFilter(django_filters.FilterSet):
     class Meta:
         model = FinancialRecord
         fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'transaction_id', 'transaccion_presencia',
-                  'banco_llegada', 'origen_transaccion', 'payment_status',
+                  'banco_llegada', 'origen_transaccion', 'transaction_type', 'payment_status',
                   'display_client', 'valor', 'uploaded_by', 'vendedor', 'facturador', 'ocultar_revisados']
 
 

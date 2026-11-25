@@ -84,6 +84,10 @@
             {{ filter.form.transaccion_presencia }}
         </div>
         <div class="pv-field">
+            <label for="{{ filter.form.transaction_type.id_for_label }}">Tipo de transacción</label>
+            {{ filter.form.transaction_type }}
+        </div>
+        <div class="pv-field">
             <label for="{{ filter.form.uploaded_by.id_for_label }}">Subido por</label>
             {{ filter.form.uploaded_by }}
         </div>
