@@ -1429,8 +1429,22 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                     status_changed_to_billed = 'status' in form.changed_data and form.cleaned_data.get('status') == 'Facturado'
                     invoice_number_added = 'numero_factura' in form.changed_data and form.cleaned_data.get('numero_factura')
 
+                    # Un formulario que llega con «Facturador» vacío no borra a quien ya facturó.
+                    # Pasaba con los administradores (tienen ese campo editable): un doble envío o
+                    # una pestaña abierta desde antes de facturar lo dejaban en blanco.
+                    stored_facturador = (Transaction.objects.filter(pk=self.object.pk)
+                                         .values_list('facturador', flat=True).first())
+                    if not (self.object.facturador or '').strip() and stored_facturador:
+                        self.object.facturador = stored_facturador
+
                     # Si se cumple alguna de las condiciones, el usuario actual es el facturador.
                     if status_changed_to_billed or invoice_number_added:
+                        self.object.facturador = self.request.user.username
+                    elif ((self.object.numero_factura or '').strip()
+                          and not (self.object.facturador or '').strip()
+                          and (is_superuser or is_facturador)):
+                        # Tiene factura pero nadie quedó como facturador: lo asume quien
+                        # factura y guarda ahora.
                         self.object.facturador = self.request.user.username
                     # -------------------- FIN: Nueva lógica para asignar facturador ---------------------
 
@@ -1551,6 +1565,15 @@ class TransactionUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView)
                 )
 
             messages.success(self.request, self.success_message)
+            # Tiene número de factura pero el estado no avanzó: recordarlo a quien puede cambiarlo.
+            if ((is_superuser or is_facturador) and (self.object.numero_factura or '').strip()
+                    and self.object.status == 'Pendiente'):
+                messages.warning(
+                    self.request,
+                    f'La transacción {self.object.unique_transaction_id} ya tiene la factura '
+                    f'{self.object.numero_factura}, pero sigue en «Pendiente». '
+                    'Cambia el estado a «Facturado».'
+                )
             return redirect(self.get_success_url())
 
         else:

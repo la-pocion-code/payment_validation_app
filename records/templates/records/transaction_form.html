@@ -142,10 +142,12 @@
                     {{ form.numero_factura.errors }}
                 </div>
 
-                <div class="pv-field">
+                <div class="pv-field" data-pv-status-field>
                     <label for="{{ form.status.id_for_label }}">Estado de la transacción</label>
                     {% if is_admin or is_facturador %}
                         {{ form.status }}
+                        {# Se muestra (app.js no; el script de esta página) cuando ya hay factura y el estado sigue en Pendiente. #}
+                        <span class="pv-field__warn" data-pv-invoice-hint hidden>Ya tiene número de factura: cambia el estado a «Facturado».</span>
                     {% else %}
                         <input type="text" value="{{ form.instance.status }}" readonly>
                         <input type="hidden" name="{{ form.status.name }}" value="{{ form.instance.status }}">
@@ -606,6 +608,21 @@ document.addEventListener('DOMContentLoaded', function () {
     autocomplete('id_seller_search', 'id_vendedor_id', "{% url 'seller_search_ajax' %}");
 
     updateTotals();
+
+    // ── Ya hay factura pero el estado sigue en Pendiente ──────────────────
+    const invoiceInput = document.getElementById('id_numero_factura');
+    const statusSelect = form.querySelector('select[name="status"]');
+    const invoiceHint = form.querySelector('[data-pv-invoice-hint]');
+    if (invoiceInput && statusSelect && invoiceHint) {
+        const checkInvoice = function () {
+            const pending = invoiceInput.value.trim() !== '' && statusSelect.value === 'Pendiente';
+            invoiceHint.hidden = !pending;
+            statusSelect.closest('[data-pv-status-field]').classList.toggle('needs-attention', pending);
+        };
+        invoiceInput.addEventListener('input', checkInvoice);
+        statusSelect.addEventListener('change', checkInvoice);
+        checkInvoice();
+    }
 });
 </script>
 

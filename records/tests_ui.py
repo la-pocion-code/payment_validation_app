@@ -1052,3 +1052,88 @@ class FiltrosALaVistaTests(base.DatosBase):
                  'name="facturador"', 'name="transaction_type"', 'name="origen_transaccion"']
         posiciones = [html.index(campo) for campo in orden]
         self.assertEqual(posiciones, sorted(posiciones))
+
+
+class FacturadorYAvisoDeEstadoTests(ConRecibos):
+    """
+    Quien pone el número de factura queda como facturador, y nadie lo borra después.
+    Caso real (producción, 2026-08 y 2026-09): un administrador facturaba y un segundo
+    envío del formulario, con el campo «Facturador» vacío, lo dejaba en blanco.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.transaccion.numero_factura = None
+        self.transaccion.save()
+        self.url = reverse('transaction_update', args=[self.transaccion.pk])
+
+    def pagina(self):
+        respuesta = self.client.get(self.url)
+        self.assertEqual(respuesta.status_code, 200)
+        formulario = _Formulario()
+        formulario.feed(respuesta.content.decode())
+        return dict(formulario.datos), respuesta.content.decode()
+
+    def guardar(self, datos, **cambios):
+        datos = dict(datos, **cambios)
+        respuesta = self.client.post(self.url, datos, follow=True)
+        self.transaccion.refresh_from_db()
+        return [str(m) for m in respuesta.context['messages']]
+
+    def test_el_facturador_que_pone_la_factura_queda_como_facturador(self):
+        facturador = self.entrar_como('Facturador')
+        datos, _ = self.pagina()
+        self.guardar(datos, numero_factura='FE-1', status='Facturado')
+        self.assertEqual((self.transaccion.numero_factura, self.transaccion.facturador), ('FE-1', facturador.username))
+
+    def test_un_segundo_envio_con_el_campo_vacio_no_borra_al_facturador(self):
+        admin = User.objects.create_superuser('acal', password='clave-larga-123')
+        self.client.force_login(admin)
+        primera, _ = self.pagina()        # dos pestañas abiertas antes de facturar:
+        segunda, _ = self.pagina()        # ambas con «Facturador» vacío
+        self.assertEqual(primera.get('facturador'), '')
+        self.guardar(primera, numero_factura='FE-2', status='Facturado')
+        self.assertEqual(self.transaccion.facturador, 'acal')
+        self.guardar(segunda, numero_factura='FE-2', status='Facturado')
+        self.assertEqual(self.transaccion.facturador, 'acal')
+
+    def test_el_administrador_puede_poner_otro_facturador_a_proposito(self):
+        self.transaccion.numero_factura, self.transaccion.facturador = 'FE-3', 'mzapata'
+        self.transaccion.save()
+        self.client.force_login(User.objects.create_superuser('acal', password='clave-larga-123'))
+        datos, _ = self.pagina()
+        self.guardar(datos, facturador='dcordoba')
+        self.assertEqual(self.transaccion.facturador, 'dcordoba')
+
+    def test_factura_sin_facturador_la_asume_quien_factura_y_no_un_validador(self):
+        self.transaccion.numero_factura = 'FE-4'
+        self.transaccion.save()
+        self.entrar_como('Validador')
+        datos, _ = self.pagina()
+        self.guardar(datos)
+        self.assertIsNone(self.transaccion.facturador)
+        facturador = self.entrar_como('Facturador')
+        datos, _ = self.pagina()
+        self.guardar(datos)
+        self.assertEqual(self.transaccion.facturador, facturador.username)
+
+    def test_aviso_de_cambiar_el_estado_cuando_ya_hay_factura(self):
+        self.entrar_como('Facturador')
+        datos, html = self.pagina()
+        self.assertIn('class="pv-field__warn" data-pv-invoice-hint', html)
+        avisos = self.guardar(datos, numero_factura='FE-5')
+        self.assertEqual(self.transaccion.status, 'Pendiente')
+        self.assertTrue(any('FE-5' in a and 'Facturado' in a for a in avisos), avisos)
+        # Con el estado ya en Facturado, no se repite.
+        datos, _ = self.pagina()
+        avisos = self.guardar(datos, status='Facturado')
+        self.assertFalse(any('sigue en «Pendiente»' in a for a in avisos), avisos)
+
+    def test_el_validador_no_ve_el_aviso(self):
+        self.transaccion.numero_factura = 'FE-6'
+        self.transaccion.save()
+        self.entrar_como('Validador')
+        datos, html = self.pagina()
+        self.assertNotIn('class="pv-field__warn" data-pv-invoice-hint', html)
+        avisos = self.guardar(datos)
+        self.assertFalse(any('sigue en «Pendiente»' in a for a in avisos), avisos)

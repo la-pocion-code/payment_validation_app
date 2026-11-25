@@ -353,6 +353,9 @@ select.pv-status--lg { height: 36px; padding: 0 32px 0 16px; font-size: 14px; }
 .pv-field .pv-input-num, .pv-field input[name$="-valor"], .pv-field input#id_expected_amount { text-align: right; font-variant-numeric: tabular-nums; }
 .pv-field .errorlist, .pv-content .pv-field .errorlist, .pv-errors { list-style: none; margin: 6px 0 0; padding: 7px 10px; border: 0; border-radius: 8px; background: var(--pv-bad-soft); color: var(--pv-bad); font-size: 13px; font-weight: 600; }
 .pv-field__hint { display: block; margin-top: 4px; font-size: 12.5px; color: var(--pv-info); }
+.pv-field__warn { display: block; margin-top: 6px; padding: 6px 9px; border-radius: 8px; background: var(--pv-warn-soft); color: #6b4700; font-size: 12.5px; font-weight: 600; }
+.pv-field__warn[hidden] { display: none; }
+.pv-field.needs-attention select { border-color: #e0a100; box-shadow: 0 0 0 3px rgba(224, 161, 0, .18); }
 .pv-dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 16px; margin: 0; }
 .pv-dl dt { font-size: 12px; font-weight: 650; color: var(--pv-ink-soft); }
 .pv-dl dd { margin: 2px 0 0; color: var(--pv-ink-strong); font-weight: 600; }
