@@ -393,16 +393,11 @@ class CreditListView(LoginRequiredMixin, FilterView):
         context['can_review'] = user.is_superuser or bool(groups & {'Validador', 'Contabilidad'})
         context['can_open_detail'] = user.is_superuser or bool(
             groups & {'Admin', 'Digitador', 'Validador', 'Contabilidad'})
-        context['has_advanced_filters'] = any(
-            self.request.GET.get(name) for name in self.ADVANCED_FILTERS)
         # Suma de lo filtrado (todas las páginas): una consulta, no depende de las filas.
         filtered = context['filter'].qs.order_by().values('pk')
         context['total_valor'] = FinancialRecord.objects.filter(pk__in=filtered).aggregate(
             total=Sum('valor'))['total'] or Decimal('0')
         return context
-
-    ADVANCED_FILTERS = ('transaction_id', 'transaccion_presencia', 'valor', 'uploaded_by',
-                        'vendedor', 'facturador')
 
     def get_template_names(self):
         # Las peticiones HTMX (filtros en vivo, paginación) reciben solo la tabla.

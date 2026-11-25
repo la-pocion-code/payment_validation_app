@@ -156,7 +156,6 @@ class ListaDeRecibosTests(ConRecibos):
         self.assertEqual(respuesta.context['total_valor'], Decimal('170000.00'))
         respuesta = self.client.get(reverse('credit_list'), {'transaccion_presencia': 'sin'})
         self.assertEqual(respuesta.context['total_valor'], Decimal('20000.00'))
-        self.assertTrue(respuesta.context['has_advanced_filters'])
 
     def test_solo_el_validador_ve_el_selector_de_estado(self):
         self.assertNotContains(self.client.get(reverse('credit_list')), 'data-pv-status')
@@ -674,8 +673,11 @@ class GuardarSinCambiosTests(ConRecibos):
         self.recibo.refresh_from_db()
         self.assertEqual(self.recibo.payment_status, 'Aprobado')
         self.assertEqual(str(self.recibo.hora), '09:07:37')
-        ultimo = FinancialRecord.history.filter(id=self.recibo.pk).first()
-        self.assertEqual([c.field for c in ultimo.diff_against(ultimo.prev_record).changes if c.field != 'modificado'],
+        # Se compara contra el registro anterior por id y no con prev_record: en Windows el
+        # reloj tiene ~15 ms de resolución, dos registros pueden quedar con la misma hora y
+        # prev_record elegir el equivocado.
+        ultimo, anterior = FinancialRecord.history.filter(id=self.recibo.pk).order_by('-history_id')[:2]
+        self.assertEqual([c.field for c in ultimo.diff_against(anterior).changes if c.field != 'modificado'],
                          ['payment_status'])
         self.assertEqual(ultimo.history_user, validador)
 
@@ -897,6 +899,9 @@ class FiltrosTests(base.DatosBase):
             ({'transaccion_presencia': 'sin'}, {self.abono.pk}),
             ({'transaccion_presencia': 'con'}, todos - {self.abono.pk}),
             ({'banco_llegada': self.banco2.pk}, {self.r_fact.pk}),
+            ({'origen_transaccion': self.origen2.pk}, {self.r_fact.pk}),
+            ({'origen_transaccion': self.origen.pk}, todos - {self.r_fact.pk}),
+            ({'origen_transaccion': self.origen2.pk, 'payment_status': 'Pendiente'}, set()),
             ({'valor': '250000'}, {self.r_fact.pk}),
             ({'valor': '20000'}, {self.abono.pk}),
             ({'uploaded_by': self.user.pk}, {self.r_fact.pk}),
@@ -916,6 +921,20 @@ class FiltrosTests(base.DatosBase):
         contenido = b''.join(respuesta.streaming_content).decode('utf-8-sig')
         self.assertIn('FACT-1', contenido)
         self.assertNotIn('PEND-1', contenido)
+        respuesta = self.client.get(reverse('export_credits_csv'), {'origen_transaccion': self.origen2.pk})
+        contenido = b''.join(respuesta.streaming_content).decode('utf-8-sig')
+        self.assertIn('FACT-1', contenido)
+        self.assertNotIn('PEND-1', contenido)
+
+    def test_recibos_muestra_todos_los_filtros_sin_boton(self):
+        html = self.client.get(reverse('credit_list')).content.decode()
+        self.assertNotIn('data-pv-more-filters', html)
+        self.assertNotIn('pv-more-filters', html)
+        for campo in ('display_client', 'comprobante', 'fecha__gte', 'fecha__lte', 'banco_llegada',
+                      'origen_transaccion', 'payment_status', 'valor', 'transaction_id',
+                      'transaccion_presencia', 'uploaded_by', 'vendedor', 'facturador'):
+            self.assertIn(f'name="{campo}"', html)
+        self.assertIn('DATAFONO', html)
 
     # ── Clientes y duplicados ──
     def test_clientes_por_nombre_y_documento(self):

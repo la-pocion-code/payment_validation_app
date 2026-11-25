@@ -206,6 +206,12 @@ class CreditFilter(django_filters.FilterSet):
         label='Estado',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
+    # Origen del propio recibo (Transferencia, Datáfono…), no el de la transacción.
+    origen_transaccion = django_filters.ModelChoiceFilter(
+        queryset=OrigenTransaccion.objects.all(),
+        label='Origen de la transacción',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     # Filtro personalizado para buscar por el cliente mostrado (directo o a través de la transacción)
     display_client = django_filters.CharFilter(
@@ -268,7 +274,7 @@ class CreditFilter(django_filters.FilterSet):
     class Meta:
         model = FinancialRecord
         fields = ['fecha__gte', 'fecha__lte', 'comprobante', 'transaction_id', 'transaccion_presencia',
-                  'banco_llegada', 'payment_status',
+                  'banco_llegada', 'origen_transaccion', 'payment_status',
                   'display_client', 'valor', 'uploaded_by', 'vendedor', 'facturador', 'ocultar_revisados']
 
 

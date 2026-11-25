@@ -41,6 +41,7 @@
         </label>
     </div>
 
+    {# Todos los filtros a la vista (sin «Más filtros»), igual que en Transacciones. #}
     <div class="pv-filters__grid">
         <div class="pv-field">
             <label for="{{ filter.form.display_client.id_for_label }}">Cliente (nombre o documento)</label>
@@ -63,47 +64,42 @@
             {{ filter.form.banco_llegada }}
         </div>
         <div class="pv-field">
+            <label for="{{ filter.form.origen_transaccion.id_for_label }}">Origen de la transacción</label>
+            {{ filter.form.origen_transaccion }}
+        </div>
+        <div class="pv-field">
             <label for="{{ filter.form.payment_status.id_for_label }}">Estado del pago</label>
             {{ filter.form.payment_status }}
         </div>
-    </div>
-
-    <div class="pv-filters__more" id="pv-more-filters" {% if not has_advanced_filters %}hidden{% endif %}>
-        <div class="pv-filters__grid" style="margin-top: 12px;">
-            <div class="pv-field">
-                <label for="{{ filter.form.transaction_id.id_for_label }}">ID de transacción</label>
-                {{ filter.form.transaction_id }}
-            </div>
-            <div class="pv-field">
-                <label for="{{ filter.form.transaccion_presencia.id_for_label }}">Con o sin transacción</label>
-                {{ filter.form.transaccion_presencia }}
-            </div>
-            <div class="pv-field">
-                <label for="{{ filter.form.valor.id_for_label }}">Valor</label>
-                {{ filter.form.valor }}
-            </div>
-            <div class="pv-field">
-                <label for="{{ filter.form.uploaded_by.id_for_label }}">Subido por</label>
-                {{ filter.form.uploaded_by }}
-            </div>
-            <div class="pv-field">
-                <label for="{{ filter.form.vendedor.id_for_label }}">Vendedor</label>
-                {{ filter.form.vendedor }}
-            </div>
-            <div class="pv-field">
-                <label for="{{ filter.form.facturador.id_for_label }}">Facturador</label>
-                {{ filter.form.facturador }}
-            </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.valor.id_for_label }}">Valor</label>
+            {{ filter.form.valor }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.transaction_id.id_for_label }}">ID de transacción</label>
+            {{ filter.form.transaction_id }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.transaccion_presencia.id_for_label }}">Con o sin transacción</label>
+            {{ filter.form.transaccion_presencia }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.uploaded_by.id_for_label }}">Subido por</label>
+            {{ filter.form.uploaded_by }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.vendedor.id_for_label }}">Vendedor</label>
+            {{ filter.form.vendedor }}
+        </div>
+        <div class="pv-field">
+            <label for="{{ filter.form.facturador.id_for_label }}">Facturador</label>
+            {{ filter.form.facturador }}
         </div>
     </div>
 
     <div class="pv-filters__actions">
         <button type="submit" class="pv-btn pv-btn--primary pv-btn--sm">
             {% include 'records/components/icon.html' with name='filter' %}Filtrar
-        </button>
-        <button type="button" class="pv-btn pv-btn--ghost pv-btn--sm" data-pv-more-filters
-                aria-controls="pv-more-filters" aria-expanded="{% if has_advanced_filters %}true{% else %}false{% endif %}">
-            <span data-pv-label>{% if has_advanced_filters %}Menos filtros{% else %}Más filtros{% endif %}</span>
         </button>
         <a href="{% url 'credit_list' %}" class="pv-btn pv-btn--ghost pv-btn--sm">Limpiar</a>
         <span class="pv-filters__hint" data-pv-filter-count></span>
